@@ -4,7 +4,7 @@
 
 SkimDown では Markdown ファイル間を相対パスでリンクできます:
 
-- [README に戻る](../README.md)
+- [README に戻る](../../README_ja.md)
 - [見出しサンプル](headings.md)
 - [テキスト装飾](text-formatting.md)
 - [リストサンプル](lists.md)
