@@ -13,6 +13,7 @@ final class SidebarViewController: NSViewController, NSOutlineViewDataSource, NS
 
     private let titleLabel = NSTextField(labelWithString: "")
     private let countLabel = NSTextField(labelWithString: "")
+    private let separator = NSBox()
     private let outlineView = NSOutlineView()
     private let scrollView = NSScrollView()
     private var treeItems: [MarkdownTreeItem] = []
@@ -64,25 +65,32 @@ final class SidebarViewController: NSViewController, NSOutlineViewDataSource, NS
         scrollView.translatesAutoresizingMaskIntoConstraints = false
 
         view.addSubview(headerView)
+        separator.boxType = .separator
+        separator.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(separator)
         view.addSubview(scrollView)
 
         NSLayoutConstraint.activate([
             headerView.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 16),
             headerView.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -16),
-            headerView.topAnchor.constraint(equalTo: view.topAnchor, constant: 14),
-            headerView.heightAnchor.constraint(equalToConstant: 58),
+            headerView.topAnchor.constraint(equalTo: view.topAnchor, constant: 6),
+            headerView.heightAnchor.constraint(equalToConstant: 54),
 
             titleLabel.leadingAnchor.constraint(equalTo: headerView.leadingAnchor),
             titleLabel.trailingAnchor.constraint(equalTo: headerView.trailingAnchor),
-            titleLabel.topAnchor.constraint(equalTo: headerView.topAnchor, constant: 8),
+            titleLabel.topAnchor.constraint(equalTo: headerView.topAnchor, constant: 4),
 
             countLabel.leadingAnchor.constraint(equalTo: titleLabel.leadingAnchor),
             countLabel.trailingAnchor.constraint(equalTo: titleLabel.trailingAnchor),
             countLabel.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 4),
 
+            separator.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            separator.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            separator.topAnchor.constraint(equalTo: headerView.bottomAnchor),
+
             scrollView.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 10),
             scrollView.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -10),
-            scrollView.topAnchor.constraint(equalTo: headerView.bottomAnchor),
+            scrollView.topAnchor.constraint(equalTo: separator.bottomAnchor),
             scrollView.bottomAnchor.constraint(equalTo: view.bottomAnchor)
         ])
     }
