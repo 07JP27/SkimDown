@@ -51,6 +51,8 @@ final class SidebarViewController: NSViewController, NSOutlineViewDataSource, NS
         outlineView.style = .sourceList
         outlineView.dataSource = self
         outlineView.delegate = self
+        outlineView.target = self
+        outlineView.action = #selector(outlineViewClicked(_:))
         outlineView.allowsEmptySelection = true
         outlineView.allowsMultipleSelection = false
         outlineView.backgroundColor = .clear
@@ -192,6 +194,20 @@ final class SidebarViewController: NSViewController, NSOutlineViewDataSource, NS
 
     func outlineViewItemDidCollapse(_ notification: Notification) {
         updateExpandedPathsFromOutline()
+    }
+
+    @objc private func outlineViewClicked(_ sender: Any?) {
+        let row = outlineView.clickedRow
+        guard row >= 0,
+              let item = outlineView.item(atRow: row) as? MarkdownTreeItem,
+              item.isDirectory else {
+            return
+        }
+        if outlineView.isItemExpanded(item) {
+            outlineView.animator().collapseItem(item)
+        } else {
+            outlineView.animator().expandItem(item)
+        }
     }
 
     private func restoreExpandedItems() {
