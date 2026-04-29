@@ -18,6 +18,7 @@ final class SidebarViewController: NSViewController, NSOutlineViewDataSource, NS
     private let scrollView = NSScrollView()
     private var treeItems: [MarkdownTreeItem] = []
     private var expandedPaths: Set<String> = []
+    private var isProgrammaticSelection = false
 
     override func loadView() {
         let rootView = FolderDropVisualEffectView()
@@ -110,16 +111,65 @@ final class SidebarViewController: NSViewController, NSOutlineViewDataSource, NS
             return
         }
 
+        let canonical = fileURL.skimdownCanonicalFileURL
+
+        // Fast path: file is in a currently visible (expanded) row
+        if let row = visibleRow(for: canonical) {
+            selectRow(row)
+            return
+        }
+
+        // Slow path: file is inside a collapsed directory — expand ancestors first
+        guard let item = findTreeItem(matching: canonical, in: treeItems) else {
+            return
+        }
+
+        var ancestors: [MarkdownTreeItem] = []
+        var current: MarkdownTreeItem? = item.parent
+        while let ancestor = current {
+            ancestors.append(ancestor)
+            current = ancestor.parent
+        }
+
+        for ancestor in ancestors.reversed() {
+            outlineView.animator().expandItem(ancestor)
+        }
+        updateExpandedPathsFromOutline()
+
+        if let row = visibleRow(for: canonical) {
+            selectRow(row)
+        }
+    }
+
+    private func selectRow(_ row: Int) {
+        isProgrammaticSelection = true
+        outlineView.selectRowIndexes(IndexSet(integer: row), byExtendingSelection: false)
+        isProgrammaticSelection = false
+        outlineView.scrollRowToVisible(row)
+    }
+
+    private func visibleRow(for canonicalURL: URL) -> Int? {
         for row in 0..<outlineView.numberOfRows {
             guard let item = outlineView.item(atRow: row) as? MarkdownTreeItem else {
                 continue
             }
-            if item.fileURL?.skimdownCanonicalFileURL == fileURL.skimdownCanonicalFileURL {
-                outlineView.selectRowIndexes(IndexSet(integer: row), byExtendingSelection: false)
-                outlineView.scrollRowToVisible(row)
-                return
+            if item.fileURL?.skimdownCanonicalFileURL == canonicalURL {
+                return row
             }
         }
+        return nil
+    }
+
+    private func findTreeItem(matching canonicalURL: URL, in items: [MarkdownTreeItem]) -> MarkdownTreeItem? {
+        for item in items {
+            if !item.isDirectory, item.fileURL?.skimdownCanonicalFileURL == canonicalURL {
+                return item
+            }
+            if let found = findTreeItem(matching: canonicalURL, in: item.children) {
+                return found
+            }
+        }
+        return nil
     }
 
     func numberOfChildren(of item: Any?) -> Int {
@@ -187,6 +237,9 @@ final class SidebarViewController: NSViewController, NSOutlineViewDataSource, NS
     }
 
     func outlineViewSelectionDidChange(_ notification: Notification) {
+        guard !isProgrammaticSelection else {
+            return
+        }
         let row = outlineView.selectedRow
         guard row >= 0,
               let item = outlineView.item(atRow: row) as? MarkdownTreeItem,
