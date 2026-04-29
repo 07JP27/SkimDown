@@ -102,7 +102,7 @@ export default defineConfig({
     },
 
     footer: {
-      message: 'A beautiful reader for generated Markdown.',
+      message: 'Released under the GPL-3.0 License.',
       copyright: '© 2026 <a href="https://github.com/07JP27">07JP27</a>',
     },
   },
