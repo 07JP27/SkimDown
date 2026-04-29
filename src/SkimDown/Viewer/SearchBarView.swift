@@ -105,6 +105,11 @@ final class SearchBarView: NSView, NSSearchFieldDelegate {
         delegate?.searchBarViewDidRequestNext(self)
     }
 
+    override func viewDidChangeEffectiveAppearance() {
+        super.viewDidChangeEffectiveAppearance()
+        layer?.backgroundColor = NSColor.windowBackgroundColor.cgColor
+    }
+
     @objc private func close() {
         delegate?.searchBarViewDidRequestClose(self)
     }

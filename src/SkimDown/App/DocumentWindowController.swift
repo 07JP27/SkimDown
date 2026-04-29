@@ -13,6 +13,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Side
     private let markdownWebView = MarkdownWebView()
     private let emptyStateView = EmptyStateView()
     private let searchBarView = SearchBarView()
+    private let dragOverlayView = DragOverlayView()
 
     private var sidebarItem: NSSplitViewItem!
     private var contentItem: NSSplitViewItem!
@@ -61,7 +62,14 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Side
         contentRootView.onFolderDropped = { [weak self] folderURL in
             self?.handleDroppedFolder(folderURL)
         }
+        sidebarViewController.onFolderDropped = { [weak self] folderURL in
+            self?.handleDroppedFolder(folderURL)
+        }
+        dragOverlayView.onFolderDropped = { [weak self] folderURL in
+            self?.handleDroppedFolder(folderURL)
+        }
 
+        applyWindowAppearance(settings.theme)
         showEmptyState(.initial)
     }
 
@@ -226,6 +234,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Side
     func setTheme(_ theme: AppTheme) {
         settings.theme = theme
         settingsStore.theme = theme
+        applyWindowAppearance(theme)
         reloadSelectedMarkdown()
     }
 
@@ -295,12 +304,14 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Side
         markdownWebView.translatesAutoresizingMaskIntoConstraints = false
         emptyStateView.translatesAutoresizingMaskIntoConstraints = false
         searchBarView.translatesAutoresizingMaskIntoConstraints = false
+        dragOverlayView.translatesAutoresizingMaskIntoConstraints = false
         searchBarView.isHidden = true
         searchBarHeightConstraint = searchBarView.heightAnchor.constraint(equalToConstant: 0)
 
         contentRootView.addSubview(markdownWebView)
         contentRootView.addSubview(emptyStateView)
         contentRootView.addSubview(searchBarView)
+        contentRootView.addSubview(dragOverlayView, positioned: .above, relativeTo: nil)
         documentContentViewController.view = contentRootView
 
         NSLayoutConstraint.activate([
@@ -317,7 +328,12 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Side
             emptyStateView.leadingAnchor.constraint(equalTo: contentRootView.leadingAnchor),
             emptyStateView.trailingAnchor.constraint(equalTo: contentRootView.trailingAnchor),
             emptyStateView.topAnchor.constraint(equalTo: contentRootView.topAnchor),
-            emptyStateView.bottomAnchor.constraint(equalTo: contentRootView.bottomAnchor)
+            emptyStateView.bottomAnchor.constraint(equalTo: contentRootView.bottomAnchor),
+
+            dragOverlayView.leadingAnchor.constraint(equalTo: contentRootView.leadingAnchor),
+            dragOverlayView.trailingAnchor.constraint(equalTo: contentRootView.trailingAnchor),
+            dragOverlayView.topAnchor.constraint(equalTo: contentRootView.topAnchor),
+            dragOverlayView.bottomAnchor.constraint(equalTo: contentRootView.bottomAnchor)
         ])
     }
 
@@ -532,6 +548,17 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Side
             openFolder(folderURL)
         } else {
             windowManager?.openFolder(folderURL, preferExistingEmptyWindow: false)
+        }
+    }
+
+    private func applyWindowAppearance(_ theme: AppTheme) {
+        switch theme {
+        case .system:
+            window?.appearance = nil
+        case .light:
+            window?.appearance = NSAppearance(named: .aqua)
+        case .dark:
+            window?.appearance = NSAppearance(named: .darkAqua)
         }
     }
 

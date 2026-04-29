@@ -15,11 +15,13 @@
 		42FCB6FBF4B471C8285C52D1 /* SettingsStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DEAC02249ED8CB20105C8DE9 /* SettingsStoreTests.swift */; };
 		4EFCC8E7E5163C8DDB0E6340 /* DocumentWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 37D205460A8C985C286FA3C8 /* DocumentWindowController.swift */; };
 		5D0FB088B22EED0529511A54 /* URL+SkimDown.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5369062B216150B10EAAF055 /* URL+SkimDown.swift */; };
+		637C465D0285FD4142944B51 /* DragOverlayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F9883151A4390CA8A6F3985 /* DragOverlayView.swift */; };
 		65530AD7BE270E96E10C2E32 /* MarkdownTreeItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 75D3E7D5365D644D7F8B9978 /* MarkdownTreeItem.swift */; };
 		6A882EFDA2BE620E4AF3123E /* TemporaryFolder.swift in Sources */ = {isa = PBXBuildFile; fileRef = A715F2AFDE4E7B3458551CD0 /* TemporaryFolder.swift */; };
 		76C09E7A0BEAD70D587ADC84 /* AppSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6327837C82D4A2D33552DA74 /* AppSettings.swift */; };
 		7C038AE1AD489D40F921CAE0 /* FolderSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = 566632A26A8881942ADDEE9F /* FolderSession.swift */; };
 		7F5732EBBF884590CE9954CC /* ApplicationMain.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20257245067F683C89542D8D /* ApplicationMain.swift */; };
+		8278265C1288699845A2A120 /* FolderDropVisualEffectView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FFE5F476C0E1B01B6AA573F4 /* FolderDropVisualEffectView.swift */; };
 		8B09ACD83775381EAE723545 /* MarkdownScannerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1FAC7CAF72C2ADC59306EA2 /* MarkdownScannerTests.swift */; };
 		8BD9816C429B5D388383982E /* LinkRouter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5B3E50BA8250D47F6F364D7A /* LinkRouter.swift */; };
 		9F38F0E4D2FA82FF950BA32D /* MarkdownWebView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D187AB63A70A3B45593478A /* MarkdownWebView.swift */; };
@@ -57,6 +59,7 @@
 		37D205460A8C985C286FA3C8 /* DocumentWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocumentWindowController.swift; sourceTree = "<group>"; };
 		3AB65F3DF5D6492B3406F41B /* MarkdownTreeBuilderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownTreeBuilderTests.swift; sourceTree = "<group>"; };
 		3B8FD2EA746769B5D2F2D0EC /* SettingsStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsStore.swift; sourceTree = "<group>"; };
+		3F9883151A4390CA8A6F3985 /* DragOverlayView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DragOverlayView.swift; sourceTree = "<group>"; };
 		4B0D2B365B7CB8DDA0570BF1 /* SecurityBoundaryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SecurityBoundaryTests.swift; sourceTree = "<group>"; };
 		5369062B216150B10EAAF055 /* URL+SkimDown.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "URL+SkimDown.swift"; sourceTree = "<group>"; };
 		566632A26A8881942ADDEE9F /* FolderSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FolderSession.swift; sourceTree = "<group>"; };
@@ -82,6 +85,7 @@
 		CE2381C6B458E30E8A291793 /* PathSecurity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PathSecurity.swift; sourceTree = "<group>"; };
 		DEAC02249ED8CB20105C8DE9 /* SettingsStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsStoreTests.swift; sourceTree = "<group>"; };
 		FD98D5D9222866AFF25073F8 /* SecurityScopedBookmarkStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SecurityScopedBookmarkStore.swift; sourceTree = "<group>"; };
+		FFE5F476C0E1B01B6AA573F4 /* FolderDropVisualEffectView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FolderDropVisualEffectView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
@@ -151,6 +155,7 @@
 		AAEF98F120D90CD7C79161D8 /* Sidebar */ = {
 			isa = PBXGroup;
 			children = (
+				FFE5F476C0E1B01B6AA573F4 /* FolderDropVisualEffectView.swift */,
 				99BBFB44C8D4B4C3366AFBD4 /* SidebarViewController.swift */,
 			);
 			path = Sidebar;
@@ -187,6 +192,7 @@
 				ABF8C1F3F26D3DDE48B46B10 /* AppDelegate.swift */,
 				20257245067F683C89542D8D /* ApplicationMain.swift */,
 				37D205460A8C985C286FA3C8 /* DocumentWindowController.swift */,
+				3F9883151A4390CA8A6F3985 /* DragOverlayView.swift */,
 				AA94832C59AD830C92442CC9 /* FolderDropView.swift */,
 				B9516A369A35FC40DA9421C1 /* MainMenuBuilder.swift */,
 				7A7AEFDA8D54BA038B349E2A /* WindowManager.swift */,
@@ -301,9 +307,11 @@
 				76C09E7A0BEAD70D587ADC84 /* AppSettings.swift in Sources */,
 				7F5732EBBF884590CE9954CC /* ApplicationMain.swift in Sources */,
 				4EFCC8E7E5163C8DDB0E6340 /* DocumentWindowController.swift in Sources */,
+				637C465D0285FD4142944B51 /* DragOverlayView.swift in Sources */,
 				EFB1C9E3DFA936F852BEBF22 /* EmptyStateView.swift in Sources */,
 				A614AA32C441A78D16C777C4 /* FileWatcher.swift in Sources */,
 				E75B615E363532BA836583C2 /* FolderDropView.swift in Sources */,
+				8278265C1288699845A2A120 /* FolderDropVisualEffectView.swift in Sources */,
 				7C038AE1AD489D40F921CAE0 /* FolderSession.swift in Sources */,
 				A6ADA78CFA5C99DE1894C0E7 /* InitialSelectionResolver.swift in Sources */,
 				8BD9816C429B5D388383982E /* LinkRouter.swift in Sources */,

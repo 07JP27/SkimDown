@@ -64,6 +64,11 @@ final class EmptyStateView: NSView {
         }
     }
 
+    override func viewDidChangeEffectiveAppearance() {
+        super.viewDidChangeEffectiveAppearance()
+        layer?.backgroundColor = NSColor.windowBackgroundColor.cgColor
+    }
+
     @objc private func openFolder() {
         delegate?.emptyStateViewDidRequestOpenFolder(self)
     }
