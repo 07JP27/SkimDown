@@ -2,14 +2,6 @@
 layout: home
 ---
 
-<script setup>
-if (typeof window !== 'undefined' && location.pathname === '/') {
-  if (navigator.language.startsWith('ja')) {
-    location.replace('/ja/');
-  }
-}
-</script>
-
 <section class="sd-home">
 <section class="sd-hero">
 <div class="sd-copy">
