@@ -22,17 +22,17 @@ layout: home
 <article>
 <span>01</span>
 <h2>Open the folder</h2>
-<p>Choose a docs folder and SkimDown finds the Markdown without showing the rest of the workspace.</p>
+<p>Pick a folder. Only Markdown appears. Start reading.</p>
 </article>
 <article>
 <span>02</span>
 <h2>Skim the tree</h2>
-<p>A clean outline keeps generated specs, notes, and logs navigable when they pile up.</p>
+<p>Specs, notes, and logs — find what you need in the tree.</p>
 </article>
 <article>
 <span>03</span>
 <h2>Read in focus</h2>
-<p>Use a quiet preview, current-file search, and live reload without entering editing mode.</p>
+<p>Preview, search, live reload. No editing. Just reading.</p>
 </article>
 </section>
 

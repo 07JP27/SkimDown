@@ -292,11 +292,34 @@ body:has(.sd-home) .VPNavBar .VPNavBarTranslations:hover .text-icon {
 }
 
 .sd-proof article {
-  border: 1px solid rgba(255, 255, 255, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.7);
   border-radius: 30px;
   background: var(--glass);
-  box-shadow: 0 22px 64px rgba(75, 90, 150, 0.11);
+  box-shadow:
+    0 22px 64px rgba(75, 90, 150, 0.11),
+    inset 0 1px 1px rgba(255, 255, 255, 0.6);
   backdrop-filter: blur(22px);
+}
+
+.sd-proof article:nth-child(1) {
+  border-color: rgba(255, 226, 210, 0.5);
+  background:
+    radial-gradient(circle at 10% 0%, rgba(255, 226, 210, 0.28), transparent 60%),
+    var(--glass);
+}
+
+.sd-proof article:nth-child(2) {
+  border-color: rgba(255, 255, 255, 0.8);
+  background:
+    radial-gradient(circle at 50% 0%, rgba(200, 210, 255, 0.18), transparent 60%),
+    var(--glass);
+}
+
+.sd-proof article:nth-child(3) {
+  border-color: rgba(123, 227, 239, 0.35);
+  background:
+    radial-gradient(circle at 90% 0%, rgba(123, 227, 239, 0.22), transparent 60%),
+    var(--glass);
 }
 
 .sd-proof article {
@@ -305,20 +328,19 @@ body:has(.sd-home) .VPNavBar .VPNavBarTranslations:hover .text-icon {
 }
 
 .sd-proof article span {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 42px;
-  height: 42px;
-  margin-bottom: 44px;
-  border-radius: 15px;
-  background: linear-gradient(135deg, rgba(95, 123, 255, 0.14), rgba(123, 227, 239, 0.22));
-  color: var(--blue);
+  display: block;
+  margin-bottom: 12px;
+  color: rgba(95, 123, 255, 0.5);
+  font-size: 52px;
   font-weight: 950;
+  line-height: 1;
+  letter-spacing: -0.02em;
 }
 
 .sd-proof h2 {
   margin: 0;
+  padding: 0;
+  border: none;
   color: var(--ink);
   font-size: 26px;
   line-height: 1.05;
