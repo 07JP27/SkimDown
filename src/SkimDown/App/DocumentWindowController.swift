@@ -43,7 +43,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Side
             defer: false
         )
         window.title = "SkimDown"
-        window.minSize = NSSize(width: 720, height: 480)
+        window.minSize = NSSize(width: 960, height: 660)
         window.isReleasedWhenClosed = false
         window.level = .normal
         window.collectionBehavior = [.moveToActiveSpace, .managed]
@@ -96,8 +96,8 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Side
         }
 
         let preferredSize = NSSize(
-            width: min(max(window.frame.width, 720), visibleFrame.width - 40),
-            height: min(max(window.frame.height, 480), visibleFrame.height - 40)
+            width: min(max(window.frame.width, 960), visibleFrame.width - 40),
+            height: min(max(window.frame.height, 660), visibleFrame.height - 40)
         )
         let origin = NSPoint(
             x: visibleFrame.midX - preferredSize.width / 2,
@@ -544,7 +544,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Side
     }
 
     private func handleDroppedFolder(_ folderURL: URL) {
-        if isEmpty {
+        if isEmpty || session?.markdownFiles.isEmpty == true {
             openFolder(folderURL)
         } else {
             windowManager?.openFolder(folderURL, preferExistingEmptyWindow: false)
