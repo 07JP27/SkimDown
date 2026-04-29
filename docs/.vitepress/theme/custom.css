@@ -18,6 +18,15 @@ body:has(.sd-home) .VPNavBarSearch {
   display: none !important;
 }
 
+body:has(.sd-home) .VPHome {
+  padding-bottom: 0 !important;
+  margin-bottom: 0 !important;
+}
+
+body:has(.sd-home) .VPContent {
+  padding-bottom: 0 !important;
+}
+
 body:has(.sd-home) .VPNavBar {
   border-bottom: 1px solid rgba(18, 24, 39, 0.08) !important;
   background: rgba(255, 255, 255, 0.94) !important;
@@ -120,21 +129,20 @@ body:has(.sd-home) .VPNavBar .VPNavBarTranslations:hover .text-icon {
 }
 
 .sd-hero {
-  display: grid;
-  grid-template-columns: minmax(0, 0.82fr) minmax(420px, 1.18fr);
-  gap: clamp(36px, 6vw, 84px);
+  display: flex;
+  flex-direction: column;
   align-items: center;
-  min-height: calc(100vh - 64px);
-  max-width: 1220px;
+  gap: 48px;
+  max-width: 1120px;
   margin: 0 auto;
-  padding: clamp(42px, 6vw, 72px) 32px 48px;
-  text-align: left;
+  padding: clamp(48px, 7vw, 80px) 32px 56px;
+  text-align: center;
 }
 
 .sd-copy {
-  display: grid;
-  justify-items: start;
-  max-width: 520px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 }
 
 .sd-eyebrow {
@@ -152,26 +160,26 @@ body:has(.sd-home) .VPNavBar .VPNavBarTranslations:hover .text-icon {
 }
 
 .sd-copy h1 {
-  max-width: 620px;
+  max-width: 720px;
   margin: 0;
   color: var(--ink);
-  font-size: clamp(58px, 5.7vw, 84px);
+  font-size: clamp(42px, 4.2vw, 64px);
   font-weight: 760;
   line-height: 0.96;
   letter-spacing: -0.012em;
-  text-wrap: balance;
+  text-wrap: nowrap;
 }
 
 :lang(ja) .sd-copy h1 {
-  max-width: 560px;
+  max-width: none;
   font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic", "Helvetica Neue", Arial, sans-serif;
-  font-size: clamp(52px, 5.2vw, 76px);
+  font-size: clamp(38px, 3.8vw, 58px);
   line-height: 1.06;
   letter-spacing: 0;
 }
 
 :lang(ja) .sd-copy h1 span {
-  display: block;
+  display: inline;
 }
 
 .sd-lede {
@@ -183,6 +191,15 @@ body:has(.sd-home) .VPNavBar .VPNavBarTranslations:hover .text-icon {
   letter-spacing: -0.008em;
 }
 
+.sd-sub {
+  margin: 16px 0 0;
+  color: var(--muted);
+  font-size: 17px;
+  font-weight: 500;
+  line-height: 1.5;
+  letter-spacing: -0.006em;
+}
+
 .sd-actions {
   display: flex;
   gap: 14px;
@@ -192,11 +209,12 @@ body:has(.sd-home) .VPNavBar .VPNavBarTranslations:hover .text-icon {
 
 .sd-button {
   display: inline-flex;
-  min-height: 52px;
+  min-height: 58px;
   align-items: center;
   justify-content: center;
   border-radius: 999px;
-  padding: 0 23px;
+  padding: 0 60px;
+  font-size: 17px;
   font-weight: 900;
   text-decoration: none !important;
 }
@@ -236,48 +254,16 @@ body:has(.sd-home) .VPNavBar .VPNavBarTranslations:hover .text-icon {
 .sd-visual {
   position: relative;
   width: 100%;
-  max-width: 700px;
+  max-width: 960px;
   margin: 0 auto;
-  min-height: auto;
 }
 
 .sd-screenshot-frame {
   position: relative;
   margin: 0;
   overflow: hidden;
-  aspect-ratio: 16 / 10;
-  border: 1px solid rgba(255, 255, 255, 0.92);
-  border-radius: 34px;
-  padding: 10px;
-  background: rgba(255, 255, 255, 0.72);
-  box-shadow: 0 30px 84px rgba(68, 82, 134, 0.15);
-  backdrop-filter: blur(28px);
-}
-
-.sd-screenshot-frame::before,
-.sd-screenshot-frame::after {
-  position: absolute;
-  pointer-events: none;
-  content: "";
-}
-
-.sd-screenshot-frame::before {
-  z-index: 0;
-  inset: -120px auto auto -160px;
-  width: 360px;
-  height: 360px;
-  border-radius: 999px;
-  background: radial-gradient(circle, rgba(255, 226, 210, 0.54), transparent 68%);
-}
-
-.sd-screenshot-frame::after {
-  z-index: 0;
-  right: -110px;
-  bottom: -140px;
-  width: 360px;
-  height: 360px;
-  border-radius: 999px;
-  background: radial-gradient(circle, rgba(123, 227, 239, 0.24), transparent 66%);
+  border-radius: 10px;
+  box-shadow: 0 40px 100px rgba(68, 82, 134, 0.22);
 }
 
 .sd-screenshot-image {
@@ -285,14 +271,11 @@ body:has(.sd-home) .VPNavBar .VPNavBarTranslations:hover .text-icon {
   position: relative;
   z-index: 1;
   width: 100%;
-  height: 100%;
-  border-radius: 26px;
-  box-shadow: 0 18px 58px rgba(75, 90, 150, 0.1);
-  object-fit: cover;
+  height: auto;
+  border-radius: 10px;
 }
 
 .sd-proof,
-.sd-use-strip,
 .sd-narrative,
 .sd-final {
   max-width: 1120px;
@@ -300,54 +283,15 @@ body:has(.sd-home) .VPNavBar .VPNavBarTranslations:hover .text-icon {
   padding: 54px 24px;
 }
 
-.sd-use-strip {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  align-items: center;
-  justify-content: center;
-  max-width: 1040px;
-  margin-top: -18px;
-  padding: 0 24px 28px;
-}
-
-.sd-use-strip span,
-.sd-use-strip strong {
-  display: inline-flex;
-  align-items: center;
-  min-height: 40px;
-  border-radius: 999px;
-  padding: 0 15px;
-  font-size: 13px;
-  line-height: 1;
-}
-
-.sd-use-strip span {
-  color: #7a879b;
-  font-weight: 850;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.sd-use-strip strong {
-  border: 1px solid rgba(255, 255, 255, 0.86);
-  background: rgba(255, 255, 255, 0.6);
-  box-shadow: 0 14px 44px rgba(75, 90, 150, 0.08);
-  color: #344054;
-  font-weight: 900;
-  letter-spacing: -0.006em;
-  backdrop-filter: blur(18px);
-}
-
 .sd-proof {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 16px;
   padding-top: 18px;
+  padding-bottom: 0;
 }
 
-.sd-proof article,
-.sd-final {
+.sd-proof article {
   border: 1px solid rgba(255, 255, 255, 0.9);
   border-radius: 30px;
   background: var(--glass);
@@ -417,13 +361,9 @@ body:has(.sd-home) .VPNavBar .VPNavBarTranslations:hover .text-icon {
 }
 
 .sd-final {
-  margin-bottom: 86px;
-  padding: 54px 34px;
+  margin-bottom: 0;
+  padding: 32px 34px;
   text-align: center;
-  background:
-    radial-gradient(circle at 16% 20%, rgba(255, 226, 210, 0.7), transparent 32%),
-    radial-gradient(circle at 86% 76%, rgba(123, 227, 239, 0.32), transparent 34%),
-    rgba(255, 255, 255, 0.66);
 }
 
 .sd-final h2 {
@@ -446,13 +386,8 @@ body:has(.sd-home) .VPNavBar .VPNavBarTranslations:hover .text-icon {
 }
 
 @media (max-width: 1020px) {
-  .sd-hero,
   .sd-narrative {
     grid-template-columns: 1fr;
-  }
-
-  .sd-visual {
-    min-height: auto;
   }
 
   .sd-narrative > p {
@@ -464,25 +399,20 @@ body:has(.sd-home) .VPNavBar .VPNavBarTranslations:hover .text-icon {
 
 @media (max-width: 760px) {
   .sd-hero {
-    gap: 24px;
-    padding: 44px 22px 36px;
+    gap: 32px;
+    padding: 36px 18px 32px;
   }
 
   .sd-copy h1 {
-    font-size: clamp(44px, 13vw, 64px);
-  }
-
-  .sd-lede {
-    font-size: 18px;
+    font-size: clamp(24px, 6.5vw, 42px);
   }
 
   .sd-screenshot-frame {
-    border-radius: 26px;
-    padding: 8px;
+    border-radius: 8px;
   }
 
   .sd-screenshot-image {
-    border-radius: 20px;
+    border-radius: 8px;
   }
 
   .sd-proof,
@@ -492,21 +422,9 @@ body:has(.sd-home) .VPNavBar .VPNavBarTranslations:hover .text-icon {
   }
 
   .sd-actions,
-  .sd-proof,
-  .sd-use-strip {
+  .sd-proof {
     display: grid;
     grid-template-columns: 1fr;
-  }
-
-  .sd-use-strip {
-    justify-items: stretch;
-    margin-top: -8px;
-    padding-bottom: 18px;
-  }
-
-  .sd-use-strip span,
-  .sd-use-strip strong {
-    justify-content: center;
   }
 
   .sd-proof {
