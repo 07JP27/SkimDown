@@ -29,7 +29,7 @@ xattr -dr com.apple.quarantine /Applications/SkimDown.app
 2. **File → Open Folder…** を選ぶ（または **⌘O**、もしくはウィンドウへフォルダをドラッグ&ドロップ）。
 3. 読みたい Markdown ファイルが入っているフォルダを選択します。
 
-SkimDown は macOS のフォルダ選択ダイアログを使ってアクセスします。選んだフォルダを読み取り、その後も最近開いたフォルダとして再表示できるよう、app-scoped security-scoped bookmark として権限を保存します。
+SkimDown は macOS のフォルダ選択ダイアログを使ってアクセスします。選んだフォルダを読み取り、その後も最近開いたフォルダとして再表示できるよう、フォルダの場所を bookmark として記憶します。
 
 ::: tip
 SkimDown は**読み取り専用**です。Markdown ファイルを編集・保存・エクスポート・変更することはありません。

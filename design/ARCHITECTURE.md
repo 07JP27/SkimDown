@@ -131,8 +131,6 @@ Open Folder
 - 外部リンクはアプリ内で開かず、既定ブラウザへ渡す
 - Hardened Runtime を有効にし、Release entitlements は `com.apple.security.get-task-allow=false` のみとする
 
-必要なentitlementは、ファイル読み取りと外部画像のためのネットワーククライアントに限定する。
-
 ## パフォーマンス方針
 
 - 起動とファイル切り替えを最優先で軽くする

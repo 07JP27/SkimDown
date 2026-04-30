@@ -10,7 +10,7 @@ Recent folders and the last opened folder reopen automatically because SkimDown 
 
 ## Read-only behavior
 
-SkimDown does not edit, save, export, print, or modify Markdown files. It is built for reading and navigation only — there is no write code path in the app.
+SkimDown does not edit, save, export, print, or modify Markdown files. It is built for reading and navigation only — it does not write back to the Markdown files it opens.
 
 ## Local file boundaries
 

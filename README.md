@@ -40,7 +40,7 @@ Pure **Swift 6 + AppKit** with `WKWebView` for Markdown rendering. macOS 26+. No
 | Layer | Directory | Purpose |
 |---|---|---|
 | **App** | `src/SkimDown/App/` | Application startup, menus, window management |
-| **Core** | `src/SkimDown/Core/` | Folder access, security-scoped bookmarks, settings, file-system watching |
+| **Core** | `src/SkimDown/Core/` | Folder access, folder bookmarks, settings, file-system watching |
 | **Sidebar** | `src/SkimDown/Sidebar/` | Markdown tree, selection, expansion state |
 | **Markdown** | `src/SkimDown/Markdown/` | Discovery, link resolution, HTML helpers |
 | **Viewer** | `src/SkimDown/Viewer/` | `WKWebView` integration, in-document search, link routing |

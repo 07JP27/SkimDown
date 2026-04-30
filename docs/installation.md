@@ -29,7 +29,7 @@ Please review the [source code](https://github.com/07JP27/SkimDown) and run at y
 2. Choose **File → Open Folder…** (or press **⌘O**, or drag a folder onto the window).
 3. Pick the folder that contains the Markdown files you want to read.
 
-SkimDown uses the macOS folder picker for access. The app reads the folder you choose and keeps that access using app-scoped security-scoped bookmarks so recent folders can reopen later.
+SkimDown uses the macOS folder picker to choose a folder to read. The app remembers the folder location using regular file bookmarks so recent folders can reopen later.
 
 ::: tip
 SkimDown is **read-only**. It never edits, saves, exports, or modifies your Markdown files.
