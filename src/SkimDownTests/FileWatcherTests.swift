@@ -1,40 +1,97 @@
 import XCTest
 @testable import SkimDown
 
+@MainActor
 final class FileWatcherTests: XCTestCase {
-    func testWatchedDirectoriesRespectLimit() throws {
+    func testDebouncesEventBursts() throws {
         let folder = try TemporaryFolder()
-        for index in 0..<12 {
-            try FileManager.default.createDirectory(
-                at: folder.url.appendingPathComponent("Dir\(index)", isDirectory: true),
-                withIntermediateDirectories: true
-            )
+        let eventSource = MockFileWatchEventSource()
+        let watcher = FileWatcher(eventSource: eventSource)
+        let expectation = expectation(description: "onChange called once")
+        expectation.expectedFulfillmentCount = 1
+
+        watcher.onChange = {
+            expectation.fulfill()
         }
 
-        let directories = FileWatcher.watchedDirectories(folderURL: folder.url, limit: 5)
+        try watcher.start(folderURL: folder.url)
+        eventSource.emit([folder.url.appendingPathComponent("one.md")])
+        eventSource.emit([folder.url.appendingPathComponent("two.md")])
 
-        XCTAssertEqual(directories.count, 5)
-        XCTAssertEqual(directories.first, folder.url)
+        wait(for: [expectation], timeout: 1.0)
+        watcher.stop()
     }
 
-    func testWatchedDirectoriesSkipExcludedDirectories() throws {
+    func testStopCancelsPendingDebounce() throws {
         let folder = try TemporaryFolder()
-        try FileManager.default.createDirectory(
-            at: folder.url.appendingPathComponent("Docs", isDirectory: true),
-            withIntermediateDirectories: true
-        )
-        try FileManager.default.createDirectory(
-            at: folder.url.appendingPathComponent("node_modules/package", isDirectory: true),
-            withIntermediateDirectories: true
-        )
-        try FileManager.default.createDirectory(
-            at: folder.url.appendingPathComponent(".git/hooks", isDirectory: true),
-            withIntermediateDirectories: true
-        )
+        let eventSource = MockFileWatchEventSource()
+        let watcher = FileWatcher(eventSource: eventSource)
+        let expectation = expectation(description: "onChange is not called")
+        expectation.isInverted = true
 
-        let directories = FileWatcher.watchedDirectories(folderURL: folder.url)
-        let relativePaths = Set(directories.compactMap { PathSecurity.relativePath(for: $0, in: folder.url) })
+        watcher.onChange = {
+            expectation.fulfill()
+        }
 
-        XCTAssertEqual(relativePaths, ["", "Docs"])
+        try watcher.start(folderURL: folder.url)
+        eventSource.emit([folder.url.appendingPathComponent("file.md")])
+        watcher.stop()
+
+        wait(for: [expectation], timeout: 0.5)
+    }
+
+    func testIgnoresExcludedEventPaths() throws {
+        let folder = try TemporaryFolder()
+        let eventSource = MockFileWatchEventSource()
+        let watcher = FileWatcher(eventSource: eventSource)
+        let expectation = expectation(description: "onChange is not called for excluded paths")
+        expectation.isInverted = true
+
+        watcher.onChange = {
+            expectation.fulfill()
+        }
+
+        try watcher.start(folderURL: folder.url)
+        eventSource.emit([
+            folder.url.appendingPathComponent(".git/config"),
+            folder.url.appendingPathComponent("node_modules/package/index.js"),
+            folder.url.appendingPathComponent(".hidden/file.md")
+        ])
+
+        wait(for: [expectation], timeout: 0.5)
+        watcher.stop()
+    }
+
+    func testAllowsNonExcludedEventPaths() throws {
+        let folder = try TemporaryFolder()
+        let eventSource = MockFileWatchEventSource()
+        let watcher = FileWatcher(eventSource: eventSource)
+        let expectation = expectation(description: "onChange is called")
+
+        watcher.onChange = {
+            expectation.fulfill()
+        }
+
+        try watcher.start(folderURL: folder.url)
+        eventSource.emit([folder.url.appendingPathComponent("Docs/guide.md")])
+
+        wait(for: [expectation], timeout: 1.0)
+        watcher.stop()
+    }
+}
+
+private final class MockFileWatchEventSource: FileWatchEventSource, @unchecked Sendable {
+    private var onEvent: (([URL]) -> Void)?
+
+    func start(folderURL: URL, onEvent: @escaping ([URL]) -> Void) throws {
+        self.onEvent = onEvent
+    }
+
+    func stop() {
+        onEvent = nil
+    }
+
+    func emit(_ urls: [URL]) {
+        onEvent?(urls)
     }
 }

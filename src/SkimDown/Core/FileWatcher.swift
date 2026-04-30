@@ -1,32 +1,60 @@
-import Darwin
+import CoreServices
 import Foundation
 
 @MainActor
 final class FileWatcher {
-    nonisolated static let maxWatchedDirectories = 128
-
-    private struct DirectoryWatch {
-        let descriptor: CInt
-        let source: DispatchSourceFileSystemObject
-    }
-
     private var rootURL: URL?
-    private var watches: [DirectoryWatch] = []
+    private let eventSource: FileWatchEventSource
     private var debounceWorkItem: DispatchWorkItem?
 
     var onChange: (() -> Void)?
 
+    init(eventSource: FileWatchEventSource = FSEventsFileWatchEventSource()) {
+        self.eventSource = eventSource
+    }
+
     func start(folderURL: URL) throws {
         stop()
         rootURL = folderURL
-        installDirectoryWatches(folderURL: folderURL)
+        try eventSource.start(folderURL: folderURL) { [weak self] eventURLs in
+            DispatchQueue.main.async {
+                guard let self else {
+                    return
+                }
+                self.handleEvent(urls: eventURLs)
+            }
+        }
     }
 
     func stop() {
         debounceWorkItem?.cancel()
         debounceWorkItem = nil
-        cancelDirectoryWatches()
+        eventSource.stop()
         rootURL = nil
+    }
+
+    nonisolated static func shouldIgnoreEvent(url: URL, rootURL: URL) -> Bool {
+        let canonicalURL = url.skimdownCanonicalFileURL
+        let canonicalRootURL = rootURL.skimdownCanonicalFileURL
+        guard PathSecurity.isFileURL(canonicalURL, containedIn: canonicalRootURL),
+              let relativePath = PathSecurity.relativePath(for: canonicalURL, in: canonicalRootURL) else {
+            return true
+        }
+
+        let components = relativePath.split(separator: "/").map(String.init)
+        return components.contains { component in
+            component.hasPrefix(".") || MarkdownScanner.excludedDirectoryNames.contains(component)
+        }
+    }
+
+    private func handleEvent(urls: [URL]) {
+        guard let rootURL else {
+            return
+        }
+
+        if urls.contains(where: { !Self.shouldIgnoreEvent(url: $0, rootURL: rootURL) }) {
+            scheduleChangeNotification()
+        }
     }
 
     private func scheduleChangeNotification() {
@@ -36,94 +64,94 @@ final class FileWatcher {
                 return
             }
             self.onChange?()
-            if let rootURL = self.rootURL {
-                self.installDirectoryWatches(folderURL: rootURL)
-            }
         }
         debounceWorkItem = workItem
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.25, execute: workItem)
     }
 
-    private func installDirectoryWatches(folderURL: URL) {
-        cancelDirectoryWatches()
+    deinit {
+        eventSource.stop()
+    }
+}
 
-        let directories = Self.watchedDirectories(folderURL: folderURL)
-        for directory in directories {
-            let descriptor = open(directory.path, O_EVTONLY)
-            guard descriptor >= 0 else {
-                continue
-            }
+protocol FileWatchEventSource: AnyObject, Sendable {
+    func start(folderURL: URL, onEvent: @escaping ([URL]) -> Void) throws
+    func stop()
+}
 
-            let source = DispatchSource.makeFileSystemObjectSource(
-                fileDescriptor: descriptor,
-                eventMask: [.write, .delete, .rename, .extend, .attrib],
-                queue: .main
-            )
+private final class FSEventsFileWatchEventSource: FileWatchEventSource, @unchecked Sendable {
+    private final class CallbackBox {
+        let onEvent: ([URL]) -> Void
 
-            source.setEventHandler { [weak self] in
-                self?.scheduleChangeNotification()
-            }
-            source.setCancelHandler {
-                close(descriptor)
-            }
-            watches.append(DirectoryWatch(descriptor: descriptor, source: source))
-            source.resume()
+        init(onEvent: @escaping ([URL]) -> Void) {
+            self.onEvent = onEvent
         }
     }
 
-    nonisolated static func watchedDirectories(
-        folderURL: URL,
-        limit: Int = maxWatchedDirectories,
-        fileManager: FileManager = .default
-    ) -> [URL] {
-        guard limit > 0 else {
-            return []
-        }
+    private var stream: FSEventStreamRef?
+    private var callbackBox: CallbackBox?
+    private let queue = DispatchQueue(label: "dev.skimdown.filewatcher.fsevents")
 
-        let keys: [URLResourceKey] = [.isDirectoryKey, .isHiddenKey]
-        var directories = [folderURL]
+    func start(folderURL: URL, onEvent: @escaping ([URL]) -> Void) throws {
+        stop()
 
-        guard let enumerator = fileManager.enumerator(
-            at: folderURL,
-            includingPropertiesForKeys: keys,
-            options: [.skipsHiddenFiles, .skipsPackageDescendants],
-            errorHandler: { _, _ in true }
+        let callbackBox = CallbackBox(onEvent: onEvent)
+        var context = FSEventStreamContext(
+            version: 0,
+            info: Unmanaged.passUnretained(callbackBox).toOpaque(),
+            retain: nil,
+            release: nil,
+            copyDescription: nil
+        )
+
+        guard let stream = FSEventStreamCreate(
+            kCFAllocatorDefault,
+            { _, contextInfo, eventCount, eventPaths, _, _ in
+                guard let contextInfo else {
+                    return
+                }
+
+                let callbackBox = Unmanaged<CallbackBox>.fromOpaque(contextInfo).takeUnretainedValue()
+                let paths = eventPaths.assumingMemoryBound(to: UnsafePointer<CChar>.self)
+                var urls: [URL] = []
+                urls.reserveCapacity(eventCount)
+
+                for index in 0..<eventCount {
+                    urls.append(URL(fileURLWithPath: String(cString: paths[index])))
+                }
+
+                callbackBox.onEvent(urls)
+            },
+            &context,
+            [folderURL.path] as CFArray,
+            FSEventStreamEventId(kFSEventStreamEventIdSinceNow),
+            0.2,
+            FSEventStreamCreateFlags(kFSEventStreamCreateFlagFileEvents)
         ) else {
-            return directories
+            throw CocoaError(.fileReadUnknown)
         }
 
-        for case let url as URL in enumerator {
-            guard directories.count < limit else {
-                break
-            }
-
-            let values: URLResourceValues
-            do {
-                values = try url.resourceValues(forKeys: Set(keys))
-            } catch {
-                continue
-            }
-
-            guard values.isDirectory == true else {
-                continue
-            }
-
-            let name = url.lastPathComponent
-            if values.isHidden == true || name.hasPrefix(".") || MarkdownScanner.excludedDirectoryNames.contains(name) {
-                enumerator.skipDescendants()
-                continue
-            }
-
-            directories.append(url)
+        FSEventStreamSetDispatchQueue(stream, queue)
+        guard FSEventStreamStart(stream) else {
+            FSEventStreamInvalidate(stream)
+            FSEventStreamRelease(stream)
+            throw CocoaError(.fileReadUnknown)
         }
 
-        return directories
+        self.callbackBox = callbackBox
+        self.stream = stream
     }
 
-    private func cancelDirectoryWatches() {
-        watches.forEach { $0.source.cancel() }
-        watches.removeAll()
-    }
+    func stop() {
+        guard let stream else {
+            callbackBox = nil
+            return
+        }
 
-    deinit {}
+        FSEventStreamStop(stream)
+        FSEventStreamInvalidate(stream)
+        FSEventStreamRelease(stream)
+        self.stream = nil
+        callbackBox = nil
+    }
 }
