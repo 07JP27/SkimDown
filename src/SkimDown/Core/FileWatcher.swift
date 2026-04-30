@@ -89,16 +89,17 @@ private final class FSEventsFileWatchEventSource: FileWatchEventSource, @uncheck
     }
 
     private var stream: FSEventStreamRef?
-    private var callbackBox: CallbackBox?
+    private var retainedCallbackBox: Unmanaged<CallbackBox>?
     private let queue = DispatchQueue(label: "dev.skimdown.filewatcher.fsevents")
 
     func start(folderURL: URL, onEvent: @escaping ([URL]) -> Void) throws {
         stop()
 
         let callbackBox = CallbackBox(onEvent: onEvent)
+        let retained = Unmanaged.passRetained(callbackBox)
         var context = FSEventStreamContext(
             version: 0,
-            info: Unmanaged.passUnretained(callbackBox).toOpaque(),
+            info: retained.toOpaque(),
             retain: nil,
             release: nil,
             copyDescription: nil
@@ -111,7 +112,7 @@ private final class FSEventsFileWatchEventSource: FileWatchEventSource, @uncheck
                     return
                 }
 
-                let callbackBox = Unmanaged<CallbackBox>.fromOpaque(contextInfo).takeUnretainedValue()
+                let box = Unmanaged<CallbackBox>.fromOpaque(contextInfo).takeUnretainedValue()
                 let paths = eventPaths.assumingMemoryBound(to: UnsafePointer<CChar>.self)
                 var urls: [URL] = []
                 urls.reserveCapacity(eventCount)
@@ -120,7 +121,7 @@ private final class FSEventsFileWatchEventSource: FileWatchEventSource, @uncheck
                     urls.append(URL(fileURLWithPath: String(cString: paths[index])))
                 }
 
-                callbackBox.onEvent(urls)
+                box.onEvent(urls)
             },
             &context,
             [folderURL.path] as CFArray,
@@ -128,6 +129,7 @@ private final class FSEventsFileWatchEventSource: FileWatchEventSource, @uncheck
             0.2,
             FSEventStreamCreateFlags(kFSEventStreamCreateFlagFileEvents)
         ) else {
+            retained.release()
             throw CocoaError(.fileReadUnknown)
         }
 
@@ -135,16 +137,18 @@ private final class FSEventsFileWatchEventSource: FileWatchEventSource, @uncheck
         guard FSEventStreamStart(stream) else {
             FSEventStreamInvalidate(stream)
             FSEventStreamRelease(stream)
+            retained.release()
             throw CocoaError(.fileReadUnknown)
         }
 
-        self.callbackBox = callbackBox
+        self.retainedCallbackBox = retained
         self.stream = stream
     }
 
     func stop() {
         guard let stream else {
-            callbackBox = nil
+            retainedCallbackBox?.release()
+            retainedCallbackBox = nil
             return
         }
 
@@ -152,6 +156,9 @@ private final class FSEventsFileWatchEventSource: FileWatchEventSource, @uncheck
         FSEventStreamInvalidate(stream)
         FSEventStreamRelease(stream)
         self.stream = nil
-        callbackBox = nil
+        // Drain pending callbacks before releasing the box
+        queue.sync {}
+        retainedCallbackBox?.release()
+        retainedCallbackBox = nil
     }
 }
