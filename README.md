@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/public/images/hero_en.png" width="720" alt="SkimDown — a quiet macOS reader for generated Markdown folders">
+  <img src="docs/public/images/ogp.png" width="720" alt="SkimDown — a quiet macOS reader for generated Markdown folders">
 </p>
 
 <p align="center">

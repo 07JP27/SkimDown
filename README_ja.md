@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/public/images/hero_ja.png" width="720" alt="SkimDown — 生成されたMarkdownフォルダを静かに読むmacOSリーダー">
+  <img src="docs/public/images/ogp.png" width="720" alt="SkimDown — 生成されたMarkdownフォルダを静かに読むmacOSリーダー">
 </p>
 
 <p align="center">
