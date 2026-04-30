@@ -3,7 +3,7 @@ import AppKit
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenuItemValidation {
     let settingsStore = SettingsStore()
-    let bookmarkStore = SecurityScopedBookmarkStore()
+    let bookmarkStore = FolderBookmarkStore()
     lazy var windowManager = WindowManager(settingsStore: settingsStore, bookmarkStore: bookmarkStore)
     weak var recentMenu: NSMenu?
 
@@ -33,14 +33,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
 
         menu.removeAllItems()
         for bookmark in settingsStore.recentFolderBookmarks {
-            guard let resolved = try? bookmarkStore.resolveBookmarkData(bookmark) else {
+            guard let resolvedURL = try? bookmarkStore.resolveBookmarkData(bookmark) else {
                 continue
             }
-            let item = NSMenuItem(title: resolved.url.skimdownDisplayName, action: #selector(openRecentFolder(_:)), keyEquivalent: "")
+            let item = NSMenuItem(title: resolvedURL.skimdownDisplayName, action: #selector(openRecentFolder(_:)), keyEquivalent: "")
             item.target = self
             item.representedObject = bookmark
             menu.addItem(item)
-            resolved.access.stop()
         }
 
         if menu.items.isEmpty {

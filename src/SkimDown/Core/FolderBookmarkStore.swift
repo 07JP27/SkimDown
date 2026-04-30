@@ -1,62 +1,44 @@
 import Foundation
 
-enum SecurityScopedBookmarkError: LocalizedError {
+enum FolderBookmarkError: LocalizedError {
     case staleBookmark
 
     var errorDescription: String? {
         switch self {
         case .staleBookmark:
-            return "Folder permission needs to be refreshed."
+            return "Folder location needs to be refreshed."
         }
     }
 }
 
-final class SecurityScopedAccess {
-    let url: URL
-    private var isAccessing: Bool
-
-    init(url: URL) {
-        let standardizedURL = url.standardizedFileURL
-        self.url = standardizedURL
-        self.isAccessing = standardizedURL.startAccessingSecurityScopedResource()
-    }
-
-    func stop() {
-        if isAccessing {
-            url.stopAccessingSecurityScopedResource()
-            isAccessing = false
-        }
-    }
-
-    deinit {
-        stop()
-    }
-}
-
-final class SecurityScopedBookmarkStore {
+/// Resolves and creates plain (non security-scoped) URL bookmarks for folders.
+///
+/// SkimDown is distributed as a standard, non-sandboxed macOS app, so we use
+/// regular bookmarks here. They still gracefully follow folder moves and
+/// renames, which is what powers the Recent Folders menu and last-folder
+/// restore on launch.
+final class FolderBookmarkStore {
     func bookmarkData(for folderURL: URL) throws -> Data {
         try folderURL.bookmarkData(
-            options: [.withSecurityScope, .securityScopeAllowOnlyReadAccess],
+            options: [],
             includingResourceValuesForKeys: nil,
             relativeTo: nil
         )
     }
 
-    func resolveBookmarkData(_ data: Data) throws -> (url: URL, access: SecurityScopedAccess) {
+    func resolveBookmarkData(_ data: Data) throws -> URL {
         var isStale = false
         let url = try URL(
             resolvingBookmarkData: data,
-            options: [.withSecurityScope, .withoutUI],
+            options: [.withoutUI],
             relativeTo: nil,
             bookmarkDataIsStale: &isStale
         )
 
         guard !isStale else {
-            throw SecurityScopedBookmarkError.staleBookmark
+            throw FolderBookmarkError.staleBookmark
         }
 
-        let standardizedURL = url.standardizedFileURL
-        return (standardizedURL, SecurityScopedAccess(url: standardizedURL))
+        return url.standardizedFileURL
     }
 }
-
