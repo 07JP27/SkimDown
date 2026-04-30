@@ -27,7 +27,3 @@ External links open in your default browser. External images referenced by Markd
 ## No external transmission
 
 SkimDown does not send your Markdown text or folder contents to external services. External links open in your browser, and externally hosted images may be requested by the preview as described above.
-
-## App distribution
-
-SkimDown is distributed as a regular macOS application — it is **not** sandboxed and is **not** submitted to the Mac App Store. The read-only and folder-boundary guarantees described above are enforced by the SkimDown source code (which is open in this repository), not by macOS App Sandbox. Builds are signed with the Hardened Runtime so the app cannot be tampered with after release.
