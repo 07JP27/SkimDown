@@ -12,7 +12,7 @@ protocol MarkdownWebViewDelegate: AnyObject {
 }
 
 @MainActor
-final class MarkdownWebView: NSView, WKScriptMessageHandler {
+final class MarkdownWebView: NSView, WKScriptMessageHandler, WKNavigationDelegate {
     weak var delegate: MarkdownWebViewDelegate?
 
     private enum WebResourceError: LocalizedError {
@@ -33,6 +33,7 @@ final class MarkdownWebView: NSView, WKScriptMessageHandler {
 
     private let webView: WKWebView
     private var currentTheme: AppTheme = .system
+    private var renderCompletion: (() -> Void)?
 
     override init(frame frameRect: NSRect) {
         let configuration = WKWebViewConfiguration()
@@ -46,6 +47,7 @@ final class MarkdownWebView: NSView, WKScriptMessageHandler {
         userContentController.add(WeakScriptMessageHandler(delegate: self), name: "linkClick")
         userContentController.add(WeakScriptMessageHandler(delegate: self), name: "copyCode")
 
+        webView.navigationDelegate = self
         webView.translatesAutoresizingMaskIntoConstraints = false
         webView.allowsBackForwardNavigationGestures = false
         addSubview(webView)
@@ -68,8 +70,9 @@ final class MarkdownWebView: NSView, WKScriptMessageHandler {
         userContentController.removeScriptMessageHandler(forName: "copyCode")
     }
 
-    func render(markdown: String, currentFileURL: URL, rootFolderURL: URL, theme: AppTheme, fontSize: Double) {
+    func render(markdown: String, currentFileURL: URL, rootFolderURL: URL, theme: AppTheme, fontSize: Double, completion: (() -> Void)? = nil) {
         currentTheme = theme
+        renderCompletion = completion
         applyNativeAppearance(theme)
 
         let baseURL = currentFileURL.deletingLastPathComponent()
@@ -93,8 +96,9 @@ final class MarkdownWebView: NSView, WKScriptMessageHandler {
         }
     }
 
-    func showError(_ message: String, theme: AppTheme, fontSize: Double) {
+    func showError(_ message: String, theme: AppTheme, fontSize: Double, completion: (() -> Void)? = nil) {
         currentTheme = theme
+        renderCompletion = completion
         applyNativeAppearance(theme)
         let payload: [String: Any] = [
             "markdown": "> **Error**\\n>\\n> \(message)",
@@ -156,6 +160,12 @@ final class MarkdownWebView: NSView, WKScriptMessageHandler {
             pasteboard.clearContents()
             pasteboard.setString(code, forType: .string)
         }
+    }
+
+    func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+        let completion = renderCompletion
+        renderCompletion = nil
+        completion?()
     }
 
     private func evaluateSearchScript(_ script: String, completion: @escaping (SearchResult) -> Void) {

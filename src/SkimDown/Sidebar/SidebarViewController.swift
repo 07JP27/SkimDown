@@ -19,7 +19,7 @@ final class SidebarViewController: NSViewController, NSOutlineViewDataSource, NS
     private var treeItems: [MarkdownTreeItem] = []
     private var expandedPaths: Set<String> = []
     private var isProgrammaticSelection = false
-    private var selectionRequestID = 0
+    private var pendingSelectedFileURL: URL?
 
     override func loadView() {
         let rootView = FolderDropVisualEffectView()
@@ -107,8 +107,7 @@ final class SidebarViewController: NSViewController, NSOutlineViewDataSource, NS
     }
 
     func selectFile(_ fileURL: URL?) {
-        selectionRequestID += 1
-        let requestID = selectionRequestID
+        pendingSelectedFileURL = nil
 
         guard let fileURL else {
             outlineView.deselectAll(nil)
@@ -123,7 +122,8 @@ final class SidebarViewController: NSViewController, NSOutlineViewDataSource, NS
             return
         }
 
-        // Slow path: file is inside a collapsed directory — expand ancestors first
+        // Slow path: file is inside a collapsed directory — expand ancestors with animation,
+        // then select the row once it becomes available via outlineViewItemDidExpand
         guard let item = findTreeItem(matching: canonical, in: treeItems) else {
             return
         }
@@ -135,18 +135,9 @@ final class SidebarViewController: NSViewController, NSOutlineViewDataSource, NS
             current = ancestor.parent
         }
 
-        NSAnimationContext.runAnimationGroup { _ in
-            for ancestor in ancestors.reversed() {
-                outlineView.animator().expandItem(ancestor)
-            }
-        } completionHandler: { [weak self] in
-            guard let self, self.selectionRequestID == requestID else {
-                return
-            }
-            self.updateExpandedPathsFromOutline()
-            if let row = self.visibleRow(for: canonical) {
-                self.selectRow(row)
-            }
+        pendingSelectedFileURL = canonical
+        for ancestor in ancestors.reversed() {
+            outlineView.animator().expandItem(ancestor)
         }
     }
 
@@ -155,6 +146,16 @@ final class SidebarViewController: NSViewController, NSOutlineViewDataSource, NS
         outlineView.selectRowIndexes(IndexSet(integer: row), byExtendingSelection: false)
         isProgrammaticSelection = false
         outlineView.scrollRowToVisible(row)
+    }
+
+    private func applyPendingSelectionIfReady() {
+        guard let pendingURL = pendingSelectedFileURL else {
+            return
+        }
+        if let row = visibleRow(for: pendingURL) {
+            pendingSelectedFileURL = nil
+            selectRow(row)
+        }
     }
 
     private func visibleRow(for canonicalURL: URL) -> Int? {
@@ -260,6 +261,7 @@ final class SidebarViewController: NSViewController, NSOutlineViewDataSource, NS
 
     func outlineViewItemDidExpand(_ notification: Notification) {
         updateExpandedPathsFromOutline()
+        applyPendingSelectionIfReady()
     }
 
     func outlineViewItemDidCollapse(_ notification: Notification) {

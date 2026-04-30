@@ -493,22 +493,21 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Side
             let markdown = try MarkdownDocumentLoader().load(fileURL: fileURL)
             session.selectedFileURL = fileURL.skimdownCanonicalFileURL
             settingsStore.setLastSelectedMarkdown(fileURL, for: session.folderURL)
+            sidebarViewController.selectFile(fileURL)
             emptyStateView.isHidden = true
             markdownWebView.isHidden = false
-            markdownWebView.render(markdown: markdown, currentFileURL: fileURL, rootFolderURL: session.folderURL, theme: settings.theme, fontSize: settings.fontSize)
-            sidebarViewController.selectFile(fileURL)
-            if let anchor {
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { [weak self] in
+            markdownWebView.render(markdown: markdown, currentFileURL: fileURL, rootFolderURL: session.folderURL, theme: settings.theme, fontSize: settings.fontSize) { [weak self] in
+                if let anchor {
                     self?.markdownWebView.scrollToAnchor(anchor)
                 }
             }
             performSearch()
         } catch {
             session.selectedFileURL = fileURL.skimdownCanonicalFileURL
+            sidebarViewController.selectFile(fileURL)
             emptyStateView.isHidden = true
             markdownWebView.isHidden = false
             markdownWebView.showError(error.localizedDescription, theme: settings.theme, fontSize: settings.fontSize)
-            sidebarViewController.selectFile(fileURL)
         }
     }
 
