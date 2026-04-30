@@ -3,10 +3,10 @@ import AppKit
 @MainActor
 final class WindowManager {
     private let settingsStore: SettingsStore
-    private let bookmarkStore: SecurityScopedBookmarkStore
+    private let bookmarkStore: FolderBookmarkStore
     private var controllers: [DocumentWindowController] = []
 
-    init(settingsStore: SettingsStore, bookmarkStore: SecurityScopedBookmarkStore) {
+    init(settingsStore: SettingsStore, bookmarkStore: FolderBookmarkStore) {
         self.settingsStore = settingsStore
         self.bookmarkStore = bookmarkStore
     }
@@ -17,9 +17,9 @@ final class WindowManager {
 
     func restoreOrCreateInitialWindow() {
         if let bookmark = settingsStore.lastFolderBookmark,
-           let resolved = try? bookmarkStore.resolveBookmarkData(bookmark) {
+           let url = try? bookmarkStore.resolveBookmarkData(bookmark) {
             let controller = createWindow()
-            controller.openFolder(resolved.url, securityAccess: resolved.access, bookmarkData: bookmark)
+            controller.openFolder(url, bookmarkData: bookmark)
             return
         }
 
@@ -56,9 +56,9 @@ final class WindowManager {
 
     func openBookmarkData(_ bookmarkData: Data) {
         do {
-            let resolved = try bookmarkStore.resolveBookmarkData(bookmarkData)
+            let url = try bookmarkStore.resolveBookmarkData(bookmarkData)
             let target = activeController?.isEmpty == true ? activeController! : createWindow()
-            target.openFolder(resolved.url, securityAccess: resolved.access, bookmarkData: bookmarkData)
+            target.openFolder(url, bookmarkData: bookmarkData)
         } catch {
             showError(error.localizedDescription)
         }

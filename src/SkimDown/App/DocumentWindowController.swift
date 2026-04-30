@@ -3,7 +3,7 @@ import AppKit
 @MainActor
 final class DocumentWindowController: NSWindowController, NSWindowDelegate, SidebarViewControllerDelegate, EmptyStateViewDelegate, MarkdownWebViewDelegate, SearchBarViewDelegate {
     private let settingsStore: SettingsStore
-    private let bookmarkStore: SecurityScopedBookmarkStore
+    private let bookmarkStore: FolderBookmarkStore
     private weak var windowManager: WindowManager?
 
     private let splitViewController = NSSplitViewController()
@@ -30,7 +30,11 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Side
         session?.selectedFileURL
     }
 
-    init(settingsStore: SettingsStore, bookmarkStore: SecurityScopedBookmarkStore, windowManager: WindowManager) {
+    var sidebarPosition: SidebarPosition {
+        settings.sidebarPosition
+    }
+
+    init(settingsStore: SettingsStore, bookmarkStore: FolderBookmarkStore, windowManager: WindowManager) {
         self.settingsStore = settingsStore
         self.bookmarkStore = bookmarkStore
         self.windowManager = windowManager
@@ -80,7 +84,6 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Side
     func windowWillClose(_ notification: Notification) {
         NotificationCenter.default.removeObserver(self)
         fileWatcher.stop()
-        session?.securityAccess?.stop()
         windowManager?.controllerDidClose(self)
     }
 
@@ -110,12 +113,11 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Side
         }
     }
 
-    func openFolder(_ folderURL: URL, securityAccess: SecurityScopedAccess? = nil, bookmarkData: Data? = nil) {
+    func openFolder(_ folderURL: URL, bookmarkData: Data? = nil) {
         do {
             let bookmark = try bookmarkData ?? bookmarkStore.bookmarkData(for: folderURL)
             settingsStore.recordRecentFolderBookmark(bookmark)
-            let access = securityAccess ?? SecurityScopedAccess(url: folderURL)
-            try loadFolder(folderURL: folderURL, securityAccess: access, preferredSelection: nil)
+            try loadFolder(folderURL: folderURL, preferredSelection: nil)
         } catch {
             showOpenError(error)
         }
@@ -219,6 +221,10 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Side
         settings.sidebarPosition = position
         settingsStore.sidebarPosition = position
         rebuildSplitItems()
+    }
+
+    func swapSidebarPosition() {
+        moveSidebar(to: settings.sidebarPosition == .left ? .right : .left)
     }
 
     func changeFontSize(by delta: Double) {
@@ -408,15 +414,14 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Side
         }
     }
 
-    private func loadFolder(folderURL: URL, securityAccess: SecurityScopedAccess, preferredSelection: URL?) throws {
+    private func loadFolder(folderURL: URL, preferredSelection: URL?) throws {
         let scanner = MarkdownScanner()
         let markdownFiles = try scanner.scan(folderURL: folderURL)
         let treeItems = MarkdownTreeBuilder().buildTree(folderURL: folderURL, markdownFiles: markdownFiles)
         let lastRelativePath = preferredSelection.flatMap { PathSecurity.relativePath(for: $0, in: folderURL) } ?? settingsStore.lastSelectedMarkdownRelativePath(for: folderURL)
         let selectedFile = InitialSelectionResolver().resolve(folderURL: folderURL, markdownFiles: markdownFiles, treeItems: treeItems, lastRelativePath: lastRelativePath)
 
-        session?.securityAccess?.stop()
-        session = FolderSession(folderURL: folderURL, treeItems: treeItems, markdownFiles: markdownFiles, selectedFileURL: selectedFile, securityAccess: securityAccess)
+        session = FolderSession(folderURL: folderURL, treeItems: treeItems, markdownFiles: markdownFiles, selectedFileURL: selectedFile)
         window?.title = "\(folderURL.lastPathComponent) \u{2014} SkimDown"
 
         sidebarViewController.update(

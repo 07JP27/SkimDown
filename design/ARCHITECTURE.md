@@ -3,7 +3,7 @@
 > **技術スタック:** Swift 6 + AppKit + WKWebView  
 > **対象OS:** macOS 26+  
 > **ビルドシステム:** Xcodeプロジェクト（xcodegenで生成）  
-> **配布:** Developer ID署名、notarization、DMG
+> **配布:** ad-hoc 署名 + DMG (現状の CI フロー)。将来 Developer ID 署名 + notarization に切替可能。
 
 ## 方針
 
@@ -122,15 +122,14 @@ Open Folder
 
 ## セキュリティ境界
 
-- Sandboxを有効にする
-- ユーザーが選択したフォルダだけsecurity-scoped bookmarkで読み取る
-- ローカルファイル参照は開いたフォルダ内に制限する
+- 通常配布のmacOSアプリとして提供し、App Sandboxは採用しない
+- ユーザーが選択したフォルダだけを macOS の file bookmark として記憶する (Recent Folders / 起動時の前回フォルダ復元用)
+- ローカルファイル参照は開いたフォルダ内に制限する (アプリ実装側の境界チェック)
 - WebViewでは任意JavaScriptをMarkdownから実行しない
 - HTMLはDOMPurifyでサニタイズする
 - 外部画像のためにネットワーク読み込みは許可する
 - 外部リンクはアプリ内で開かず、既定ブラウザへ渡す
-
-必要なentitlementは、ファイル読み取りと外部画像のためのネットワーククライアントに限定する。
+- Hardened Runtime を有効にし、Release entitlements は `com.apple.security.get-task-allow=false` のみとする
 
 ## パフォーマンス方針
 

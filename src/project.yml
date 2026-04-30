@@ -25,11 +25,13 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: dev.jp27.SkimDown
         INFOPLIST_FILE: SkimDown/Resources/Info.plist
-        CODE_SIGN_ENTITLEMENTS: SkimDown/Resources/SkimDown.entitlements
         CURRENT_PROJECT_VERSION: "1"
         MARKETING_VERSION: "0.1.0"
         GENERATE_INFOPLIST_FILE: "NO"
         ENABLE_HARDENED_RUNTIME: "YES"
+      configs:
+        Release:
+          CODE_SIGN_ENTITLEMENTS: SkimDown/Resources/SkimDown.Release.entitlements
     postBuildScripts:
       - name: Copy bundled resources
         script: |

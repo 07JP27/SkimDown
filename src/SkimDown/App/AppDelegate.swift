@@ -3,7 +3,7 @@ import AppKit
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenuItemValidation {
     let settingsStore = SettingsStore()
-    let bookmarkStore = SecurityScopedBookmarkStore()
+    let bookmarkStore = FolderBookmarkStore()
     lazy var windowManager = WindowManager(settingsStore: settingsStore, bookmarkStore: bookmarkStore)
     weak var recentMenu: NSMenu?
 
@@ -33,14 +33,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
 
         menu.removeAllItems()
         for bookmark in settingsStore.recentFolderBookmarks {
-            guard let resolved = try? bookmarkStore.resolveBookmarkData(bookmark) else {
+            guard let resolvedURL = try? bookmarkStore.resolveBookmarkData(bookmark) else {
                 continue
             }
-            let item = NSMenuItem(title: resolved.url.skimdownDisplayName, action: #selector(openRecentFolder(_:)), keyEquivalent: "")
+            let item = NSMenuItem(title: resolvedURL.skimdownDisplayName, action: #selector(openRecentFolder(_:)), keyEquivalent: "")
             item.target = self
             item.representedObject = bookmark
             menu.addItem(item)
-            resolved.access.stop()
         }
 
         if menu.items.isEmpty {
@@ -57,7 +56,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
             return controller?.selectedFileURL != nil
         case #selector(copy(_:)), #selector(selectAll(_:)), #selector(showFind(_:)), #selector(findNext(_:)), #selector(findPrevious(_:)), #selector(useSelectionForFind(_:)):
             return controller?.selectedFileURL != nil
-        case #selector(toggleSidebar(_:)), #selector(moveSidebarRight(_:)), #selector(moveSidebarLeft(_:)), #selector(zoomIn(_:)), #selector(zoomOut(_:)), #selector(actualSize(_:)), #selector(themeSystem(_:)), #selector(themeLight(_:)), #selector(themeDark(_:)):
+        case #selector(toggleSidebar(_:)), #selector(zoomIn(_:)), #selector(zoomOut(_:)), #selector(actualSize(_:)), #selector(themeSystem(_:)), #selector(themeLight(_:)), #selector(themeDark(_:)):
+            return controller != nil
+        case #selector(swapSidebarPosition(_:)):
+            menuItem.title = controller?.sidebarPosition == .right ? "Move Sidebar to Left" : "Move Sidebar to Right"
             return controller != nil
         default:
             return true
@@ -127,12 +129,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         windowManager.activeController?.toggleSidebar()
     }
 
-    @objc func moveSidebarRight(_ sender: Any?) {
-        windowManager.activeController?.moveSidebar(to: .right)
-    }
-
-    @objc func moveSidebarLeft(_ sender: Any?) {
-        windowManager.activeController?.moveSidebar(to: .left)
+    @objc func swapSidebarPosition(_ sender: Any?) {
+        windowManager.activeController?.swapSidebarPosition()
     }
 
     @objc func zoomIn(_ sender: Any?) {

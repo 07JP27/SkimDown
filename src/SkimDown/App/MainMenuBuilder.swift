@@ -27,7 +27,7 @@ enum MainMenuBuilder {
         openRecent.submenu = openRecentMenu
         fileMenu.addItem(openRecent)
         fileMenu.addItem(.separator())
-        fileMenu.addItem(NSMenuItem(title: "Close Window", action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w"))
+        fileMenu.addItem(NSMenuItem(title: "Close Folder", action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w"))
         fileMenu.addItem(.separator())
         fileMenu.addItem(menuItem("Reveal in Finder", action: #selector(AppDelegate.revealInFinder(_:)), key: "", target: target))
         fileMenu.addItem(menuItem("Copy File Path", action: #selector(AppDelegate.copyFilePath(_:)), key: "", target: target))
@@ -56,8 +56,7 @@ enum MainMenuBuilder {
         let viewMenu = NSMenu(title: "View")
         viewMenuItem.submenu = viewMenu
         viewMenu.addItem(menuItem("Toggle Sidebar", action: #selector(AppDelegate.toggleSidebar(_:)), key: "s", target: target))
-        viewMenu.addItem(menuItem("Move Sidebar to Right", action: #selector(AppDelegate.moveSidebarRight(_:)), key: "", target: target))
-        viewMenu.addItem(menuItem("Move Sidebar to Left", action: #selector(AppDelegate.moveSidebarLeft(_:)), key: "", target: target))
+        viewMenu.addItem(menuItem("Move Sidebar to Right", action: #selector(AppDelegate.swapSidebarPosition(_:)), key: "", target: target))
         viewMenu.addItem(.separator())
 
         let zoomItem = NSMenuItem(title: "Zoom", action: nil, keyEquivalent: "")

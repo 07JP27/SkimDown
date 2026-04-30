@@ -1,4 +1,5 @@
 .DS_Store
+.env
 build/
 DerivedData/
 src/SkimDown.xcodeproj/

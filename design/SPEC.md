@@ -6,7 +6,7 @@
 - 通常のDockアプリ
 - 読み取り専用Markdownビューアー
 - 複数ウィンドウ対応
-- Sandbox有効、ユーザーが選択したフォルダのみ読み取り
+- 通常配布のmacOSアプリ (App Sandbox不採用)、ユーザーが選択したフォルダのみ読み取り
 
 ## フォルダを開く
 
@@ -188,7 +188,7 @@ GitHub Flavored Markdown寄りの表示を基本にする。
 ### View
 
 - `Toggle Sidebar`
-- `Move Sidebar to Right` / `Move Sidebar to Left`
+- `Move Sidebar to Right` / `Move Sidebar to Left`（単一項目。現在のサイドバー位置に応じてラベルが切り替わり、左右をトグルする）
 - `Zoom > Zoom In`
 - `Zoom > Zoom Out`
 - `Zoom > Actual Size`
@@ -220,14 +220,15 @@ GitHub Flavored Markdown寄りの表示を基本にする。
 
 ## セキュリティ
 
-- Sandboxを有効にする
-- フォルダアクセスはsecurity-scoped bookmarkで保存する
+- 通常配布のmacOSアプリとして提供する (App Sandboxは使用しない)
+- フォルダアクセスはユーザーがフォルダピッカーで選んだフォルダのみとし、再オープン用に macOS の file bookmark を保存する
 - 読み取り専用で、書き込み権限は要求しない
 - Markdown内の任意JavaScriptは実行しない
 - HTMLはサニタイズする
 - 外部画像は許可する
 - 外部リンクはクリック時だけ既定ブラウザで開く
 - アプリからAIサービスや外部APIには通信しない
+- Hardened Runtime を有効にし、Release ビルドの entitlements は `com.apple.security.get-task-allow=false` のみとする
 
 ## エラー表示
 
