@@ -19,7 +19,8 @@ layout: home
 </div>
 <div class="sd-visual">
 <figure class="sd-screenshot-frame">
-<img class="sd-screenshot-image" src="/images/hero_ja.png" alt="Markdownツリーと閲覧面を並べたSkimDownのスクリーンショット" />
+<img class="sd-screenshot-image sd-screenshot-image--light" src="/images/hero_ja.png" alt="Markdownツリーと閲覧面を並べたSkimDownのスクリーンショット" />
+<img class="sd-screenshot-image sd-screenshot-image--dark" src="/images/hero_ja_dark.png" alt="Markdownツリーと閲覧面を並べたSkimDownのスクリーンショット" />
 </figure>
 </div>
 </section>

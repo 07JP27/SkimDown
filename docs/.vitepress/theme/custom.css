@@ -5,15 +5,84 @@
   --vp-c-brand-soft: rgba(95, 123, 255, 0.14);
 }
 
+/* ============================================================
+   Home page tokens (light defaults).
+   Dark overrides live in `.dark` selectors at the end of file.
+   Layout, blur, gradient geometry, shadow shapes are kept identical
+   between themes — only color tokens differ.
+   ============================================================ */
+
+/* Tokens are scoped to `body:has(.sd-home)` so they cascade to both
+   the home content (.sd-home) AND chrome elements outside it
+   (e.g. .VPNavBar, the body background). Defining them on .sd-home
+   alone would not reach the navbar or body. */
 body:has(.sd-home) {
-  background: #fff9f4;
+  /* Brand (theme-agnostic) */
+  --blue: #5f7bff;
+  --aqua: #7be3ef;
+
+  /* Text */
+  --ink: #121827;
+  --muted: #667085;
+
+  /* Surfaces */
+  --glass: rgba(255, 255, 255, 0.72);
+  --line: rgba(73, 88, 130, 0.14);
+
+  /* Page background gradient layers */
+  --sd-bg-radial-1: radial-gradient(circle at 0% 0%, rgba(255, 226, 210, 0.7), transparent 30%);
+  --sd-bg-radial-2: radial-gradient(circle at 96% 8%, rgba(145, 181, 255, 0.46), transparent 32%);
+  --sd-bg-base: linear-gradient(135deg, #fffaf5 0%, #f8f3ff 46%, #eef7ff 100%);
+  --sd-grid-line: rgba(95, 123, 255, 0.06);
+  --sd-after-glow: radial-gradient(circle, rgba(123, 227, 239, 0.16), transparent 66%);
+
+  /* Pills */
+  --sd-pill-border: rgba(95, 123, 255, 0.18);
+  --sd-pill-bg: rgba(255, 255, 255, 0.38);
+  --sd-pill-shadow: 0 8px 24px rgba(75, 90, 150, 0.08), inset 0 1px 1px rgba(255, 255, 255, 0.6);
+
+  /* Buttons */
+  --sd-btn-primary-shadow: 0 20px 48px rgba(95, 123, 255, 0.28);
+  --sd-btn-secondary-border: rgba(255, 255, 255, 0.9);
+  --sd-btn-secondary-bg: rgba(255, 255, 255, 0.68);
+  --sd-btn-secondary-shadow: 0 14px 40px rgba(75, 90, 150, 0.1);
+
+  /* Trust line */
+  --sd-trust-color: #56657a;
+  --sd-trust-sep: rgba(86, 101, 122, 0.42);
+
+  /* Screenshot frame */
+  --sd-screenshot-shadow: 0 40px 100px rgba(68, 82, 134, 0.22);
+
+  /* Proof cards */
+  --sd-card-border: rgba(255, 255, 255, 0.7);
+  --sd-card-shadow: 0 22px 64px rgba(75, 90, 150, 0.11), inset 0 1px 1px rgba(255, 255, 255, 0.6);
+  --sd-card-1-border: rgba(255, 226, 210, 0.5);
+  --sd-card-1-tint: rgba(255, 226, 210, 0.28);
+  --sd-card-2-border: rgba(255, 255, 255, 0.8);
+  --sd-card-2-tint: rgba(200, 210, 255, 0.18);
+  --sd-card-3-border: rgba(123, 227, 239, 0.35);
+  --sd-card-3-tint: rgba(123, 227, 239, 0.22);
+  --sd-card-number: rgba(95, 123, 255, 0.5);
+
+  /* Page background applied behind the layout */
+  --sd-page-bg: #fff9f4;
+
+  /* NavBar overrides for the home page only */
+  --sd-nav-bg: rgba(255, 255, 255, 0.72);
+  --sd-nav-border: rgba(18, 24, 39, 0.08);
+  --sd-nav-shadow: 0 10px 34px rgba(75, 90, 150, 0.08);
+  --sd-nav-link: #475569;
+  --sd-nav-link-hover: #111827;
+  --sd-nav-title: #111827;
+
+  background: var(--sd-page-bg);
   font-kerning: normal;
   text-rendering: geometricPrecision;
   -webkit-font-smoothing: antialiased;
 }
 
 body:has(.sd-home) .VPHomeHero,
-body:has(.sd-home) .VPNavBarAppearance,
 body:has(.sd-home) .VPNavBarSearch {
   display: none !important;
 }
@@ -28,21 +97,21 @@ body:has(.sd-home) .VPContent {
 }
 
 body:has(.sd-home) .VPNavBar {
-  border-bottom: 1px solid rgba(18, 24, 39, 0.08) !important;
-  background: rgba(255, 255, 255, 0.94) !important;
-  box-shadow: 0 10px 34px rgba(75, 90, 150, 0.08);
+  border-bottom: 1px solid var(--sd-nav-border) !important;
+  background: var(--sd-nav-bg) !important;
+  box-shadow: var(--sd-nav-shadow);
   backdrop-filter: blur(22px);
 }
 
 body:has(.sd-home) .VPNavBar a,
 body:has(.sd-home) .VPNavBar button {
-  color: #475569 !important;
+  color: var(--sd-nav-link) !important;
   opacity: 1 !important;
 }
 
 body:has(.sd-home) .VPNavBar a:hover,
 body:has(.sd-home) .VPNavBar button:hover {
-  color: #111827 !important;
+  color: var(--sd-nav-link-hover) !important;
 }
 
 body:has(.sd-home) .VPNavBar .VPNavBarTranslations,
@@ -50,7 +119,7 @@ body:has(.sd-home) .VPNavBar .VPNavBarTranslations .button,
 body:has(.sd-home) .VPNavBar .VPNavBarTranslations .text,
 body:has(.sd-home) .VPNavBar .VPNavBarTranslations .option-icon,
 body:has(.sd-home) .VPNavBar .VPNavBarTranslations .text-icon {
-  color: #475569 !important;
+  color: var(--sd-nav-link) !important;
   opacity: 1 !important;
 }
 
@@ -58,7 +127,7 @@ body:has(.sd-home) .VPNavBar .VPNavBarTranslations:hover,
 body:has(.sd-home) .VPNavBar .VPNavBarTranslations:hover .text,
 body:has(.sd-home) .VPNavBar .VPNavBarTranslations:hover .option-icon,
 body:has(.sd-home) .VPNavBar .VPNavBarTranslations:hover .text-icon {
-  color: #111827 !important;
+  color: var(--sd-nav-link-hover) !important;
 }
 
 .VPNavBarTitle .title {
@@ -72,6 +141,10 @@ body:has(.sd-home) .VPNavBar .VPNavBarTranslations:hover .text-icon {
   color: var(--vp-c-text-1) !important;
 }
 
+body:has(.sd-home) .VPNavBarTitle .title {
+  color: var(--sd-nav-title) !important;
+}
+
 .VPNavBar .logo {
   width: 28px !important;
   height: 28px !important;
@@ -79,12 +152,6 @@ body:has(.sd-home) .VPNavBar .VPNavBarTranslations:hover .text-icon {
 }
 
 .sd-home {
-  --ink: #121827;
-  --muted: #667085;
-  --blue: #5f7bff;
-  --aqua: #7be3ef;
-  --glass: rgba(255, 255, 255, 0.72);
-  --line: rgba(73, 88, 130, 0.14);
   position: relative;
   overflow-x: hidden;
   width: 100vw;
@@ -93,9 +160,9 @@ body:has(.sd-home) .VPNavBar .VPNavBarTranslations:hover .text-icon {
   font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, "SF Pro Display", "Helvetica Neue", Arial, sans-serif;
   font-feature-settings: "kern" 1, "liga" 1, "calt" 1;
   background:
-    radial-gradient(circle at 0% 0%, rgba(255, 226, 210, 0.7), transparent 30%),
-    radial-gradient(circle at 96% 8%, rgba(145, 181, 255, 0.46), transparent 32%),
-    linear-gradient(135deg, #fffaf5 0%, #f8f3ff 46%, #eef7ff 100%);
+    var(--sd-bg-radial-1),
+    var(--sd-bg-radial-2),
+    var(--sd-bg-base);
 }
 
 .sd-home::before {
@@ -104,8 +171,8 @@ body:has(.sd-home) .VPNavBar .VPNavBarTranslations:hover .text-icon {
   pointer-events: none;
   content: "";
   background-image:
-    linear-gradient(rgba(95, 123, 255, 0.032) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(95, 123, 255, 0.032) 1px, transparent 1px);
+    linear-gradient(var(--sd-grid-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--sd-grid-line) 1px, transparent 1px);
   background-size: 86px 86px;
   mask-image: linear-gradient(180deg, #000 0%, transparent 58%);
 }
@@ -119,7 +186,7 @@ body:has(.sd-home) .VPNavBar .VPNavBarTranslations:hover .text-icon {
   min-width: 420px;
   min-height: 420px;
   border-radius: 999px;
-  background: radial-gradient(circle, rgba(123, 227, 239, 0.16), transparent 66%);
+  background: var(--sd-after-glow);
   pointer-events: none;
   content: "";
 }
@@ -212,9 +279,9 @@ body:has(.sd-home) .VPNavBar .VPNavBarTranslations:hover .text-icon {
 
 .sd-pills span {
   padding: 8px 20px;
-  border: 1px solid rgba(95, 123, 255, 0.18);
+  border: 1px solid var(--sd-pill-border);
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.38);
+  background: var(--sd-pill-bg);
   color: var(--muted);
   font-size: 13px;
   font-weight: 600;
@@ -222,9 +289,7 @@ body:has(.sd-home) .VPNavBar .VPNavBarTranslations:hover .text-icon {
   line-height: 1;
   white-space: nowrap;
   backdrop-filter: blur(22px);
-  box-shadow:
-    0 8px 24px rgba(75, 90, 150, 0.08),
-    inset 0 1px 1px rgba(255, 255, 255, 0.6);
+  box-shadow: var(--sd-pill-shadow);
 }
 
 .sd-actions {
@@ -249,14 +314,14 @@ body:has(.sd-home) .VPNavBar .VPNavBarTranslations:hover .text-icon {
 .sd-button-primary {
   background: linear-gradient(135deg, #5f7bff 0%, #826eff 58%, #45d9e6 100%);
   color: white !important;
-  box-shadow: 0 20px 48px rgba(95, 123, 255, 0.28);
+  box-shadow: var(--sd-btn-primary-shadow);
 }
 
 .sd-button-secondary {
-  border: 1px solid rgba(255, 255, 255, 0.9);
-  background: rgba(255, 255, 255, 0.68);
+  border: 1px solid var(--sd-btn-secondary-border);
+  background: var(--sd-btn-secondary-bg);
   color: var(--ink) !important;
-  box-shadow: 0 14px 40px rgba(75, 90, 150, 0.1);
+  box-shadow: var(--sd-btn-secondary-shadow);
   backdrop-filter: blur(20px);
 }
 
@@ -267,7 +332,7 @@ body:has(.sd-home) .VPNavBar .VPNavBarTranslations:hover .text-icon {
   align-items: center;
   margin: 8px 0 0 !important;
   padding: 0 !important;
-  color: #56657a;
+  color: var(--sd-trust-color);
   font-size: 12px;
   font-weight: 800;
   letter-spacing: -0.004em;
@@ -279,7 +344,7 @@ body:has(.sd-home) .VPNavBar .VPNavBarTranslations:hover .text-icon {
 
 .sd-trust-line span:not(:last-child)::after {
   margin-left: 12px;
-  color: rgba(86, 101, 122, 0.42);
+  color: var(--sd-trust-sep);
   content: "/";
 }
 
@@ -295,7 +360,7 @@ body:has(.sd-home) .VPNavBar .VPNavBarTranslations:hover .text-icon {
   margin: 0;
   overflow: hidden;
   border-radius: 10px;
-  box-shadow: 0 40px 100px rgba(68, 82, 134, 0.22);
+  box-shadow: var(--sd-screenshot-shadow);
 }
 
 .sd-screenshot-image {
@@ -305,6 +370,17 @@ body:has(.sd-home) .VPNavBar .VPNavBarTranslations:hover .text-icon {
   width: 100%;
   height: auto;
   border-radius: 10px;
+}
+
+/* Theme-aware hero image swap.
+   Markup ships two <img> variants; CSS shows the matching one.
+   Until dark variants exist, both can point at the same file. */
+html:not(.dark) .sd-screenshot-image--dark {
+  display: none;
+}
+
+html.dark .sd-screenshot-image--light {
+  display: none;
 }
 
 .sd-proof,
@@ -324,33 +400,31 @@ body:has(.sd-home) .VPNavBar .VPNavBarTranslations:hover .text-icon {
 }
 
 .sd-proof article {
-  border: 1px solid rgba(255, 255, 255, 0.7);
+  border: 1px solid var(--sd-card-border);
   border-radius: 30px;
   background: var(--glass);
-  box-shadow:
-    0 22px 64px rgba(75, 90, 150, 0.11),
-    inset 0 1px 1px rgba(255, 255, 255, 0.6);
+  box-shadow: var(--sd-card-shadow);
   backdrop-filter: blur(22px);
 }
 
 .sd-proof article:nth-child(1) {
-  border-color: rgba(255, 226, 210, 0.5);
+  border-color: var(--sd-card-1-border);
   background:
-    radial-gradient(circle at 10% 0%, rgba(255, 226, 210, 0.28), transparent 60%),
+    radial-gradient(circle at 10% 0%, var(--sd-card-1-tint), transparent 60%),
     var(--glass);
 }
 
 .sd-proof article:nth-child(2) {
-  border-color: rgba(255, 255, 255, 0.8);
+  border-color: var(--sd-card-2-border);
   background:
-    radial-gradient(circle at 50% 0%, rgba(200, 210, 255, 0.18), transparent 60%),
+    radial-gradient(circle at 50% 0%, var(--sd-card-2-tint), transparent 60%),
     var(--glass);
 }
 
 .sd-proof article:nth-child(3) {
-  border-color: rgba(123, 227, 239, 0.35);
+  border-color: var(--sd-card-3-border);
   background:
-    radial-gradient(circle at 90% 0%, rgba(123, 227, 239, 0.22), transparent 60%),
+    radial-gradient(circle at 90% 0%, var(--sd-card-3-tint), transparent 60%),
     var(--glass);
 }
 
@@ -362,7 +436,7 @@ body:has(.sd-home) .VPNavBar .VPNavBarTranslations:hover .text-icon {
 .sd-proof article span {
   display: block;
   margin-bottom: 12px;
-  color: rgba(95, 123, 255, 0.5);
+  color: var(--sd-card-number);
   font-size: 52px;
   font-weight: 950;
   line-height: 1;
@@ -526,4 +600,67 @@ body:has(.sd-home) .VPNavBar .VPNavBarTranslations:hover .text-icon {
   .sd-final {
     margin-bottom: 56px;
   }
+}
+
+/* ============================================================
+   Dark theme overrides for the home page.
+   Same gradient shapes, same blur, same shadows — only colors shift.
+   ============================================================ */
+
+.dark body:has(.sd-home) {
+  /* Text */
+  --ink: #eef2fb;
+  --muted: #9aa6bd;
+
+  /* Surfaces */
+  --glass: rgba(22, 28, 44, 0.55);
+  --line: rgba(255, 255, 255, 0.08);
+
+  /* Page background gradient layers — same positions, deeper hues */
+  --sd-bg-radial-1: radial-gradient(circle at 0% 0%, rgba(255, 142, 102, 0.18), transparent 30%);
+  --sd-bg-radial-2: radial-gradient(circle at 96% 8%, rgba(120, 151, 255, 0.22), transparent 32%);
+  --sd-bg-base: linear-gradient(135deg, #0a0d18 0%, #131227 46%, #0d1a2c 100%);
+  --sd-grid-line: rgba(120, 151, 255, 0.06);
+  --sd-after-glow: radial-gradient(circle, rgba(123, 227, 239, 0.10), transparent 66%);
+
+  /* Pills */
+  --sd-pill-border: rgba(120, 151, 255, 0.28);
+  --sd-pill-bg: rgba(255, 255, 255, 0.04);
+  --sd-pill-shadow: 0 8px 24px rgba(0, 0, 0, 0.35), inset 0 1px 1px rgba(255, 255, 255, 0.05);
+
+  /* Buttons — primary keeps its brand gradient, just glow stronger.
+     Secondary becomes a soft dark glass. */
+  --sd-btn-primary-shadow: 0 20px 48px rgba(95, 123, 255, 0.45);
+  --sd-btn-secondary-border: rgba(255, 255, 255, 0.10);
+  --sd-btn-secondary-bg: rgba(255, 255, 255, 0.05);
+  --sd-btn-secondary-shadow: 0 14px 40px rgba(0, 0, 0, 0.45);
+
+  /* Trust line */
+  --sd-trust-color: #8a96ad;
+  --sd-trust-sep: rgba(138, 150, 173, 0.38);
+
+  /* Screenshot frame */
+  --sd-screenshot-shadow: 0 40px 100px rgba(0, 0, 0, 0.55);
+
+  /* Proof cards */
+  --sd-card-border: rgba(255, 255, 255, 0.06);
+  --sd-card-shadow: 0 22px 64px rgba(0, 0, 0, 0.40), inset 0 1px 1px rgba(255, 255, 255, 0.04);
+  --sd-card-1-border: rgba(255, 170, 130, 0.20);
+  --sd-card-1-tint: rgba(255, 170, 130, 0.10);
+  --sd-card-2-border: rgba(255, 255, 255, 0.10);
+  --sd-card-2-tint: rgba(160, 180, 255, 0.10);
+  --sd-card-3-border: rgba(123, 227, 239, 0.24);
+  --sd-card-3-tint: rgba(123, 227, 239, 0.12);
+  --sd-card-number: rgba(120, 151, 255, 0.62);
+
+  /* Page background applied behind the layout */
+  --sd-page-bg: #0a0d18;
+
+  /* NavBar overrides for the home page only (dark) */
+  --sd-nav-bg: rgba(11, 14, 26, 0.78);
+  --sd-nav-border: rgba(255, 255, 255, 0.06);
+  --sd-nav-shadow: 0 10px 34px rgba(0, 0, 0, 0.45);
+  --sd-nav-link: #c9d2e6;
+  --sd-nav-link-hover: #ffffff;
+  --sd-nav-title: #eef2fb;
 }
