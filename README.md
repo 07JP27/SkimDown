@@ -68,7 +68,7 @@ make run                # Build and launch the app
 make launch-check       # GUI smoke test (build + launch + verify on-screen window)
 make release            # Release build
 make notarize           # Release build + Apple notarization
-make dmg VERSION=1.0.0  # Release build + DMG packaging
+make dmg VERSION=0.1.0  # Release build + DMG packaging
 make clean              # Clean build artifacts
 make generate           # Regenerate .xcodeproj (after editing src/project.yml)
 make docs               # Start local documentation dev server
@@ -96,7 +96,7 @@ cp .env.example .env
 Then run:
 
 ```bash
-make dmg VERSION=1.0.0
+make dmg VERSION=0.1.0
 ```
 
 This builds a Release binary, packages it into a DMG, and (with `make notarize`) submits it to Apple for notarization and staples the notarization ticket.

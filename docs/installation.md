@@ -11,7 +11,7 @@
 2. Open the `.dmg` file and drag **SkimDown.app** to the **Applications** folder
 3. Open SkimDown from Applications
 
-## Removing the Quarantine Flag
+## Removing the Quarantine Attribute
 
 If you see the warning *"Apple could not verify 'SkimDown' is free of malware that may harm your Mac or compromise your privacy"*, run the following command in **Terminal** to remove the quarantine attribute:
 

@@ -30,8 +30,6 @@ targets:
         GENERATE_INFOPLIST_FILE: "NO"
         ENABLE_HARDENED_RUNTIME: "YES"
       configs:
-        Debug:
-          CODE_SIGN_ENTITLEMENTS: ""
         Release:
           CODE_SIGN_ENTITLEMENTS: SkimDown/Resources/SkimDown.Release.entitlements
     postBuildScripts:

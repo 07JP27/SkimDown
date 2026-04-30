@@ -68,7 +68,7 @@ make run                # ビルドしてアプリを起動
 make launch-check       # GUI スモークテスト（ビルド・起動・ウィンドウ確認）
 make release            # リリースビルド
 make notarize           # リリースビルド + Apple 公証
-make dmg VERSION=1.0.0  # リリースビルド + DMG パッケージング
+make dmg VERSION=0.1.0  # リリースビルド + DMG パッケージング
 make clean              # ビルド成果物をクリーンアップ
 make generate           # .xcodeproj を再生成（src/project.yml 編集後）
 make docs               # ドキュメントサイトのローカル開発サーバー起動
@@ -96,7 +96,7 @@ cp .env.example .env
 そして次のコマンドを実行します：
 
 ```bash
-make dmg VERSION=1.0.0
+make dmg VERSION=0.1.0
 ```
 
 リリースバイナリをビルドして DMG にパッケージし、`make notarize` を併用すると Apple に公証申請して公証チケットをステープルします。
