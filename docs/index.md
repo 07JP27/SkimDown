@@ -19,7 +19,8 @@ layout: home
 </div>
 <div class="sd-visual">
 <figure class="sd-screenshot-frame">
-<img class="sd-screenshot-image" src="/images/hero_en.png" alt="SkimDown showing a Markdown folder tree next to a reading surface" />
+<img class="sd-screenshot-image sd-screenshot-image--light" src="/images/hero_en.png" alt="SkimDown showing a Markdown folder tree next to a reading surface" />
+<img class="sd-screenshot-image sd-screenshot-image--dark" src="/images/hero_en_dark.png" alt="SkimDown showing a Markdown folder tree next to a reading surface" />
 </figure>
 </div>
 </section>
