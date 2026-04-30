@@ -1,0 +1,8 @@
+.DS_Store
+build/
+DerivedData/
+src/SkimDown.xcodeproj/
+docs/node_modules/
+docs/.vitepress/dist/
+docs/.vitepress/cache/
+npm-debug.log*
