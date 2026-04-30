@@ -30,9 +30,14 @@ final class WindowManager {
             restoredAny = true
         }
 
-        if restoredAny {
-            // Re-persist so any unresolved bookmarks are dropped from storage.
+        if !openStates.isEmpty {
+            // Re-persist (potentially as an empty list) so unresolved bookmarks
+            // are dropped from storage even when zero windows were restored.
+            // Otherwise the same dead entries would be retried on every launch.
             persistOpenFolderState()
+        }
+
+        if restoredAny {
             return
         }
 
