@@ -25,15 +25,16 @@ struct MarkdownScanner {
             let name = url.lastPathComponent
             let isDirectory = values.isDirectory == true
             let isHidden = values.isHidden == true || name.hasPrefix(".")
+            let isSymbolicLink = values.isSymbolicLink == true
 
             if isDirectory {
-                if isHidden || Self.excludedDirectoryNames.contains(name) {
+                if isSymbolicLink || isHidden || Self.excludedDirectoryNames.contains(name) {
                     enumerator.skipDescendants()
                 }
                 continue
             }
 
-            guard !isHidden, url.skimdownIsMarkdownFile else {
+            guard !isSymbolicLink, !isHidden, url.skimdownIsMarkdownFile else {
                 continue
             }
 

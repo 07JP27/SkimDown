@@ -13,7 +13,10 @@ final class TemporaryFolder {
     func write(_ string: String, to relativePath: String) throws {
         let fileURL = url.appendingPathComponent(relativePath)
         try FileManager.default.createDirectory(at: fileURL.deletingLastPathComponent(), withIntermediateDirectories: true)
-        try string.data(using: .utf8)?.write(to: fileURL)
+        guard let data = string.data(using: .utf8) else {
+            throw CocoaError(.fileWriteUnknown)
+        }
+        try data.write(to: fileURL)
     }
 
     deinit {

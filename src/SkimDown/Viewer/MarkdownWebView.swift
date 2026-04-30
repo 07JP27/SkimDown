@@ -27,8 +27,8 @@ final class MarkdownWebView: NSView, WKScriptMessageHandler {
         webView = WKWebView(frame: .zero, configuration: configuration)
         super.init(frame: frameRect)
 
-        userContentController.add(self, name: "linkClick")
-        userContentController.add(self, name: "copyCode")
+        userContentController.add(WeakScriptMessageHandler(delegate: self), name: "linkClick")
+        userContentController.add(WeakScriptMessageHandler(delegate: self), name: "copyCode")
 
         webView.translatesAutoresizingMaskIntoConstraints = false
         webView.allowsBackForwardNavigationGestures = false
@@ -44,6 +44,12 @@ final class MarkdownWebView: NSView, WKScriptMessageHandler {
 
     required init?(coder: NSCoder) {
         nil
+    }
+
+    deinit {
+        let userContentController = webView.configuration.userContentController
+        userContentController.removeScriptMessageHandler(forName: "linkClick")
+        userContentController.removeScriptMessageHandler(forName: "copyCode")
     }
 
     func render(markdown: String, currentFileURL: URL, rootFolderURL: URL, theme: AppTheme, fontSize: Double) {
@@ -200,5 +206,18 @@ final class MarkdownWebView: NSView, WKScriptMessageHandler {
 
     private static func jsonString(_ string: String) -> String {
         jsonObject([string]).dropFirst().dropLast().description
+    }
+}
+
+@MainActor
+private final class WeakScriptMessageHandler: NSObject, WKScriptMessageHandler {
+    private weak var delegate: (any WKScriptMessageHandler)?
+
+    init(delegate: any WKScriptMessageHandler) {
+        self.delegate = delegate
+    }
+
+    func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
+        delegate?.userContentController(userContentController, didReceive: message)
     }
 }
