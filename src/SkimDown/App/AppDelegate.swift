@@ -56,7 +56,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
             return controller?.selectedFileURL != nil
         case #selector(copy(_:)), #selector(selectAll(_:)), #selector(showFind(_:)), #selector(findNext(_:)), #selector(findPrevious(_:)), #selector(useSelectionForFind(_:)):
             return controller?.selectedFileURL != nil
-        case #selector(toggleSidebar(_:)), #selector(moveSidebarRight(_:)), #selector(moveSidebarLeft(_:)), #selector(zoomIn(_:)), #selector(zoomOut(_:)), #selector(actualSize(_:)), #selector(themeSystem(_:)), #selector(themeLight(_:)), #selector(themeDark(_:)):
+        case #selector(toggleSidebar(_:)), #selector(zoomIn(_:)), #selector(zoomOut(_:)), #selector(actualSize(_:)), #selector(themeSystem(_:)), #selector(themeLight(_:)), #selector(themeDark(_:)):
+            return controller != nil
+        case #selector(swapSidebarPosition(_:)):
+            menuItem.title = controller?.sidebarPosition == .right ? "Move Sidebar to Left" : "Move Sidebar to Right"
             return controller != nil
         default:
             return true
@@ -126,12 +129,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         windowManager.activeController?.toggleSidebar()
     }
 
-    @objc func moveSidebarRight(_ sender: Any?) {
-        windowManager.activeController?.moveSidebar(to: .right)
-    }
-
-    @objc func moveSidebarLeft(_ sender: Any?) {
-        windowManager.activeController?.moveSidebar(to: .left)
+    @objc func swapSidebarPosition(_ sender: Any?) {
+        windowManager.activeController?.swapSidebarPosition()
     }
 
     @objc func zoomIn(_ sender: Any?) {

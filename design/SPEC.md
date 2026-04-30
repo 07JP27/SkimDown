@@ -188,7 +188,7 @@ GitHub Flavored Markdown寄りの表示を基本にする。
 ### View
 
 - `Toggle Sidebar`
-- `Move Sidebar to Right` / `Move Sidebar to Left`
+- `Move Sidebar to Right` / `Move Sidebar to Left`（単一項目。現在のサイドバー位置に応じてラベルが切り替わり、左右をトグルする）
 - `Zoom > Zoom In`
 - `Zoom > Zoom Out`
 - `Zoom > Actual Size`

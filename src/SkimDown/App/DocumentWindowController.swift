@@ -30,6 +30,10 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Side
         session?.selectedFileURL
     }
 
+    var sidebarPosition: SidebarPosition {
+        settings.sidebarPosition
+    }
+
     init(settingsStore: SettingsStore, bookmarkStore: FolderBookmarkStore, windowManager: WindowManager) {
         self.settingsStore = settingsStore
         self.bookmarkStore = bookmarkStore
@@ -217,6 +221,10 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Side
         settings.sidebarPosition = position
         settingsStore.sidebarPosition = position
         rebuildSplitItems()
+    }
+
+    func swapSidebarPosition() {
+        moveSidebar(to: settings.sidebarPosition == .left ? .right : .left)
     }
 
     func changeFontSize(by delta: Double) {
