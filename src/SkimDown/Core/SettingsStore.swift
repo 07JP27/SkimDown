@@ -69,7 +69,8 @@ final class SettingsStore {
     var sidebarWidth: Double {
         get {
             let value = defaults.double(forKey: Key.sidebarWidth)
-            return value > 0 ? value : 260
+            guard value > 0 else { return 260 }
+            return max(180, min(value, 520))
         }
         set { defaults.set(max(180, min(newValue, 520)), forKey: Key.sidebarWidth) }
     }
@@ -82,7 +83,8 @@ final class SettingsStore {
     var fontSize: Double {
         get {
             let value = defaults.double(forKey: Key.fontSize)
-            return value > 0 ? value : 16
+            guard value > 0 else { return 16 }
+            return max(11, min(value, 28))
         }
         set { defaults.set(max(11, min(newValue, 28)), forKey: Key.fontSize) }
     }
