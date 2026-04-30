@@ -15,6 +15,22 @@ protocol MarkdownWebViewDelegate: AnyObject {
 final class MarkdownWebView: NSView, WKScriptMessageHandler {
     weak var delegate: MarkdownWebViewDelegate?
 
+    private enum WebResourceError: LocalizedError {
+        case missing(String)
+        case unreadable(String, Error)
+
+        var errorDescription: String? {
+            switch self {
+            case .missing(let relativePath):
+                "Missing bundled Web resource: \(relativePath)"
+            case .unreadable(let relativePath, let error):
+                "Unable to read bundled Web resource \(relativePath): \(error.localizedDescription)"
+            }
+        }
+    }
+
+    private static var webResourceCache: [String: String] = [:]
+
     private let webView: WKWebView
     private var currentTheme: AppTheme = .system
 
@@ -65,7 +81,16 @@ final class MarkdownWebView: NSView, WKScriptMessageHandler {
             "fontSize": fontSize
         ]
 
-        webView.loadHTMLString(buildHTML(payload: payload), baseURL: baseURL)
+        do {
+            webView.loadHTMLString(try buildHTML(payload: payload), baseURL: baseURL)
+        } catch {
+            loadFallbackErrorHTML(
+                message: "Preview resources could not be loaded.\n\(error.localizedDescription)",
+                theme: theme,
+                fontSize: fontSize,
+                baseURL: baseURL
+            )
+        }
     }
 
     func showError(_ message: String, theme: AppTheme, fontSize: Double) {
@@ -78,7 +103,16 @@ final class MarkdownWebView: NSView, WKScriptMessageHandler {
             "theme": theme.rawValue,
             "fontSize": fontSize
         ]
-        webView.loadHTMLString(buildHTML(payload: payload), baseURL: Bundle.main.bundleURL)
+        do {
+            webView.loadHTMLString(try buildHTML(payload: payload), baseURL: Bundle.main.bundleURL)
+        } catch {
+            loadFallbackErrorHTML(
+                message: "\(message)\n\n\(error.localizedDescription)",
+                theme: theme,
+                fontSize: fontSize,
+                baseURL: Bundle.main.bundleURL
+            )
+        }
     }
 
     func performSearch(query: String, caseSensitive: Bool, completion: @escaping (SearchResult) -> Void) {
@@ -145,23 +179,23 @@ final class MarkdownWebView: NSView, WKScriptMessageHandler {
         }
     }
 
-    private func buildHTML(payload: [String: Any]) -> String {
+    private func buildHTML(payload: [String: Any]) throws -> String {
         let css = [
-            readWebResource("vendor/katex/katex.min.css").replacingOccurrences(of: "url(fonts/", with: "url(\(katexFontsURLString())/"),
-            readWebResource("vendor/highlight.js/github.min.css"),
-            readWebResource("vendor/highlight.js/github-dark.min.css"),
-            readWebResource("skimdown.css")
+            try Self.readWebResource("vendor/katex/katex.min.css").replacingOccurrences(of: "url(fonts/", with: "url(\(katexFontsURLString())/"),
+            try Self.readWebResource("vendor/highlight.js/github.min.css"),
+            try Self.readWebResource("vendor/highlight.js/github-dark.min.css"),
+            try Self.readWebResource("skimdown.css")
         ].joined(separator: "\n")
 
         let scripts = [
-            readWebResource("vendor/markdown-it/markdown-it.min.js"),
-            readWebResource("vendor/markdown-it-footnote/markdown-it-footnote.min.js"),
-            readWebResource("vendor/dompurify/purify.min.js"),
-            readWebResource("vendor/katex/katex.min.js"),
-            readWebResource("vendor/katex/auto-render.min.js"),
-            readWebResource("vendor/mermaid/mermaid.min.js"),
-            readWebResource("vendor/highlight.js/highlight.min.js"),
-            readWebResource("renderer.js")
+            try Self.readWebResource("vendor/markdown-it/markdown-it.min.js"),
+            try Self.readWebResource("vendor/markdown-it-footnote/markdown-it-footnote.min.js"),
+            try Self.readWebResource("vendor/dompurify/purify.min.js"),
+            try Self.readWebResource("vendor/katex/katex.min.js"),
+            try Self.readWebResource("vendor/katex/auto-render.min.js"),
+            try Self.readWebResource("vendor/mermaid/mermaid.min.js"),
+            try Self.readWebResource("vendor/highlight.js/highlight.min.js"),
+            try Self.readWebResource("renderer.js")
         ].joined(separator: "\n")
 
         return """
@@ -181,13 +215,68 @@ final class MarkdownWebView: NSView, WKScriptMessageHandler {
         """
     }
 
-    private func readWebResource(_ relativePath: String) -> String {
-        guard let url = Bundle.main.resourceURL?.appendingPathComponent("Web").appendingPathComponent(relativePath),
-              let contents = try? String(contentsOf: url, encoding: .utf8) else {
-            return ""
+        private static func readWebResource(_ relativePath: String) throws -> String {
+                if let cached = webResourceCache[relativePath] {
+                        return cached
+                }
+
+                guard let url = Bundle.main.resourceURL?.appendingPathComponent("Web").appendingPathComponent(relativePath) else {
+                        throw WebResourceError.missing(relativePath)
+                }
+
+                do {
+                        let contents = try String(contentsOf: url, encoding: .utf8)
+                        webResourceCache[relativePath] = contents
+                        return contents
+                } catch {
+                        throw WebResourceError.unreadable(relativePath, error)
         }
-        return contents
     }
+
+        private func loadFallbackErrorHTML(message: String, theme: AppTheme, fontSize: Double, baseURL: URL) {
+                currentTheme = theme
+                applyNativeAppearance(theme)
+
+                let escapedMessage = Self.htmlEscaped(message)
+                        .replacingOccurrences(of: "\n", with: "<br>")
+                let html = """
+                <!doctype html>
+                <html data-theme="\(theme.rawValue)">
+                    <head>
+                        <meta charset="utf-8">
+                        <meta name="viewport" content="width=device-width, initial-scale=1">
+                        <style>
+                            body {
+                                margin: 0;
+                                padding: 32px;
+                                color: #1f2937;
+                                background: #ffffff;
+                                font: \(fontSize)px -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif;
+                                line-height: 1.6;
+                            }
+                            @media (prefers-color-scheme: dark) {
+                                body { color: #f3f4f6; background: #111827; }
+                            }
+                            .error {
+                                max-width: 760px;
+                                border-left: 4px solid #dc2626;
+                                padding-left: 16px;
+                            }
+                            h1 { margin: 0 0 12px; font-size: 1.2em; }
+                            p { margin: 0; }
+                        </style>
+                    </head>
+                    <body>
+                        <section class="error">
+                            <h1>Preview error</h1>
+                            <p>\(escapedMessage)</p>
+                        </section>
+                    </body>
+                </html>
+                """
+
+                webView.loadHTMLString(html, baseURL: baseURL)
+        }
 
     private func katexFontsURLString() -> String {
         guard let url = Bundle.main.resourceURL?.appendingPathComponent("Web/vendor/katex/fonts") else {
@@ -206,6 +295,15 @@ final class MarkdownWebView: NSView, WKScriptMessageHandler {
 
     private static func jsonString(_ string: String) -> String {
         jsonObject([string]).dropFirst().dropLast().description
+    }
+
+    private static func htmlEscaped(_ string: String) -> String {
+        string
+            .replacingOccurrences(of: "&", with: "&amp;")
+            .replacingOccurrences(of: "<", with: "&lt;")
+            .replacingOccurrences(of: ">", with: "&gt;")
+            .replacingOccurrences(of: "\"", with: "&quot;")
+            .replacingOccurrences(of: "'", with: "&#39;")
     }
 }
 

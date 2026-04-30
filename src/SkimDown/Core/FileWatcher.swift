@@ -3,6 +3,8 @@ import Foundation
 
 @MainActor
 final class FileWatcher {
+    nonisolated static let maxWatchedDirectories = 128
+
     private struct DirectoryWatch {
         let descriptor: CInt
         let source: DispatchSourceFileSystemObject
@@ -17,7 +19,7 @@ final class FileWatcher {
     func start(folderURL: URL) throws {
         stop()
         rootURL = folderURL
-        try installDirectoryWatches(folderURL: folderURL)
+        installDirectoryWatches(folderURL: folderURL)
     }
 
     func stop() {
@@ -35,17 +37,17 @@ final class FileWatcher {
             }
             self.onChange?()
             if let rootURL = self.rootURL {
-                try? self.installDirectoryWatches(folderURL: rootURL)
+                self.installDirectoryWatches(folderURL: rootURL)
             }
         }
         debounceWorkItem = workItem
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.25, execute: workItem)
     }
 
-    private func installDirectoryWatches(folderURL: URL) throws {
+    private func installDirectoryWatches(folderURL: URL) {
         cancelDirectoryWatches()
 
-        let directories = try watchedDirectories(folderURL: folderURL)
+        let directories = Self.watchedDirectories(folderURL: folderURL)
         for directory in directories {
             let descriptor = open(directory.path, O_EVTONLY)
             guard descriptor >= 0 else {
@@ -69,20 +71,39 @@ final class FileWatcher {
         }
     }
 
-    private func watchedDirectories(folderURL: URL) throws -> [URL] {
+    nonisolated static func watchedDirectories(
+        folderURL: URL,
+        limit: Int = maxWatchedDirectories,
+        fileManager: FileManager = .default
+    ) -> [URL] {
+        guard limit > 0 else {
+            return []
+        }
+
         let keys: [URLResourceKey] = [.isDirectoryKey, .isHiddenKey]
         var directories = [folderURL]
 
-        guard let enumerator = FileManager.default.enumerator(
+        guard let enumerator = fileManager.enumerator(
             at: folderURL,
             includingPropertiesForKeys: keys,
-            options: [.skipsHiddenFiles, .skipsPackageDescendants]
+            options: [.skipsHiddenFiles, .skipsPackageDescendants],
+            errorHandler: { _, _ in true }
         ) else {
             return directories
         }
 
         for case let url as URL in enumerator {
-            let values = try url.resourceValues(forKeys: Set(keys))
+            guard directories.count < limit else {
+                break
+            }
+
+            let values: URLResourceValues
+            do {
+                values = try url.resourceValues(forKeys: Set(keys))
+            } catch {
+                continue
+            }
+
             guard values.isDirectory == true else {
                 continue
             }

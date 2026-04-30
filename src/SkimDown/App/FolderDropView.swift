@@ -14,26 +14,15 @@ final class FolderDropView: NSView {
     }
 
     override func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation {
-        folderURL(from: sender.draggingPasteboard) == nil ? [] : .copy
+        sender.draggingPasteboard.skimdownFolderURL == nil ? [] : .copy
     }
 
     override func performDragOperation(_ sender: NSDraggingInfo) -> Bool {
-        guard let url = folderURL(from: sender.draggingPasteboard) else {
+        guard let url = sender.draggingPasteboard.skimdownFolderURL else {
             return false
         }
         onFolderDropped?(url)
         return true
-    }
-
-    private func folderURL(from pasteboard: NSPasteboard) -> URL? {
-        guard let urls = pasteboard.readObjects(forClasses: [NSURL.self], options: [.urlReadingFileURLsOnly: true]) as? [URL] else {
-            return nil
-        }
-
-        return urls.first { url in
-            var isDirectory: ObjCBool = false
-            return FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory) && isDirectory.boolValue
-        }
     }
 }
 
