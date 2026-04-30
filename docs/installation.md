@@ -1,28 +1,44 @@
 # Installation
 
-SkimDown is a native macOS app. Packaged releases are not published yet.
+## System Requirements
 
-## Requirements
-
-- macOS 26 or later
+- **macOS 26** (Tahoe) or later
 - A folder containing `.md` or `.markdown` files
 
-## Get the app
+## Download & Install
 
-Release packages will be distributed from GitHub Releases once they are available.
+1. Download the latest `.dmg` from the [Releases page](https://github.com/07JP27/SkimDown/releases)
+2. Open the `.dmg` file and drag **SkimDown.app** to the **Applications** folder
+3. Open SkimDown from Applications
 
-## First launch
+## Removing the Quarantine Flag
+
+If you see the warning *"Apple could not verify 'SkimDown' is free of malware that may harm your Mac or compromise your privacy"*, run the following command in **Terminal** to remove the quarantine flag:
+
+```bash
+xattr -cr /Applications/SkimDown.app
+```
+
+::: warning
+Please review the [source code](https://github.com/07JP27/SkimDown) and run at your own risk.
+:::
+
+## First Launch
 
 1. Open SkimDown.
-2. Choose **Open Folder...**.
-3. Select the folder that contains the Markdown files you want to read.
+2. Choose **File → Open Folder…** (or press **⌘O**, or drag a folder onto the window).
+3. Pick the folder that contains the Markdown files you want to read.
 
-SkimDown uses the macOS folder picker for access. The app reads the folder you choose and keeps that access so recent folders can reopen later.
+SkimDown uses the macOS folder picker for access. The app reads the folder you choose and keeps that access using app-scoped security-scoped bookmarks so recent folders can reopen later.
+
+::: tip
+SkimDown is **read-only**. It never edits, saves, exports, or modifies your Markdown files.
+:::
 
 ## Updating
 
-When packaged releases are available, download the newer build and replace the older app in your Applications folder.
+Download the newer `.dmg` from the [Releases page](https://github.com/07JP27/SkimDown/releases) and replace the existing **SkimDown.app** in your Applications folder. Re-run `xattr -cr /Applications/SkimDown.app` if Gatekeeper warns again.
 
-## Next steps
+## Next Steps
 
 After launch, continue with [Usage](./usage.md) to learn how to open folders, navigate the tree, preview Markdown, and search the current file.
