@@ -16,8 +16,9 @@ final class SecurityScopedAccess {
     private var isAccessing: Bool
 
     init(url: URL) {
-        self.url = url.standardizedFileURL
-        self.isAccessing = url.startAccessingSecurityScopedResource()
+        let standardizedURL = url.standardizedFileURL
+        self.url = standardizedURL
+        self.isAccessing = standardizedURL.startAccessingSecurityScopedResource()
     }
 
     func stop() {
@@ -54,7 +55,8 @@ final class SecurityScopedBookmarkStore {
             throw SecurityScopedBookmarkError.staleBookmark
         }
 
-        return (url.standardizedFileURL, SecurityScopedAccess(url: url))
+        let standardizedURL = url.standardizedFileURL
+        return (standardizedURL, SecurityScopedAccess(url: standardizedURL))
     }
 }
 

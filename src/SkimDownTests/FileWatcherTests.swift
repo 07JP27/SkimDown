@@ -62,6 +62,20 @@ final class FileWatcherTests: XCTestCase {
         watcher.stop()
     }
 
+    func testIgnoresSymlinkEventsResolvingOutsideRoot() throws {
+        let folder = try TemporaryFolder()
+        let externalFolder = try TemporaryFolder()
+        try externalFolder.write("# Outside", to: "outside.md")
+        try FileManager.default.createSymbolicLink(
+            at: folder.url.appendingPathComponent("Linked", isDirectory: true),
+            withDestinationURL: externalFolder.url
+        )
+
+        let eventURL = folder.url.appendingPathComponent("Linked/outside.md")
+
+        XCTAssertTrue(FileWatcher.shouldIgnoreEvent(url: eventURL, rootURL: folder.url))
+    }
+
     func testAllowsNonExcludedEventPaths() throws {
         let folder = try TemporaryFolder()
         let eventSource = MockFileWatchEventSource()

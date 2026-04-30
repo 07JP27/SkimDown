@@ -27,7 +27,7 @@ enum MainMenuBuilder {
         openRecent.submenu = openRecentMenu
         fileMenu.addItem(openRecent)
         fileMenu.addItem(.separator())
-        fileMenu.addItem(NSMenuItem(title: "Close Folder", action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w"))
+        fileMenu.addItem(NSMenuItem(title: "Close Window", action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w"))
         fileMenu.addItem(.separator())
         fileMenu.addItem(menuItem("Reveal in Finder", action: #selector(AppDelegate.revealInFinder(_:)), key: "", target: target))
         fileMenu.addItem(menuItem("Copy File Path", action: #selector(AppDelegate.copyFilePath(_:)), key: "", target: target))

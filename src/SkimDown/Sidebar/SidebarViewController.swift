@@ -19,6 +19,7 @@ final class SidebarViewController: NSViewController, NSOutlineViewDataSource, NS
     private var treeItems: [MarkdownTreeItem] = []
     private var expandedPaths: Set<String> = []
     private var isProgrammaticSelection = false
+    private var selectionRequestID = 0
 
     override func loadView() {
         let rootView = FolderDropVisualEffectView()
@@ -106,6 +107,9 @@ final class SidebarViewController: NSViewController, NSOutlineViewDataSource, NS
     }
 
     func selectFile(_ fileURL: URL?) {
+        selectionRequestID += 1
+        let requestID = selectionRequestID
+
         guard let fileURL else {
             outlineView.deselectAll(nil)
             return
@@ -131,13 +135,18 @@ final class SidebarViewController: NSViewController, NSOutlineViewDataSource, NS
             current = ancestor.parent
         }
 
-        for ancestor in ancestors.reversed() {
-            outlineView.animator().expandItem(ancestor)
-        }
-        updateExpandedPathsFromOutline()
-
-        if let row = visibleRow(for: canonical) {
-            selectRow(row)
+        NSAnimationContext.runAnimationGroup { _ in
+            for ancestor in ancestors.reversed() {
+                outlineView.animator().expandItem(ancestor)
+            }
+        } completionHandler: { [weak self] in
+            guard let self, self.selectionRequestID == requestID else {
+                return
+            }
+            self.updateExpandedPathsFromOutline()
+            if let row = self.visibleRow(for: canonical) {
+                self.selectRow(row)
+            }
         }
     }
 
