@@ -211,6 +211,10 @@
       const text = document.createTextNode(mark.textContent);
       mark.replaceWith(text);
     });
+    var content = document.getElementById("content");
+    if (content) {
+      content.normalize();
+    }
   }
 
   function performSearch(query, caseSensitive) {
