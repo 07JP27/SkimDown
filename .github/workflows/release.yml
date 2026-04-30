@@ -64,11 +64,17 @@ jobs:
       - name: Ad-hoc codesign
         run: |
           APP_PATH="build/Build/Products/Release/SkimDown.app"
+          ENTITLEMENTS="src/SkimDown/Resources/SkimDown.Release.entitlements"
           # Re-sign with ad-hoc identity to seal all bundle resources
-          # (linker-signed binaries lack resource sealing, causing "damaged" errors)
-          codesign --force --deep -s - "$APP_PATH"
+          # (linker-signed binaries lack resource sealing, causing "damaged" errors).
+          # Re-apply hardened runtime and the Release entitlements so the resigned
+          # bundle keeps its intended runtime configuration (e.g. get-task-allow=false).
+          codesign --force --deep --options runtime \
+            --entitlements "$ENTITLEMENTS" \
+            -s - "$APP_PATH"
           codesign --verify --deep --strict "$APP_PATH"
-          echo "Ad-hoc signing verified"
+          echo "Ad-hoc signing verified. Entitlements:"
+          codesign -d --entitlements - "$APP_PATH"
 
       - name: Create DMG
         id: dmg
