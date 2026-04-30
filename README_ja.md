@@ -79,7 +79,7 @@ make docs-build         # ドキュメントサイトをビルド
 
 macOS の Gatekeeper は、インターネットからダウンロードされた未署名アプリをブロックします。Gatekeeper の警告を回避して SkimDown を配布するには、Developer ID 証明書で署名し、Apple の公証を受ける必要があります。
 
-> **メモ:** 本リポジトリの CI から公開されている DMG は現状 **ad-hoc 署名**のため、利用者側で `xattr -cr /Applications/SkimDown.app` による検疫フラグ解除が必要です。以下のフローは、メンテナがローカルで Developer ID 署名 + 公証付きビルドを作成するための手順です。
+> **メモ:** 本リポジトリの CI から公開されている DMG は現状 **ad-hoc 署名**のため、利用者側で `xattr -dr com.apple.quarantine /Applications/SkimDown.app` による検疫属性解除が必要です。以下のフローは、メンテナがローカルで Developer ID 署名 + 公証付きビルドを作成するための手順です。
 
 `.env.example` を `.env` にコピーして認証情報を入力します：
 
@@ -92,7 +92,6 @@ cp .env.example .env
 | `APPLE_ID` | Apple ID のメールアドレス |
 | `APPLE_TEAM_ID` | Apple Developer Team ID |
 | `APPLE_APP_PASSWORD` | appleid.apple.com で生成した[アプリ用パスワード](https://support.apple.com/ja-jp/102654) |
-| `DEVELOPER_NAME` | Developer ID 証明書に記載されている名前 |
 
 そして次のコマンドを実行します：
 

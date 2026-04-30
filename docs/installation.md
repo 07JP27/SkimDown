@@ -13,10 +13,10 @@
 
 ## Removing the Quarantine Flag
 
-If you see the warning *"Apple could not verify 'SkimDown' is free of malware that may harm your Mac or compromise your privacy"*, run the following command in **Terminal** to remove the quarantine flag:
+If you see the warning *"Apple could not verify 'SkimDown' is free of malware that may harm your Mac or compromise your privacy"*, run the following command in **Terminal** to remove the quarantine attribute:
 
 ```bash
-xattr -cr /Applications/SkimDown.app
+xattr -dr com.apple.quarantine /Applications/SkimDown.app
 ```
 
 ::: warning
@@ -37,7 +37,7 @@ SkimDown is **read-only**. It never edits, saves, exports, or modifies your Mark
 
 ## Updating
 
-Download the newer `.dmg` from the [Releases page](https://github.com/07JP27/SkimDown/releases) and replace the existing **SkimDown.app** in your Applications folder. Re-run `xattr -cr /Applications/SkimDown.app` if Gatekeeper warns again.
+Download the newer `.dmg` from the [Releases page](https://github.com/07JP27/SkimDown/releases) and replace the existing **SkimDown.app** in your Applications folder. Re-run `xattr -dr com.apple.quarantine /Applications/SkimDown.app` if Gatekeeper warns again.
 
 ## Next Steps
 

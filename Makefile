@@ -9,6 +9,10 @@ DMG_PATH := build/SkimDown-$(VERSION).dmg
 NOTARY_ZIP := build/SkimDown-$(VERSION).zip
 DESTINATION := platform=macOS
 
+# Auto-load credentials for signing/notarization (gitignored).
+-include .env
+export APPLE_ID APPLE_TEAM_ID APPLE_APP_PASSWORD
+
 .PHONY: generate build test run launch-check release notarize dmg clean docs docs-build
 
 generate:

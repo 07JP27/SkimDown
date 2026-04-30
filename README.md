@@ -79,7 +79,7 @@ make docs-build         # Build documentation site
 
 macOS Gatekeeper blocks unsigned apps downloaded from the internet. To distribute SkimDown without requiring users to bypass Gatekeeper warnings, the app must be signed with a Developer ID certificate and notarized by Apple.
 
-> **Note:** The DMGs published from this repository's CI are currently **ad-hoc signed**, so users have to clear the quarantine flag with `xattr -cr /Applications/SkimDown.app`. The flow below is for maintainers who want to produce a Developer ID-signed and notarized build locally.
+> **Note:** The DMGs published from this repository's CI are currently **ad-hoc signed**, so users have to clear the quarantine attribute with `xattr -dr com.apple.quarantine /Applications/SkimDown.app`. The flow below is for maintainers who want to produce a Developer ID-signed and notarized build locally.
 
 Copy `.env.example` to `.env` and fill in your credentials:
 
@@ -92,7 +92,6 @@ cp .env.example .env
 | `APPLE_ID` | Your Apple ID email address |
 | `APPLE_TEAM_ID` | Your Apple Developer Team ID |
 | `APPLE_APP_PASSWORD` | An [app-specific password](https://support.apple.com/en-us/102654) generated at appleid.apple.com |
-| `DEVELOPER_NAME` | Your name as it appears on your Developer ID certificate |
 
 Then run:
 
