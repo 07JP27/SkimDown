@@ -7,9 +7,15 @@ layout: home
 <div class="sd-copy">
 <h1><span>Markdownを、</span><span>読むモードへ。</span></h1>
 <p class="sd-sub">AIが書いたものも、人が書いたものも。フォルダごと、静かに読む。</p>
+<div class="sd-pills">
+<span>Markdownだけを表示</span>
+<span>変更を自動で反映</span>
+<span>完全ローカル動作</span>
+</div>
 <div class="sd-actions">
 <a class="sd-button sd-button-primary" href="/ja/installation">はじめる</a>
 </div>
+<p class="sd-trust-line"><span>macOS 26+</span></p>
 </div>
 <div class="sd-visual">
 <figure class="sd-screenshot-frame">

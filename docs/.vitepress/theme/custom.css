@@ -86,7 +86,7 @@ body:has(.sd-home) .VPNavBar .VPNavBarTranslations:hover .text-icon {
   --glass: rgba(255, 255, 255, 0.72);
   --line: rgba(73, 88, 130, 0.14);
   position: relative;
-  overflow: hidden;
+  overflow-x: hidden;
   width: 100vw;
   margin-left: calc(50% - 50vw);
   color: var(--ink);
@@ -200,11 +200,38 @@ body:has(.sd-home) .VPNavBar .VPNavBarTranslations:hover .text-icon {
   letter-spacing: -0.006em;
 }
 
+.sd-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  padding: 0;
+}
+
+.sd-pills span {
+  padding: 8px 20px;
+  border: 1px solid rgba(95, 123, 255, 0.18);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.38);
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: -0.004em;
+  line-height: 1;
+  white-space: nowrap;
+  backdrop-filter: blur(22px);
+  box-shadow:
+    0 8px 24px rgba(75, 90, 150, 0.08),
+    inset 0 1px 1px rgba(255, 255, 255, 0.6);
+}
+
 .sd-actions {
   display: flex;
   gap: 14px;
   justify-content: flex-start;
-  margin-top: 24px;
+  margin-top: 54px;
 }
 
 .sd-button {
@@ -233,16 +260,21 @@ body:has(.sd-home) .VPNavBar .VPNavBarTranslations:hover .text-icon {
   backdrop-filter: blur(20px);
 }
 
-.sd-trust-line {
+.sd-copy .sd-trust-line {
   display: flex;
   flex-wrap: wrap;
   gap: 8px 12px;
   align-items: center;
-  margin: 16px 0 0;
+  margin: 8px 0 0 !important;
+  padding: 0 !important;
   color: #56657a;
   font-size: 12px;
   font-weight: 800;
   letter-spacing: -0.004em;
+}
+
+.sd-actions + .sd-trust-line {
+  margin-top: 8px !important;
 }
 
 .sd-trust-line span:not(:last-child)::after {

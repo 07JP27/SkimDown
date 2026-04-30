@@ -7,9 +7,15 @@ layout: home
 <div class="sd-copy">
 <h1>Markdown, in reading mode.</h1>
 <p class="sd-sub">What agents write and what you write — read it all, quietly, in one folder.</p>
+<div class="sd-pills">
+<span>Only shows Markdown</span>
+<span>Auto-refreshes on changes</span>
+<span>Fully local, no network</span>
+</div>
 <div class="sd-actions">
 <a class="sd-button sd-button-primary" href="/installation">Start reading</a>
 </div>
+<p class="sd-trust-line"><span>macOS 26+</span></p>
 </div>
 <div class="sd-visual">
 <figure class="sd-screenshot-frame">
