@@ -21,6 +21,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Side
     private var session: FolderSession?
     private var fileWatcher = FileWatcher()
     private var settings: AppSettings
+    private(set) var currentFolderBookmarkData: Data?
 
     var isEmpty: Bool {
         session == nil
@@ -87,7 +88,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Side
         windowManager?.controllerDidClose(self)
     }
 
-    func placeWindowOnActiveScreenIfNeeded() {
+    func placeWindowOnActiveScreenIfNeeded(preserveOnScreenFrame: Bool = false) {
         guard let window else {
             return
         }
@@ -108,7 +109,17 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Side
         )
         let targetFrame = NSRect(origin: origin, size: preferredSize)
 
-        if !visibleFrame.intersects(window.frame) || !window.isVisible {
+        let isOffScreen = !visibleFrame.intersects(window.frame)
+        let needsRepositioning: Bool
+        if preserveOnScreenFrame {
+            // Restored windows: only intervene if the saved frame is now
+            // outside any screen (e.g. the user disconnected a display).
+            needsRepositioning = isOffScreen
+        } else {
+            needsRepositioning = isOffScreen || !window.isVisible
+        }
+
+        if needsRepositioning {
             window.setFrame(targetFrame, display: true)
         }
     }
@@ -118,6 +129,8 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Side
             let bookmark = try bookmarkData ?? bookmarkStore.bookmarkData(for: folderURL)
             settingsStore.recordRecentFolderBookmark(bookmark)
             try loadFolder(folderURL: folderURL, preferredSelection: nil)
+            currentFolderBookmarkData = bookmark
+            windowManager?.persistOpenFolderState()
         } catch {
             showOpenError(error)
         }

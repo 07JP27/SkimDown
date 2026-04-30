@@ -46,5 +46,107 @@ final class SettingsStoreTests: XCTestCase {
         XCTAssertEqual(store.lastSelectedMarkdownRelativePath(for: folder.url), "Docs/doc.md")
         XCTAssertEqual(store.expandedTreeItemRelativePaths(for: folder.url), ["Docs"])
     }
+
+    func testOpenFolderBookmarksRoundTrip() throws {
+        let suiteName = "dev.jp27.SkimDownTests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer {
+            defaults.removePersistentDomain(forName: suiteName)
+        }
+
+        let store = SettingsStore(defaults: defaults)
+        XCTAssertTrue(store.openFolderBookmarks.isEmpty)
+
+        let bookmarkA = Data([0x01, 0x02, 0x03])
+        let bookmarkB = Data([0x10, 0x20, 0x30, 0x40])
+        store.openFolderBookmarks = [bookmarkA, bookmarkB]
+
+        let reloaded = SettingsStore(defaults: defaults)
+        XCTAssertEqual(reloaded.openFolderBookmarks, [bookmarkA, bookmarkB])
+
+        reloaded.openFolderBookmarks = []
+        XCTAssertTrue(SettingsStore(defaults: defaults).openFolderBookmarks.isEmpty)
+    }
+
+    func testOpenFolderBookmarksAreIndependentOfRecentAndLast() throws {
+        let suiteName = "dev.jp27.SkimDownTests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer {
+            defaults.removePersistentDomain(forName: suiteName)
+        }
+
+        let store = SettingsStore(defaults: defaults)
+        let bookmark = Data([0xAA, 0xBB])
+        store.recordRecentFolderBookmark(bookmark)
+
+        XCTAssertEqual(store.lastFolderBookmark, bookmark)
+        XCTAssertEqual(store.recentFolderBookmarks, [bookmark])
+        XCTAssertTrue(store.openFolderBookmarks.isEmpty,
+                      "Recording a recent bookmark must not implicitly add it to openFolderBookmarks")
+        XCTAssertTrue(store.openFolderStates.isEmpty,
+                      "Recording a recent bookmark must not implicitly add it to openFolderStates")
+    }
+
+    func testOpenFolderStatesRoundTripPreservesFrames() throws {
+        let suiteName = "dev.jp27.SkimDownTests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer {
+            defaults.removePersistentDomain(forName: suiteName)
+        }
+
+        let store = SettingsStore(defaults: defaults)
+        XCTAssertTrue(store.openFolderStates.isEmpty)
+
+        let stateA = OpenFolderState(
+            bookmark: Data([0x01, 0x02]),
+            frame: CGRect(x: 100, y: 200, width: 1024, height: 768)
+        )
+        let stateB = OpenFolderState(
+            bookmark: Data([0x03, 0x04]),
+            frame: CGRect(x: -50, y: 0, width: 960, height: 660)
+        )
+        store.openFolderStates = [stateA, stateB]
+
+        let reloaded = SettingsStore(defaults: defaults)
+        XCTAssertEqual(reloaded.openFolderStates, [stateA, stateB])
+    }
+
+    func testWritingOpenFolderStatesClearsLegacyBookmarksKey() throws {
+        let suiteName = "dev.jp27.SkimDownTests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer {
+            defaults.removePersistentDomain(forName: suiteName)
+        }
+
+        let store = SettingsStore(defaults: defaults)
+        store.openFolderBookmarks = [Data([0x10]), Data([0x20])]
+        XCTAssertEqual(store.openFolderBookmarks.count, 2)
+
+        store.openFolderStates = [
+            OpenFolderState(bookmark: Data([0x10]), frame: CGRect(x: 0, y: 0, width: 1024, height: 768))
+        ]
+
+        XCTAssertTrue(store.openFolderBookmarks.isEmpty,
+                      "Writing openFolderStates must clear the legacy openFolderBookmarks key")
+        XCTAssertEqual(store.openFolderStates.count, 1)
+    }
+
+    func testOpenFolderStatesMigratesFromLegacyBookmarksWithZeroFrame() throws {
+        let suiteName = "dev.jp27.SkimDownTests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer {
+            defaults.removePersistentDomain(forName: suiteName)
+        }
+
+        let legacyA = Data([0xAA])
+        let legacyB = Data([0xBB])
+        let store = SettingsStore(defaults: defaults)
+        store.openFolderBookmarks = [legacyA, legacyB]
+
+        let migrated = store.openFolderStates
+        XCTAssertEqual(migrated.map(\.bookmark), [legacyA, legacyB])
+        XCTAssertTrue(migrated.allSatisfy { $0.frame == .zero },
+                      "Legacy bookmarks have no frame and should migrate as .zero")
+    }
 }
 
