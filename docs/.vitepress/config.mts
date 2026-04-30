@@ -12,7 +12,14 @@ export default defineConfig({
     ['meta', { property: 'og:type', content: 'website' }],
     ['meta', { property: 'og:title', content: 'SkimDown' }],
     ['meta', { property: 'og:description', content: description }],
-    ['meta', { property: 'og:image', content: '/images/app-screenshot-placeholder.svg' }],
+    ['meta', { property: 'og:image', content: '/images/ogp.png' }],
+    ['meta', { property: 'og:image:width', content: '1200' }],
+    ['meta', { property: 'og:image:height', content: '630' }],
+    ['meta', { property: 'og:image:alt', content: 'SkimDown - A beautiful reader for generated Markdown.' }],
+    ['meta', { name: 'twitter:card', content: 'summary_large_image' }],
+    ['meta', { name: 'twitter:title', content: 'SkimDown' }],
+    ['meta', { name: 'twitter:description', content: description }],
+    ['meta', { name: 'twitter:image', content: '/images/ogp.png' }],
   ],
 
   locales: {
