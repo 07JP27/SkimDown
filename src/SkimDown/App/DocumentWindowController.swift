@@ -23,6 +23,14 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Side
     private var settings: AppSettings
     private(set) var currentFolderBookmarkData: Data?
 
+    /// コンテンツ側 (defaultLow = 250) がリサイズを引き受けるよう、
+    /// サイドバー側だけ一段高い保持優先度を割り当てる。これにより
+    /// ドラッグ終了直後の Auto Layout 再解決でサイドバー幅が
+    /// スナップバックしないようにする。
+    private static let sidebarHoldingPriority = NSLayoutConstraint.Priority(
+        rawValue: NSLayoutConstraint.Priority.defaultLow.rawValue + 10
+    )
+
     var isEmpty: Bool {
         session == nil
     }
@@ -361,6 +369,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Side
         sidebarItem.minimumThickness = 180
         sidebarItem.maximumThickness = 520
         sidebarItem.canCollapse = true
+        sidebarItem.holdingPriority = Self.sidebarHoldingPriority
         sidebarItem.isCollapsed = !settings.isSidebarVisible
 
         contentItem = NSSplitViewItem(viewController: documentContentViewController)
@@ -376,13 +385,12 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Side
     }
 
     @objc private func splitViewDidResizeSubviewsNotification(_ notification: Notification) {
-        guard !sidebarItem.isCollapsed, splitViewController.splitView.subviews.count == 2 else {
+        guard !sidebarItem.isCollapsed,
+              splitViewController.splitViewItems.count == 2 else {
             return
         }
 
-        let splitView = splitViewController.splitView
-        let sidebarIndex = settings.sidebarPosition == .left ? 0 : 1
-        let width = splitView.subviews[sidebarIndex].bounds.width
+        let width = sidebarItem.viewController.view.bounds.width
         guard width > 0 else {
             return
         }
@@ -411,15 +419,12 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Side
     }
 
     private func applySidebarWidth() {
-        guard !sidebarItem.isCollapsed else {
+        guard !sidebarItem.isCollapsed,
+              splitViewController.splitViewItems.count == 2 else {
             return
         }
 
         let splitView = splitViewController.splitView
-        guard splitView.subviews.count == 2 else {
-            return
-        }
-
         if settings.sidebarPosition == .left {
             splitView.setPosition(settings.sidebarWidth, ofDividerAt: 0)
         } else {
