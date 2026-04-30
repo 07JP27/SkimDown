@@ -4,6 +4,8 @@ final class SettingsStore {
     private enum Key {
         static let lastFolderBookmark = "lastFolderBookmark"
         static let recentFolderBookmarks = "recentFolderBookmarks"
+        static let openFolderBookmarks = "openFolderBookmarks"
+        static let openFolderStates = "openFolderStates"
         static let lastSelectedMarkdownByFolder = "lastSelectedMarkdownByFolder"
         static let expandedTreeItemsByFolder = "expandedTreeItemsByFolder"
         static let sidebarPosition = "sidebarPosition"
@@ -49,6 +51,38 @@ final class SettingsStore {
     var recentFolderBookmarks: [Data] {
         get { defaults.array(forKey: Key.recentFolderBookmarks) as? [Data] ?? [] }
         set { defaults.set(newValue, forKey: Key.recentFolderBookmarks) }
+    }
+
+    /// Bookmarks for folders currently open in active windows.
+    ///
+    /// This is independent of `recentFolderBookmarks` / `lastFolderBookmark`
+    /// (which represent history) and reflects the live state of open windows
+    /// so that all of them can be restored on next launch.
+    var openFolderBookmarks: [Data] {
+        get { defaults.array(forKey: Key.openFolderBookmarks) as? [Data] ?? [] }
+        set { defaults.set(newValue, forKey: Key.openFolderBookmarks) }
+    }
+
+    /// Persisted state for each currently-open folder window: the folder
+    /// bookmark plus the on-screen frame, so windows are restored at the
+    /// same position and size on next launch.
+    ///
+    /// Falls back to legacy `openFolderBookmarks` when no states have been
+    /// written yet (one-time migration). Writing clears the legacy key.
+    var openFolderStates: [OpenFolderState] {
+        get {
+            if let raw = defaults.array(forKey: Key.openFolderStates) as? [[String: Any]] {
+                return raw.compactMap(OpenFolderState.init(dictionary:))
+            }
+            // Legacy migration: bookmarks-only storage without frames.
+            return openFolderBookmarks.map { OpenFolderState(bookmark: $0, frame: .zero) }
+        }
+        set {
+            let raw = newValue.map { $0.dictionaryRepresentation }
+            defaults.set(raw, forKey: Key.openFolderStates)
+            // Drop the legacy single-key list so we don't double-restore.
+            defaults.removeObject(forKey: Key.openFolderBookmarks)
+        }
     }
 
     var sidebarPosition: SidebarPosition {

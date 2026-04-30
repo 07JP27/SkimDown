@@ -17,6 +17,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         false
     }
 
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        windowManager.prepareForTermination()
+        return .terminateNow
+    }
+
+    func applicationWillTerminate(_ notification: Notification) {
+        windowManager.prepareForTermination()
+    }
+
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
         if flag {
             windowManager.bringAllWindowsToFront()
