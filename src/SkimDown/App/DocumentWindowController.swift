@@ -361,6 +361,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Side
         sidebarItem.minimumThickness = 180
         sidebarItem.maximumThickness = 520
         sidebarItem.canCollapse = true
+        sidebarItem.holdingPriority = NSLayoutConstraint.Priority(rawValue: 260)
         sidebarItem.isCollapsed = !settings.isSidebarVisible
 
         contentItem = NSSplitViewItem(viewController: documentContentViewController)
@@ -376,13 +377,12 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Side
     }
 
     @objc private func splitViewDidResizeSubviewsNotification(_ notification: Notification) {
-        guard !sidebarItem.isCollapsed, splitViewController.splitView.subviews.count == 2 else {
+        guard !sidebarItem.isCollapsed,
+              splitViewController.splitViewItems.count == 2 else {
             return
         }
 
-        let splitView = splitViewController.splitView
-        let sidebarIndex = settings.sidebarPosition == .left ? 0 : 1
-        let width = splitView.subviews[sidebarIndex].bounds.width
+        let width = sidebarItem.viewController.view.bounds.width
         guard width > 0 else {
             return
         }
@@ -411,15 +411,12 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Side
     }
 
     private func applySidebarWidth() {
-        guard !sidebarItem.isCollapsed else {
+        guard !sidebarItem.isCollapsed,
+              splitViewController.splitViewItems.count == 2 else {
             return
         }
 
         let splitView = splitViewController.splitView
-        guard splitView.subviews.count == 2 else {
-            return
-        }
-
         if settings.sidebarPosition == .left {
             splitView.setPosition(settings.sidebarWidth, ofDividerAt: 0)
         } else {
