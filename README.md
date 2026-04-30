@@ -31,7 +31,7 @@ Open a folder, and SkimDown shows only the Markdown files in a sidebar tree and 
 - In-document search for the current file
 - Live reload — Markdown add / delete / rename / update events refresh the tree and preview
 - Persists sidebar position, visibility, width, theme, font size, recent folders, last selected file, and tree expansion state
-- Sandboxed, local-only — no telemetry, no Markdown text leaves your machine
+- Local-only — no telemetry, no Markdown text leaves your machine
 
 ## Architecture
 

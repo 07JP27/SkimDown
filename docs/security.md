@@ -4,13 +4,13 @@ SkimDown is a local, read-only Markdown viewer. It is designed to read the folde
 
 ## Folder access
 
-SkimDown asks you to choose a folder with the macOS folder picker. It only reads folders that you select.
+SkimDown asks you to choose a folder with the macOS folder picker. It only reads folders that you explicitly select.
 
-Recent and previous folders can reopen because SkimDown stores macOS security-scoped access for those selected folders.
+Recent folders and the last opened folder reopen automatically because SkimDown remembers them as macOS file bookmarks. Bookmarks track folder moves and renames so the entries keep working after you reorganize your filesystem.
 
 ## Read-only behavior
 
-SkimDown does not edit, save, export, print, or modify Markdown files. It is built for reading and navigation only.
+SkimDown does not edit, save, export, print, or modify Markdown files. It is built for reading and navigation only — there is no write code path in the app.
 
 ## Local file boundaries
 
@@ -27,3 +27,7 @@ External links open in your default browser. External images referenced by Markd
 ## No external transmission
 
 SkimDown does not send your Markdown text or folder contents to external services. External links open in your browser, and externally hosted images may be requested by the preview as described above.
+
+## App distribution
+
+SkimDown is distributed as a regular macOS application — it is **not** sandboxed and is **not** submitted to the Mac App Store. The read-only and folder-boundary guarantees described above are enforced by the SkimDown source code (which is open in this repository), not by macOS App Sandbox. Builds are signed with the Hardened Runtime so the app cannot be tampered with after release.
