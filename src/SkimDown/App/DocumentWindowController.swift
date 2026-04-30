@@ -23,6 +23,14 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Side
     private var settings: AppSettings
     private(set) var currentFolderBookmarkData: Data?
 
+    /// コンテンツ側 (defaultLow = 250) がリサイズを引き受けるよう、
+    /// サイドバー側だけ一段高い保持優先度を割り当てる。これにより
+    /// ドラッグ終了直後の Auto Layout 再解決でサイドバー幅が
+    /// スナップバックしないようにする。
+    private static let sidebarHoldingPriority = NSLayoutConstraint.Priority(
+        rawValue: NSLayoutConstraint.Priority.defaultLow.rawValue + 10
+    )
+
     var isEmpty: Bool {
         session == nil
     }
@@ -361,7 +369,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Side
         sidebarItem.minimumThickness = 180
         sidebarItem.maximumThickness = 520
         sidebarItem.canCollapse = true
-        sidebarItem.holdingPriority = NSLayoutConstraint.Priority(rawValue: 260)
+        sidebarItem.holdingPriority = Self.sidebarHoldingPriority
         sidebarItem.isCollapsed = !settings.isSidebarVisible
 
         contentItem = NSSplitViewItem(viewController: documentContentViewController)
