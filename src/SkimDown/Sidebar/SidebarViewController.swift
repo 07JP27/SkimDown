@@ -19,6 +19,7 @@ final class SidebarViewController: NSViewController, NSOutlineViewDataSource, NS
     private var treeItems: [MarkdownTreeItem] = []
     private var expandedPaths: Set<String> = []
     private var isProgrammaticSelection = false
+    private var isRestoringExpansion = false
     private var pendingSelectedFileURL: URL?
 
     override func loadView() {
@@ -260,11 +261,16 @@ final class SidebarViewController: NSViewController, NSOutlineViewDataSource, NS
     }
 
     func outlineViewItemDidExpand(_ notification: Notification) {
-        updateExpandedPathsFromOutline()
+        if !isRestoringExpansion {
+            updateExpandedPathsFromOutline()
+        }
         applyPendingSelectionIfReady()
     }
 
     func outlineViewItemDidCollapse(_ notification: Notification) {
+        guard !isRestoringExpansion else {
+            return
+        }
         updateExpandedPathsFromOutline()
     }
 
@@ -283,16 +289,15 @@ final class SidebarViewController: NSViewController, NSOutlineViewDataSource, NS
     }
 
     private func restoreExpandedItems() {
-        for item in treeItems {
-            restoreExpandedItems(item)
+        let itemsToExpand = ExpandedPathRestorer.itemsToExpand(in: treeItems, desired: expandedPaths)
+        guard !itemsToExpand.isEmpty else {
+            return
         }
-    }
-
-    private func restoreExpandedItems(_ item: MarkdownTreeItem) {
-        if expandedPaths.contains(item.relativePath) {
+        isRestoringExpansion = true
+        defer { isRestoringExpansion = false }
+        for item in itemsToExpand {
             outlineView.expandItem(item)
         }
-        item.children.forEach(restoreExpandedItems)
     }
 
     private func updateExpandedPathsFromOutline() {
