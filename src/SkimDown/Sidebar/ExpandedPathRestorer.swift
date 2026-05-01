@@ -9,7 +9,7 @@ enum ExpandedPathRestorer {
     /// `relativePath` is in `desired`. It is a pure function — it never mutates
     /// the input or `desired`, which keeps callers safe even when expansion
     /// triggers downstream notifications that would otherwise mutate shared state.
-    static func pathsToExpand(in items: [MarkdownTreeItem], desired: Set<String>) -> [MarkdownTreeItem] {
+    static func itemsToExpand(in items: [MarkdownTreeItem], desired: Set<String>) -> [MarkdownTreeItem] {
         guard !desired.isEmpty else {
             return []
         }

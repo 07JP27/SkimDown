@@ -289,15 +289,15 @@ final class SidebarViewController: NSViewController, NSOutlineViewDataSource, NS
     }
 
     private func restoreExpandedItems() {
-        let itemsToExpand = ExpandedPathRestorer.pathsToExpand(in: treeItems, desired: expandedPaths)
+        let itemsToExpand = ExpandedPathRestorer.itemsToExpand(in: treeItems, desired: expandedPaths)
         guard !itemsToExpand.isEmpty else {
             return
         }
         isRestoringExpansion = true
+        defer { isRestoringExpansion = false }
         for item in itemsToExpand {
             outlineView.expandItem(item)
         }
-        isRestoringExpansion = false
     }
 
     private func updateExpandedPathsFromOutline() {

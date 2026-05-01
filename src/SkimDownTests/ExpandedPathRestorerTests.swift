@@ -16,11 +16,11 @@ final class ExpandedPathRestorerTests: XCTestCase {
 
     func testReturnsEmptyForEmptyDesired() {
         let tree = [makeDir("a", relativePath: "a", children: [makeFile("x.md", relativePath: "a/x.md")])]
-        XCTAssertTrue(ExpandedPathRestorer.pathsToExpand(in: tree, desired: []).isEmpty)
+        XCTAssertTrue(ExpandedPathRestorer.itemsToExpand(in: tree, desired: []).isEmpty)
     }
 
     func testReturnsEmptyForEmptyTree() {
-        XCTAssertTrue(ExpandedPathRestorer.pathsToExpand(in: [], desired: ["a", "b"]).isEmpty)
+        XCTAssertTrue(ExpandedPathRestorer.itemsToExpand(in: [], desired: ["a", "b"]).isEmpty)
     }
 
     func testIncludesOnlyDirectoryItemsMatchingDesired() {
@@ -28,7 +28,7 @@ final class ExpandedPathRestorerTests: XCTestCase {
         let dir = makeDir("docs", relativePath: "docs", children: [makeFile("guide.md", relativePath: "docs/guide.md")])
         let tree = [dir, file]
 
-        let result = ExpandedPathRestorer.pathsToExpand(in: tree, desired: ["docs", "readme.md"])
+        let result = ExpandedPathRestorer.itemsToExpand(in: tree, desired: ["docs", "readme.md"])
 
         XCTAssertEqual(result.map(\.relativePath), ["docs"])
     }
@@ -40,14 +40,14 @@ final class ExpandedPathRestorerTests: XCTestCase {
         let aDir = makeDir("a", relativePath: "a", children: [bDir])
         let tree = [aDir]
 
-        let result = ExpandedPathRestorer.pathsToExpand(in: tree, desired: ["a", "a/b", "a/b/c"])
+        let result = ExpandedPathRestorer.itemsToExpand(in: tree, desired: ["a", "a/b", "a/b/c"])
 
         XCTAssertEqual(result.map(\.relativePath), ["a", "a/b", "a/b/c"])
     }
 
     func testIgnoresDesiredPathsNotInTree() {
         let dir = makeDir("docs", relativePath: "docs")
-        let result = ExpandedPathRestorer.pathsToExpand(in: [dir], desired: ["docs", "missing", "missing/inner"])
+        let result = ExpandedPathRestorer.itemsToExpand(in: [dir], desired: ["docs", "missing", "missing/inner"])
 
         XCTAssertEqual(result.map(\.relativePath), ["docs"])
     }
@@ -59,7 +59,7 @@ final class ExpandedPathRestorerTests: XCTestCase {
         let tree = [alphaDir, betaDir]
 
         // Beta is not desired; Alpha/inner is desired but Alpha is not — only Alpha/inner should appear.
-        let result = ExpandedPathRestorer.pathsToExpand(in: tree, desired: ["Alpha/inner"])
+        let result = ExpandedPathRestorer.itemsToExpand(in: tree, desired: ["Alpha/inner"])
 
         XCTAssertEqual(result.map(\.relativePath), ["Alpha/inner"])
     }
