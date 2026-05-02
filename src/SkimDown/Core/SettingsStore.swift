@@ -12,7 +12,9 @@ final class SettingsStore {
         static let isSidebarVisible = "isSidebarVisible"
         static let sidebarWidth = "sidebarWidth"
         static let theme = "theme"
+        static let customThemeID = "customThemeID"
         static let fontSize = "fontSize"
+        static let fontFamily = "fontFamily"
         static let isSearchCaseSensitive = "isSearchCaseSensitive"
     }
 
@@ -29,7 +31,9 @@ final class SettingsStore {
                 isSidebarVisible: isSidebarVisible,
                 sidebarWidth: sidebarWidth,
                 theme: theme,
+                customThemeID: customThemeID,
                 fontSize: fontSize,
+                fontFamily: fontFamily,
                 isSearchCaseSensitive: isSearchCaseSensitive
             )
         }
@@ -38,7 +42,9 @@ final class SettingsStore {
             isSidebarVisible = newValue.isSidebarVisible
             sidebarWidth = newValue.sidebarWidth
             theme = newValue.theme
+            customThemeID = newValue.customThemeID
             fontSize = newValue.fontSize
+            fontFamily = newValue.fontFamily
             isSearchCaseSensitive = newValue.isSearchCaseSensitive
         }
     }
@@ -114,6 +120,11 @@ final class SettingsStore {
         set { defaults.set(newValue.rawValue, forKey: Key.theme) }
     }
 
+    var customThemeID: String? {
+        get { defaults.string(forKey: Key.customThemeID) }
+        set { defaults.set(newValue, forKey: Key.customThemeID) }
+    }
+
     var fontSize: Double {
         get {
             let value = defaults.double(forKey: Key.fontSize)
@@ -121,6 +132,11 @@ final class SettingsStore {
             return max(11, min(value, 28))
         }
         set { defaults.set(max(11, min(newValue, 28)), forKey: Key.fontSize) }
+    }
+
+    var fontFamily: String? {
+        get { defaults.string(forKey: Key.fontFamily) }
+        set { defaults.set(newValue, forKey: Key.fontFamily) }
     }
 
     var isSearchCaseSensitive: Bool {

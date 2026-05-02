@@ -1,6 +1,16 @@
 .DS_Store
 .env
 build/
+
+# Copilot agent/skills/instructions (local only)
+.github/copilot-instructions.md
+.github/instructions/
+.github/agents/
+.github/skills/
+.github/extensions/
+
+# Planning notes
+*-plan*.md
 DerivedData/
 src/SkimDown.xcodeproj/
 docs/node_modules/

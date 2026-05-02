@@ -4,7 +4,8 @@ import AppKit
 final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenuItemValidation {
     let settingsStore = SettingsStore()
     let bookmarkStore = FolderBookmarkStore()
-    lazy var windowManager = WindowManager(settingsStore: settingsStore, bookmarkStore: bookmarkStore)
+    let themeStore = ThemeStore()
+    lazy var windowManager = WindowManager(settingsStore: settingsStore, bookmarkStore: bookmarkStore, themeStore: themeStore)
     weak var recentMenu: NSMenu?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -164,5 +165,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
 
     @objc func themeDark(_ sender: Any?) {
         windowManager.activeController?.setTheme(.dark)
+    }
+
+    @objc func openSettings(_ sender: Any?) {
+        PreferencesWindowController.shared.showWindow(settingsStore: settingsStore, themeStore: themeStore)
     }
 }

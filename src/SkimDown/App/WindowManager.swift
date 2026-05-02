@@ -4,12 +4,14 @@ import AppKit
 final class WindowManager {
     private let settingsStore: SettingsStore
     private let bookmarkStore: FolderBookmarkStore
+    let themeStore: ThemeStore
     private var controllers: [DocumentWindowController] = []
     private var isTerminating = false
 
-    init(settingsStore: SettingsStore, bookmarkStore: FolderBookmarkStore) {
+    init(settingsStore: SettingsStore, bookmarkStore: FolderBookmarkStore, themeStore: ThemeStore) {
         self.settingsStore = settingsStore
         self.bookmarkStore = bookmarkStore
+        self.themeStore = themeStore
     }
 
     var activeController: DocumentWindowController? {
@@ -55,7 +57,7 @@ final class WindowManager {
 
     @discardableResult
     func createWindow(initialFrame: CGRect? = nil) -> DocumentWindowController {
-        let controller = DocumentWindowController(settingsStore: settingsStore, bookmarkStore: bookmarkStore, windowManager: self)
+        let controller = DocumentWindowController(settingsStore: settingsStore, bookmarkStore: bookmarkStore, themeStore: themeStore, windowManager: self)
         controllers.append(controller)
         if let initialFrame, let window = controller.window {
             // Apply the persisted frame before the window is shown so that

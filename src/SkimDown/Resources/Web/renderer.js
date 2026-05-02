@@ -40,9 +40,54 @@
       .replace(/'/g, "&#39;");
   }
 
+  function hexToRGBA(hex, alpha) {
+    if (!hex || hex[0] !== "#") return null;
+    var h = hex.slice(1);
+    if (h.length === 3) {
+      h = h[0] + h[0] + h[1] + h[1] + h[2] + h[2];
+    }
+    if (h.length !== 6) return null;
+    var r = parseInt(h.substring(0, 2), 16);
+    var g = parseInt(h.substring(2, 4), 16);
+    var b = parseInt(h.substring(4, 6), 16);
+    if (isNaN(r) || isNaN(g) || isNaN(b)) return null;
+    return "rgba(" + r + ", " + g + ", " + b + ", " + alpha + ")";
+  }
+
   function render(payload) {
-    document.documentElement.dataset.theme = payload.theme || "system";
+    var effectiveScheme = payload.theme || "system";
+    if (payload.colorScheme) {
+      effectiveScheme = payload.colorScheme;
+    }
+    document.documentElement.dataset.theme = effectiveScheme;
     document.documentElement.style.setProperty("--skimdown-font-size", String(payload.fontSize || 16) + "px");
+    if (payload.fontFamily) {
+      var safeFont = payload.fontFamily.replace(/["\\;{}]/g, "");
+      document.documentElement.style.setProperty("--skimdown-font-family", '"' + safeFont + '", -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic", "Segoe UI", sans-serif');
+    } else {
+      document.documentElement.style.removeProperty("--skimdown-font-family");
+    }
+
+    if (payload.customColors) {
+      var vars = payload.customColors;
+      for (var key in vars) {
+        if (Object.prototype.hasOwnProperty.call(vars, key) && key.indexOf("--skimdown-") === 0) {
+          document.documentElement.style.setProperty(key, vars[key]);
+        }
+      }
+    }
+
+    // Semi-transparent background: override --skimdown-bg CSS variable to rgba
+    if (typeof payload.opacity === "number" && payload.opacity < 1 && payload.customColors) {
+      var bgHex = payload.customColors["--skimdown-bg"] || "";
+      var rgba = hexToRGBA(bgHex, payload.opacity);
+      if (rgba) {
+        document.documentElement.style.setProperty("--skimdown-bg", rgba);
+      }
+      // html must be transparent for WKWebView to composite non-opaque;
+      // body keeps the rgba background to provide semi-transparent color.
+      document.documentElement.style.background = "transparent";
+    }
 
     const content = document.getElementById("content");
     const dirtyHtml = renderer().render(payload.markdown || "");
@@ -127,7 +172,8 @@
   }
 
   function renderMermaidBlocks(content, payload) {
-    const isDark = payload.theme === "dark" || (payload.theme === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches);
+    var effectiveScheme = payload.colorScheme || payload.theme || "system";
+    const isDark = effectiveScheme === "dark" || (effectiveScheme === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches);
     if (window.mermaid) {
       window.mermaid.initialize({ startOnLoad: false, theme: isDark ? "dark" : "default", securityLevel: "strict" });
     }

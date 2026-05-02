@@ -22,14 +22,23 @@ final class SidebarViewController: NSViewController, NSOutlineViewDataSource, NS
     private var isRestoringExpansion = false
     private var pendingSelectedFileURL: URL?
 
+    /// Currently applied custom theme colors (nil = system default).
+    private var activeTheme: ThemeDefinition?
+
+    private var rootVisualEffectView: FolderDropVisualEffectView?
+    /// Opaque overlay drawn on top of NSVisualEffectView material to show custom theme color.
+    private var themeBackgroundView: NSView?
+
     override func loadView() {
         let rootView = FolderDropVisualEffectView()
         rootView.material = .sidebar
         rootView.blendingMode = .behindWindow
         rootView.state = .active
+        rootView.wantsLayer = true
         rootView.onFolderDropped = { [weak self] url in
             self?.onFolderDropped?(url)
         }
+        rootVisualEffectView = rootView
         view = rootView
 
         titleLabel.font = .systemFont(ofSize: 15, weight: .semibold)
@@ -243,7 +252,13 @@ final class SidebarViewController: NSViewController, NSOutlineViewDataSource, NS
 
         textField.stringValue = item.name
         textField.font = .systemFont(ofSize: 13, weight: item.isDirectory ? .medium : .regular)
-        textField.textColor = item.isDirectory ? .secondaryLabelColor : .labelColor
+        if let theme = activeTheme {
+            textField.textColor = item.isDirectory
+                ? Self.nsColor(from: theme.colors.muted)
+                : Self.nsColor(from: theme.colors.fg)
+        } else {
+            textField.textColor = item.isDirectory ? .secondaryLabelColor : .labelColor
+        }
         return cell
     }
 
@@ -312,5 +327,113 @@ final class SidebarViewController: NSViewController, NSOutlineViewDataSource, NS
         }
         expandedPaths = paths
         delegate?.sidebarViewController(self, didChangeExpandedPaths: paths)
+    }
+
+    // MARK: - Theme
+
+    func applyTheme(_ theme: ThemeDefinition?) {
+        activeTheme = theme
+
+        if let theme {
+            let bgColor = Self.nsColor(from: theme.colors.subtle)
+            ensureThemeBackgroundView().layer?.backgroundColor = bgColor.cgColor
+
+            if theme.opacity < 1.0 {
+                rootVisualEffectView?.alphaValue = CGFloat(theme.opacity)
+            } else {
+                rootVisualEffectView?.alphaValue = 1.0
+            }
+            scrollView.drawsBackground = false
+            outlineView.backgroundColor = .clear
+
+            titleLabel.textColor = Self.nsColor(from: theme.colors.fg)
+            countLabel.textColor = Self.nsColor(from: theme.colors.muted)
+            separator.borderColor = Self.nsColor(from: theme.colors.border)
+        } else {
+            removeThemeBackgroundView()
+            rootVisualEffectView?.material = .sidebar
+            rootVisualEffectView?.state = .active
+            rootVisualEffectView?.alphaValue = 1.0
+            scrollView.drawsBackground = false
+            outlineView.backgroundColor = .clear
+
+            titleLabel.textColor = .labelColor
+            countLabel.textColor = .secondaryLabelColor
+            separator.borderColor = .separatorColor
+        }
+
+        outlineView.reloadData()
+    }
+
+    private func ensureThemeBackgroundView() -> NSView {
+        if let existing = themeBackgroundView { return existing }
+        let bgView = NSView()
+        bgView.wantsLayer = true
+        bgView.translatesAutoresizingMaskIntoConstraints = false
+        guard let root = rootVisualEffectView else { return bgView }
+        root.addSubview(bgView, positioned: .below, relativeTo: root.subviews.first)
+        NSLayoutConstraint.activate([
+            bgView.leadingAnchor.constraint(equalTo: root.leadingAnchor),
+            bgView.trailingAnchor.constraint(equalTo: root.trailingAnchor),
+            bgView.topAnchor.constraint(equalTo: root.topAnchor),
+            bgView.bottomAnchor.constraint(equalTo: root.bottomAnchor),
+        ])
+        themeBackgroundView = bgView
+        return bgView
+    }
+
+    private func removeThemeBackgroundView() {
+        themeBackgroundView?.removeFromSuperview()
+        themeBackgroundView = nil
+    }
+
+    /// Parses a CSS hex color string (e.g. `#191724`) into an NSColor.
+    /// Falls back to `.labelColor` for unsupported formats (rgba, etc.).
+    static func nsColor(from css: String) -> NSColor {
+        guard css.hasPrefix("#") else {
+            return parseRGBA(css) ?? .labelColor
+        }
+        let hex = String(css.dropFirst())
+        guard let value = UInt64(hex, radix: 16) else {
+            return .labelColor
+        }
+        switch hex.count {
+        case 3:
+            let r = Double((value >> 8) & 0xF) / 15.0
+            let g = Double((value >> 4) & 0xF) / 15.0
+            let b = Double(value & 0xF) / 15.0
+            return NSColor(red: r, green: g, blue: b, alpha: 1)
+        case 6:
+            let r = Double((value >> 16) & 0xFF) / 255.0
+            let g = Double((value >> 8) & 0xFF) / 255.0
+            let b = Double(value & 0xFF) / 255.0
+            return NSColor(red: r, green: g, blue: b, alpha: 1)
+        case 8:
+            let r = Double((value >> 24) & 0xFF) / 255.0
+            let g = Double((value >> 16) & 0xFF) / 255.0
+            let b = Double((value >> 8) & 0xFF) / 255.0
+            let a = Double(value & 0xFF) / 255.0
+            return NSColor(red: r, green: g, blue: b, alpha: a)
+        default:
+            return .labelColor
+        }
+    }
+
+    private static func parseRGBA(_ css: String) -> NSColor? {
+        let trimmed = css.trimmingCharacters(in: .whitespaces)
+        guard trimmed.hasPrefix("rgb") else { return nil }
+        let inner = trimmed
+            .replacingOccurrences(of: "rgba(", with: "")
+            .replacingOccurrences(of: "rgb(", with: "")
+            .replacingOccurrences(of: ")", with: "")
+        let parts = inner.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }
+        guard parts.count >= 3,
+              let r = Double(parts[0]),
+              let g = Double(parts[1]),
+              let b = Double(parts[2]) else {
+            return nil
+        }
+        let a = parts.count >= 4 ? (Double(parts[3]) ?? 1.0) : 1.0
+        return NSColor(red: r / 255.0, green: g / 255.0, blue: b / 255.0, alpha: a)
     }
 }

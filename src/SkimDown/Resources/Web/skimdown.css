@@ -50,7 +50,7 @@ body {
   min-height: 100%;
   background: var(--skimdown-bg);
   color: var(--skimdown-fg);
-  font: var(--skimdown-font-size)/1.78 -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic", "Segoe UI", sans-serif;
+  font: var(--skimdown-font-size)/1.78 var(--skimdown-font-family, -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic", "Segoe UI", sans-serif);
   font-weight: 400;
   overflow-x: hidden;
   -webkit-font-smoothing: antialiased;

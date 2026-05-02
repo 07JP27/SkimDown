@@ -70,19 +70,45 @@ final class MarkdownWebView: NSView, WKScriptMessageHandler, WKNavigationDelegat
         userContentController.removeScriptMessageHandler(forName: "copyCode")
     }
 
-    func render(markdown: String, currentFileURL: URL, rootFolderURL: URL, theme: AppTheme, fontSize: Double, completion: (() -> Void)? = nil) {
+    private func configureWebViewTransparency(opacity: Double) {
+        if opacity < 1.0 {
+            webView.underPageBackgroundColor = .clear
+            wantsLayer = true
+            layer?.backgroundColor = NSColor.clear.cgColor
+        } else {
+            webView.underPageBackgroundColor = .windowBackgroundColor
+            layer?.backgroundColor = nil
+        }
+    }
+
+    func render(markdown: String, currentFileURL: URL, rootFolderURL: URL, theme: AppTheme, fontSize: Double, fontFamily: String? = nil, customTheme: ThemeDefinition? = nil, completion: (() -> Void)? = nil) {
         currentTheme = theme
         renderCompletion = completion
-        applyNativeAppearance(theme)
+
+        let effectiveAppearance = customTheme.map { $0.colorScheme == .dark ? AppTheme.dark : AppTheme.light } ?? theme
+        applyNativeAppearance(effectiveAppearance)
 
         let baseURL = currentFileURL.deletingLastPathComponent()
-        let payload: [String: Any] = [
+        var payload: [String: Any] = [
             "markdown": markdown,
             "baseURL": baseURL.absoluteString,
             "rootURL": rootFolderURL.skimdownCanonicalFileURL.absoluteString.hasSuffix("/") ? rootFolderURL.skimdownCanonicalFileURL.absoluteString : rootFolderURL.skimdownCanonicalFileURL.absoluteString + "/",
             "theme": theme.rawValue,
             "fontSize": fontSize
         ]
+        if let fontFamily {
+            payload["fontFamily"] = fontFamily
+        }
+        if let customTheme {
+            payload["customColors"] = customTheme.colors.cssVariables
+            payload["colorScheme"] = customTheme.colorScheme.rawValue
+            if customTheme.opacity < 1.0 {
+                payload["opacity"] = customTheme.opacity
+            }
+            configureWebViewTransparency(opacity: customTheme.opacity)
+        } else {
+            configureWebViewTransparency(opacity: 1.0)
+        }
 
         do {
             webView.loadHTMLString(try buildHTML(payload: payload), baseURL: baseURL)
@@ -96,17 +122,33 @@ final class MarkdownWebView: NSView, WKScriptMessageHandler, WKNavigationDelegat
         }
     }
 
-    func showError(_ message: String, theme: AppTheme, fontSize: Double, completion: (() -> Void)? = nil) {
+    func showError(_ message: String, theme: AppTheme, fontSize: Double, fontFamily: String? = nil, customTheme: ThemeDefinition? = nil, completion: (() -> Void)? = nil) {
         currentTheme = theme
         renderCompletion = completion
-        applyNativeAppearance(theme)
-        let payload: [String: Any] = [
+
+        let effectiveAppearance = customTheme.map { $0.colorScheme == .dark ? AppTheme.dark : AppTheme.light } ?? theme
+        applyNativeAppearance(effectiveAppearance)
+
+        var payload: [String: Any] = [
             "markdown": "> **Error**\\n>\\n> \(message)",
             "baseURL": Bundle.main.bundleURL.absoluteString,
             "rootURL": Bundle.main.bundleURL.absoluteString,
             "theme": theme.rawValue,
             "fontSize": fontSize
         ]
+        if let fontFamily {
+            payload["fontFamily"] = fontFamily
+        }
+        if let customTheme {
+            payload["customColors"] = customTheme.colors.cssVariables
+            payload["colorScheme"] = customTheme.colorScheme.rawValue
+            if customTheme.opacity < 1.0 {
+                payload["opacity"] = customTheme.opacity
+            }
+            configureWebViewTransparency(opacity: customTheme.opacity)
+        } else {
+            configureWebViewTransparency(opacity: 1.0)
+        }
         do {
             webView.loadHTMLString(try buildHTML(payload: payload), baseURL: Bundle.main.bundleURL)
         } catch {
