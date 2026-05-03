@@ -31,10 +31,17 @@ final class MarkdownWebView: NSView, WKScriptMessageHandler, WKNavigationDelegat
 
     private static var webResourceCache: [String: String] = [:]
 
+    private struct PendingNavigation {
+        let navigation: WKNavigation
+        let generation: Int
+        let scrollY: Double?
+        let completion: (() -> Void)?
+    }
+
     private let webView: WKWebView
     private var currentTheme: AppTheme = .system
-    private var renderCompletion: (() -> Void)?
-    private var pendingScrollY: Double?
+    private var renderGeneration = 0
+    private var pendingNavigation: PendingNavigation?
 
     override init(frame frameRect: NSRect) {
         let configuration = WKWebViewConfiguration()
@@ -71,9 +78,17 @@ final class MarkdownWebView: NSView, WKScriptMessageHandler, WKNavigationDelegat
         userContentController.removeScriptMessageHandler(forName: "copyCode")
     }
 
-    func render(markdown: String, currentFileURL: URL, rootFolderURL: URL, theme: AppTheme, fontSize: Double, completion: (() -> Void)? = nil) {
+    func render(
+        markdown: String,
+        currentFileURL: URL,
+        rootFolderURL: URL,
+        theme: AppTheme,
+        fontSize: Double,
+        preserveScrollPosition: Bool = false,
+        completion: (() -> Void)? = nil
+    ) {
         currentTheme = theme
-        renderCompletion = completion
+        let generation = advanceRenderGeneration()
         applyNativeAppearance(theme)
 
         let baseURL = currentFileURL.deletingLastPathComponent()
@@ -87,30 +102,37 @@ final class MarkdownWebView: NSView, WKScriptMessageHandler, WKNavigationDelegat
 
         let html: String
         do {
-            html = try Self.buildHTML(payload: payload, theme: currentTheme, katexFontsURL: katexFontsURLString())
+            html = try Self.buildHTML(payload: payload, theme: theme, katexFontsURL: katexFontsURLString())
         } catch {
             loadFallbackErrorHTML(
                 message: "Preview resources could not be loaded.\n\(error.localizedDescription)",
                 theme: theme,
                 fontSize: fontSize,
-                baseURL: baseURL
+                baseURL: baseURL,
+                generation: generation,
+                completion: completion
             )
+            return
+        }
+
+        guard preserveScrollPosition else {
+            loadHTML(html, baseURL: baseURL, generation: generation, scrollY: nil, completion: completion)
             return
         }
 
         Task { @MainActor [weak self] in
             guard let self else { return }
-            // Failures are expected on first render when no page is loaded yet.
-            let scrollY = try? await self.webView.evaluateJavaScript("window.scrollY") as? Double
-            self.pendingScrollY = scrollY
-            self.webView.loadHTMLString(html, baseURL: baseURL)
+            let value = try? await self.webView.evaluateJavaScript("window.scrollY")
+            guard self.renderGeneration == generation else {
+                return
+            }
+            self.loadHTML(html, baseURL: baseURL, generation: generation, scrollY: value as? Double, completion: completion)
         }
     }
 
     func showError(_ message: String, theme: AppTheme, fontSize: Double, completion: (() -> Void)? = nil) {
         currentTheme = theme
-        renderCompletion = completion
-        pendingScrollY = nil
+        let generation = advanceRenderGeneration()
         applyNativeAppearance(theme)
         let payload: [String: Any] = [
             "markdown": "> **Error**\\n>\\n> \(message)",
@@ -120,13 +142,21 @@ final class MarkdownWebView: NSView, WKScriptMessageHandler, WKNavigationDelegat
             "fontSize": fontSize
         ]
         do {
-            webView.loadHTMLString(try Self.buildHTML(payload: payload, theme: theme, katexFontsURL: katexFontsURLString()), baseURL: Bundle.main.bundleURL)
+            loadHTML(
+                try Self.buildHTML(payload: payload, theme: theme, katexFontsURL: katexFontsURLString()),
+                baseURL: Bundle.main.bundleURL,
+                generation: generation,
+                scrollY: nil,
+                completion: completion
+            )
         } catch {
             loadFallbackErrorHTML(
                 message: "\(message)\n\n\(error.localizedDescription)",
                 theme: theme,
                 fontSize: fontSize,
-                baseURL: Bundle.main.bundleURL
+                baseURL: Bundle.main.bundleURL,
+                generation: generation,
+                completion: completion
             )
         }
     }
@@ -175,13 +205,18 @@ final class MarkdownWebView: NSView, WKScriptMessageHandler, WKNavigationDelegat
     }
 
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
-        if let scrollY = pendingScrollY, scrollY > 0 {
+        guard let navigation,
+              let pendingNavigation,
+              pendingNavigation.navigation === navigation,
+              pendingNavigation.generation == renderGeneration else {
+            return
+        }
+
+        self.pendingNavigation = nil
+        if let scrollY = pendingNavigation.scrollY, scrollY > 0 {
             webView.evaluateJavaScript("window.scrollTo(0, \(scrollY))")
         }
-        pendingScrollY = nil
-        let completion = renderCompletion
-        renderCompletion = nil
-        completion?()
+        pendingNavigation.completion?()
     }
 
     private func evaluateSearchScript(_ script: String, completion: @escaping (SearchResult) -> Void) {
@@ -203,6 +238,23 @@ final class MarkdownWebView: NSView, WKScriptMessageHandler, WKNavigationDelegat
         case .dark:
             webView.appearance = NSAppearance(named: .darkAqua)
         }
+    }
+
+    private func advanceRenderGeneration() -> Int {
+        renderGeneration += 1
+        pendingNavigation = nil
+        return renderGeneration
+    }
+
+    private func loadHTML(_ html: String, baseURL: URL, generation: Int, scrollY: Double?, completion: (() -> Void)?) {
+        guard renderGeneration == generation else {
+            return
+        }
+        guard let navigation = webView.loadHTMLString(html, baseURL: baseURL) else {
+            completion?()
+            return
+        }
+        pendingNavigation = PendingNavigation(navigation: navigation, generation: generation, scrollY: scrollY, completion: completion)
     }
 
     private static func buildHTML(payload: [String: Any], theme: AppTheme, katexFontsURL: String) throws -> String {
@@ -241,68 +293,75 @@ final class MarkdownWebView: NSView, WKScriptMessageHandler, WKNavigationDelegat
         """
     }
 
-        private static func readWebResource(_ relativePath: String) throws -> String {
-                if let cached = webResourceCache[relativePath] {
-                        return cached
-                }
+    private static func readWebResource(_ relativePath: String) throws -> String {
+        if let cached = webResourceCache[relativePath] {
+            return cached
+        }
 
-                guard let url = Bundle.main.resourceURL?.appendingPathComponent("Web").appendingPathComponent(relativePath) else {
-                        throw WebResourceError.missing(relativePath)
-                }
+        guard let url = Bundle.main.resourceURL?.appendingPathComponent("Web").appendingPathComponent(relativePath) else {
+            throw WebResourceError.missing(relativePath)
+        }
 
-                do {
-                        let contents = try String(contentsOf: url, encoding: .utf8)
-                        webResourceCache[relativePath] = contents
-                        return contents
-                } catch {
-                        throw WebResourceError.unreadable(relativePath, error)
+        do {
+            let contents = try String(contentsOf: url, encoding: .utf8)
+            webResourceCache[relativePath] = contents
+            return contents
+        } catch {
+            throw WebResourceError.unreadable(relativePath, error)
         }
     }
 
-        private func loadFallbackErrorHTML(message: String, theme: AppTheme, fontSize: Double, baseURL: URL) {
-                currentTheme = theme
-                applyNativeAppearance(theme)
+    private func loadFallbackErrorHTML(
+        message: String,
+        theme: AppTheme,
+        fontSize: Double,
+        baseURL: URL,
+        generation: Int,
+        completion: (() -> Void)?
+    ) {
+        currentTheme = theme
+        applyNativeAppearance(theme)
 
-                let escapedMessage = Self.htmlEscaped(message)
-                        .replacingOccurrences(of: "\n", with: "<br>")
-                let html = """
-                <!doctype html>
-                <html data-theme="\(theme.rawValue)">
-                    <head>
-                        <meta charset="utf-8">
-                        <meta name="viewport" content="width=device-width, initial-scale=1">
-                        <style>
-                            body {
-                                margin: 0;
-                                padding: 32px;
-                                color: #1f2937;
-                                background: #ffffff;
-                                font: \(fontSize)px -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif;
-                                line-height: 1.6;
-                            }
-                            @media (prefers-color-scheme: dark) {
-                                body { color: #f3f4f6; background: #111827; }
-                            }
-                            .error {
-                                max-width: 760px;
-                                border-left: 4px solid #dc2626;
-                                padding-left: 16px;
-                            }
-                            h1 { margin: 0 0 12px; font-size: 1.2em; }
-                            p { margin: 0; }
-                        </style>
-                    </head>
-                    <body>
-                        <section class="error">
-                            <h1>Preview error</h1>
-                            <p>\(escapedMessage)</p>
-                        </section>
-                    </body>
-                </html>
-                """
+        let escapedMessage = Self.htmlEscaped(message)
+            .replacingOccurrences(of: "\n", with: "<br>")
+        let html = """
+        <!doctype html>
+        <html data-theme="\(theme.rawValue)">
+            <head>
+                <meta charset="utf-8">
+                <meta name="viewport" content="width=device-width, initial-scale=1">
+                <style>
+                    body {
+                        margin: 0;
+                        padding: 32px;
+                        color: #1f2937;
+                        background: #ffffff;
+                        font: \(fontSize)px -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif;
+                        line-height: 1.6;
+                    }
+                    @media (prefers-color-scheme: dark) {
+                        body { color: #f3f4f6; background: #111827; }
+                    }
+                    .error {
+                        max-width: 760px;
+                        border-left: 4px solid #dc2626;
+                        padding-left: 16px;
+                    }
+                    h1 { margin: 0 0 12px; font-size: 1.2em; }
+                    p { margin: 0; }
+                </style>
+            </head>
+            <body>
+                <section class="error">
+                    <h1>Preview error</h1>
+                    <p>\(escapedMessage)</p>
+                </section>
+            </body>
+        </html>
+        """
 
-                webView.loadHTMLString(html, baseURL: baseURL)
-        }
+        loadHTML(html, baseURL: baseURL, generation: generation, scrollY: nil, completion: completion)
+    }
 
     private func katexFontsURLString() -> String {
         guard let url = Bundle.main.resourceURL?.appendingPathComponent("Web/vendor/katex/fonts") else {
