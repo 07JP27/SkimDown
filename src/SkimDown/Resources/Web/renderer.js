@@ -364,10 +364,33 @@
     });
 
     if (searchMatches.length > 0) {
-      currentSearchIndex = 0;
+      if (scrollToMatch === false) {
+        currentSearchIndex = nearestSearchIndexToViewport();
+      } else {
+        currentSearchIndex = 0;
+      }
       updateCurrentSearchMatch(scrollToMatch !== false);
     }
     return searchState();
+  }
+
+  function nearestSearchIndexToViewport() {
+    if (searchMatches.length === 0) {
+      return -1;
+    }
+    const anchor = window.scrollY + window.innerHeight / 2;
+    let bestIndex = 0;
+    let bestDistance = Infinity;
+    for (let i = 0; i < searchMatches.length; i++) {
+      const rect = searchMatches[i].getBoundingClientRect();
+      const center = window.scrollY + rect.top + rect.height / 2;
+      const distance = Math.abs(center - anchor);
+      if (distance < bestDistance) {
+        bestDistance = distance;
+        bestIndex = i;
+      }
+    }
+    return bestIndex;
   }
 
   function nextSearch() {
