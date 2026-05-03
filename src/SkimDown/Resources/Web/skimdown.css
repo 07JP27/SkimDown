@@ -184,11 +184,93 @@ pre code {
 }
 
 .table-scroll {
+  position: relative;
   width: 100%;
+  margin-bottom: 1.15em;
+  --table-overflow-cue-edge: var(--skimdown-bg);
+}
+
+.table-scroll::before,
+.table-scroll::after {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  z-index: 1;
+  width: 42px;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 120ms ease;
+  content: "";
+}
+
+.table-scroll::before {
+  left: 0;
+  background: linear-gradient(to right, var(--table-overflow-cue-edge), transparent);
+}
+
+.table-scroll::after {
+  right: 0;
+  background: linear-gradient(to left, var(--table-overflow-cue-edge), transparent);
+}
+
+.table-scroll.can-scroll-left::before,
+.table-scroll.can-scroll-right::after {
+  opacity: 1;
+}
+
+.table-scroll-viewport {
+  width: 100%;
+  padding-inline: 1px;
   overflow-x: auto;
-  border: 1px solid var(--skimdown-border);
-  border-radius: 14px;
-  background: var(--skimdown-surface);
+}
+
+.table-scroll.can-scroll-left:not(.can-scroll-right) .table-scroll-viewport {
+  -webkit-mask-image: linear-gradient(
+    to right,
+    transparent 0,
+    #000 42px
+  );
+  mask-image: linear-gradient(
+    to right,
+    transparent 0,
+    #000 42px
+  );
+}
+
+.table-scroll.can-scroll-right:not(.can-scroll-left) .table-scroll-viewport {
+  -webkit-mask-image: linear-gradient(
+    to right,
+    #000 0,
+    #000 calc(100% - 42px),
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    to right,
+    #000 0,
+    #000 calc(100% - 42px),
+    transparent 100%
+  );
+}
+
+.table-scroll.can-scroll-left.can-scroll-right .table-scroll-viewport {
+  -webkit-mask-image: linear-gradient(
+    to right,
+    transparent 0,
+    #000 42px,
+    #000 calc(100% - 42px),
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    to right,
+    transparent 0,
+    #000 42px,
+    #000 calc(100% - 42px),
+    transparent 100%
+  );
+}
+
+.table-scroll table {
+  margin-bottom: 0;
 }
 
 table {

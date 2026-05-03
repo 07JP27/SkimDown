@@ -2,6 +2,8 @@
   let markdownIt = null;
   let searchMatches = [];
   let currentSearchIndex = -1;
+  let tableResizeObserver = null;
+  let tableResizeHandler = null;
 
   function renderer() {
     if (!markdownIt) {
@@ -54,6 +56,7 @@
     normalizeTaskLists(content);
     normalizeLinksAndImages(content, payload);
     wrapTables(content);
+    initializeTableScrollCues(content);
     renderMermaidBlocks(content, payload);
     decorateCodeBlocks(content);
     renderMath(content);
@@ -116,14 +119,103 @@
 
   function wrapTables(content) {
     content.querySelectorAll("table").forEach(function (table) {
-      if (table.parentElement && table.parentElement.classList.contains("table-scroll")) {
+      if (isWrappedTable(table)) {
         return;
       }
       const wrapper = document.createElement("div");
       wrapper.className = "table-scroll";
+      const viewport = document.createElement("div");
+      viewport.className = "table-scroll-viewport";
       table.parentNode.insertBefore(wrapper, table);
-      wrapper.appendChild(table);
+      wrapper.appendChild(viewport);
+      viewport.appendChild(table);
     });
+  }
+
+  function isWrappedTable(table) {
+    const viewport = table.parentElement;
+    return viewport &&
+      viewport.classList.contains("table-scroll-viewport") &&
+      viewport.parentElement &&
+      viewport.parentElement.classList.contains("table-scroll");
+  }
+
+  function initializeTableScrollCues(content) {
+    if (tableResizeObserver) {
+      tableResizeObserver.disconnect();
+      tableResizeObserver = null;
+    }
+    if (tableResizeHandler) {
+      window.removeEventListener("resize", tableResizeHandler);
+      tableResizeHandler = null;
+    }
+
+    const wrappers = Array.from(content.querySelectorAll(".table-scroll"));
+    if (wrappers.length === 0) {
+      return;
+    }
+
+    wrappers.forEach(function (wrapper) {
+      const viewport = tableScrollViewport(wrapper);
+      updateTableScrollCue(wrapper);
+      viewport.addEventListener("scroll", function () {
+        updateTableScrollCue(wrapper);
+      }, { passive: true });
+    });
+
+    if ("ResizeObserver" in window) {
+      tableResizeObserver = new ResizeObserver(function (entries) {
+        const wrappersToUpdate = new Set();
+        entries.forEach(function (entry) {
+          if (entry.target.classList && entry.target.classList.contains("table-scroll")) {
+            wrappersToUpdate.add(entry.target);
+            return;
+          }
+          if (entry.target.closest) {
+            const wrapper = entry.target.closest(".table-scroll");
+            if (wrapper) {
+              wrappersToUpdate.add(wrapper);
+            }
+          }
+        });
+        wrappersToUpdate.forEach(updateTableScrollCue);
+      });
+
+      wrappers.forEach(function (wrapper) {
+        tableResizeObserver.observe(wrapper);
+        const viewport = tableScrollViewport(wrapper);
+        tableResizeObserver.observe(viewport);
+        const table = wrapper.querySelector("table");
+        if (table) {
+          tableResizeObserver.observe(table);
+        }
+      });
+    } else {
+      tableResizeHandler = function () {
+        wrappers.forEach(updateTableScrollCue);
+      };
+      window.addEventListener("resize", tableResizeHandler);
+    }
+
+    window.requestAnimationFrame(function () {
+      wrappers.forEach(updateTableScrollCue);
+    });
+  }
+
+  function updateTableScrollCue(wrapper) {
+    const viewport = tableScrollViewport(wrapper);
+    const tolerance = 1;
+    const maxScrollLeft = viewport.scrollWidth - viewport.clientWidth;
+    const isOverflowing = maxScrollLeft > tolerance;
+    const scrollLeft = Math.max(0, viewport.scrollLeft);
+
+    wrapper.classList.toggle("can-scroll-left", isOverflowing && scrollLeft > tolerance);
+    wrapper.classList.toggle("can-scroll-right", isOverflowing && scrollLeft < maxScrollLeft - tolerance);
+  }
+
+  function tableScrollViewport(wrapper) {
+    const viewport = wrapper.firstElementChild;
+    return viewport && viewport.classList.contains("table-scroll-viewport") ? viewport : wrapper;
   }
 
   function renderMermaidBlocks(content, payload) {
@@ -329,4 +421,3 @@
     scrollToAnchor: scrollToAnchor
   };
 })();
-
