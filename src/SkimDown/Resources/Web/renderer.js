@@ -234,17 +234,124 @@
       const fallback = code.parentElement.cloneNode(true);
       const wrapper = document.createElement("div");
       wrapper.className = "mermaid-container";
+      const viewport = document.createElement("div");
+      viewport.className = "mermaid-viewport";
       const diagram = document.createElement("div");
       diagram.className = "mermaid";
       diagram.textContent = source;
-      wrapper.appendChild(diagram);
+      viewport.appendChild(diagram);
+      wrapper.appendChild(viewport);
+      wrapper.appendChild(buildMermaidToolbar(viewport));
       code.parentElement.replaceWith(wrapper);
+
+      initMermaidZoomPan(wrapper, viewport);
 
       if (window.mermaid) {
         window.mermaid.run({ nodes: [diagram] }).catch(function () {
           wrapper.replaceWith(fallback);
         });
       }
+    });
+  }
+
+  function buildMermaidToolbar(viewport) {
+    var toolbar = document.createElement("div");
+    toolbar.className = "mermaid-toolbar";
+
+    var zoomIn = document.createElement("button");
+    zoomIn.type = "button";
+    zoomIn.className = "mermaid-zoom-btn";
+    zoomIn.textContent = "+";
+    zoomIn.setAttribute("aria-label", "Zoom in");
+
+    var zoomOut = document.createElement("button");
+    zoomOut.type = "button";
+    zoomOut.className = "mermaid-zoom-btn";
+    zoomOut.textContent = "\u2212";
+    zoomOut.setAttribute("aria-label", "Zoom out");
+
+    var zoomReset = document.createElement("button");
+    zoomReset.type = "button";
+    zoomReset.className = "mermaid-zoom-btn mermaid-zoom-reset";
+    zoomReset.textContent = "Reset";
+    zoomReset.setAttribute("aria-label", "Reset zoom");
+
+    zoomIn.addEventListener("click", function () {
+      applyMermaidZoom(viewport, 0.25);
+    });
+    zoomOut.addEventListener("click", function () {
+      applyMermaidZoom(viewport, -0.25);
+    });
+    zoomReset.addEventListener("click", function () {
+      resetMermaidZoom(viewport);
+    });
+
+    toolbar.appendChild(zoomOut);
+    toolbar.appendChild(zoomReset);
+    toolbar.appendChild(zoomIn);
+    return toolbar;
+  }
+
+  function updateViewportTransform(viewport, zoom, px, py) {
+    viewport.style.transform = "scale(" + zoom + ") translate(" + px + "px, " + py + "px)";
+  }
+
+  function applyMermaidZoom(viewport, delta) {
+    var current = parseFloat(viewport.dataset.zoom) || 1;
+    var next = Math.min(Math.max(current + delta, 0.25), 4);
+    viewport.dataset.zoom = String(next);
+    updateViewportTransform(viewport, next, parseFloat(viewport.dataset.panX) || 0, parseFloat(viewport.dataset.panY) || 0);
+    viewport.closest(".mermaid-container").classList.toggle("mermaid-zoomed", next !== 1);
+  }
+
+  function resetMermaidZoom(viewport) {
+    viewport.dataset.zoom = "1";
+    viewport.dataset.panX = "0";
+    viewport.dataset.panY = "0";
+    viewport.style.transform = "";
+    viewport.closest(".mermaid-container").classList.remove("mermaid-zoomed");
+  }
+
+  var activeDragViewport = null;
+  var dragStartX = 0;
+  var dragStartY = 0;
+  var dragBasePanX = 0;
+  var dragBasePanY = 0;
+
+  document.addEventListener("mousemove", function (e) {
+    if (!activeDragViewport) { return; }
+    var zoom = parseFloat(activeDragViewport.dataset.zoom) || 1;
+    var dx = (e.clientX - dragStartX) / zoom;
+    var dy = (e.clientY - dragStartY) / zoom;
+    activeDragViewport.dataset.panX = String(dragBasePanX + dx);
+    activeDragViewport.dataset.panY = String(dragBasePanY + dy);
+    updateViewportTransform(activeDragViewport, zoom, dragBasePanX + dx, dragBasePanY + dy);
+  });
+
+  document.addEventListener("mouseup", function () {
+    if (!activeDragViewport) { return; }
+    activeDragViewport.style.cursor = "";
+    activeDragViewport = null;
+  });
+
+  function initMermaidZoomPan(container, viewport) {
+    container.addEventListener("wheel", function (e) {
+      if (!e.ctrlKey && !e.metaKey) { return; }
+      e.preventDefault();
+      var delta = e.deltaY > 0 ? -0.1 : 0.1;
+      applyMermaidZoom(viewport, delta);
+    }, { passive: false });
+
+    viewport.addEventListener("mousedown", function (e) {
+      var zoom = parseFloat(viewport.dataset.zoom) || 1;
+      if (zoom <= 1) { return; }
+      e.preventDefault();
+      activeDragViewport = viewport;
+      dragStartX = e.clientX;
+      dragStartY = e.clientY;
+      dragBasePanX = parseFloat(viewport.dataset.panX) || 0;
+      dragBasePanY = parseFloat(viewport.dataset.panY) || 0;
+      viewport.style.cursor = "grabbing";
     });
   }
 
