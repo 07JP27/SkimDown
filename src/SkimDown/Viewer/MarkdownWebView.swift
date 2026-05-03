@@ -67,7 +67,7 @@ final class MarkdownWebView: NSView, WKScriptMessageHandler, WKNavigationDelegat
     private let webView: WKWebView
     private var renderGeneration = 0
     private var pendingNavigation: PendingNavigation?
-    private var observedScrollY: Double = 0
+    private var observedScrollY: Double?
 
     override init(frame frameRect: NSRect) {
         let configuration = WKWebViewConfiguration()
@@ -167,7 +167,7 @@ final class MarkdownWebView: NSView, WKScriptMessageHandler, WKNavigationDelegat
         }
     }
 
-    var currentObservedScrollY: Double {
+    var currentObservedScrollY: Double? {
         observedScrollY
     }
 
@@ -267,6 +267,8 @@ final class MarkdownWebView: NSView, WKScriptMessageHandler, WKNavigationDelegat
             cancelPendingScrollRestoration()
         case .scrollPosition:
             guard let body = message.body as? [String: Any],
+                  let renderID = Self.intValue(body["renderID"]),
+                  renderID == renderGeneration,
                   let value = Self.doubleValue(body["scrollY"]) else {
                 return
             }
@@ -341,7 +343,7 @@ final class MarkdownWebView: NSView, WKScriptMessageHandler, WKNavigationDelegat
         guard renderGeneration == generation else {
             return
         }
-        observedScrollY = 0
+        observedScrollY = nil
         guard let navigation = webView.loadHTMLString(html, baseURL: baseURL) else {
             completion?()
             return

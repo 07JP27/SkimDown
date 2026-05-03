@@ -522,11 +522,12 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Side
         let isDifferentFile = previousCanonical != canonicalNew
 
         if isDifferentFile, let previousCanonical {
-            let observed = markdownWebView.currentObservedScrollY
-            if observed > 0 {
-                scrollPositions[previousCanonical] = observed
-            } else {
-                scrollPositions.removeValue(forKey: previousCanonical)
+            if let observed = markdownWebView.currentObservedScrollY {
+                if observed > 0 {
+                    scrollPositions[previousCanonical] = observed
+                } else {
+                    scrollPositions.removeValue(forKey: previousCanonical)
+                }
             }
         }
 
