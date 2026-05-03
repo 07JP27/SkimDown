@@ -34,6 +34,7 @@ final class MarkdownWebView: NSView, WKScriptMessageHandler, WKNavigationDelegat
     private let webView: WKWebView
     private var currentTheme: AppTheme = .system
     private var renderCompletion: (() -> Void)?
+    private var pendingScrollY: Double?
 
     override init(frame frameRect: NSRect) {
         let configuration = WKWebViewConfiguration()
@@ -84,8 +85,9 @@ final class MarkdownWebView: NSView, WKScriptMessageHandler, WKNavigationDelegat
             "fontSize": fontSize
         ]
 
+        let html: String
         do {
-            webView.loadHTMLString(try buildHTML(payload: payload), baseURL: baseURL)
+            html = try Self.buildHTML(payload: payload, theme: currentTheme, katexFontsURL: katexFontsURLString())
         } catch {
             loadFallbackErrorHTML(
                 message: "Preview resources could not be loaded.\n\(error.localizedDescription)",
@@ -93,12 +95,22 @@ final class MarkdownWebView: NSView, WKScriptMessageHandler, WKNavigationDelegat
                 fontSize: fontSize,
                 baseURL: baseURL
             )
+            return
+        }
+
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            // Failures are expected on first render when no page is loaded yet.
+            let scrollY = try? await self.webView.evaluateJavaScript("window.scrollY") as? Double
+            self.pendingScrollY = scrollY
+            self.webView.loadHTMLString(html, baseURL: baseURL)
         }
     }
 
     func showError(_ message: String, theme: AppTheme, fontSize: Double, completion: (() -> Void)? = nil) {
         currentTheme = theme
         renderCompletion = completion
+        pendingScrollY = nil
         applyNativeAppearance(theme)
         let payload: [String: Any] = [
             "markdown": "> **Error**\\n>\\n> \(message)",
@@ -108,7 +120,7 @@ final class MarkdownWebView: NSView, WKScriptMessageHandler, WKNavigationDelegat
             "fontSize": fontSize
         ]
         do {
-            webView.loadHTMLString(try buildHTML(payload: payload), baseURL: Bundle.main.bundleURL)
+            webView.loadHTMLString(try Self.buildHTML(payload: payload, theme: theme, katexFontsURL: katexFontsURLString()), baseURL: Bundle.main.bundleURL)
         } catch {
             loadFallbackErrorHTML(
                 message: "\(message)\n\n\(error.localizedDescription)",
@@ -163,6 +175,10 @@ final class MarkdownWebView: NSView, WKScriptMessageHandler, WKNavigationDelegat
     }
 
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+        if let scrollY = pendingScrollY, scrollY > 0 {
+            webView.evaluateJavaScript("window.scrollTo(0, \(scrollY))")
+        }
+        pendingScrollY = nil
         let completion = renderCompletion
         renderCompletion = nil
         completion?()
@@ -189,28 +205,28 @@ final class MarkdownWebView: NSView, WKScriptMessageHandler, WKNavigationDelegat
         }
     }
 
-    private func buildHTML(payload: [String: Any]) throws -> String {
+    private static func buildHTML(payload: [String: Any], theme: AppTheme, katexFontsURL: String) throws -> String {
         let css = [
-            try Self.readWebResource("vendor/katex/katex.min.css").replacingOccurrences(of: "url(fonts/", with: "url(\(katexFontsURLString())/"),
-            try Self.readWebResource("vendor/highlight.js/github.min.css"),
-            try Self.readWebResource("vendor/highlight.js/github-dark.min.css"),
-            try Self.readWebResource("skimdown.css")
+            try readWebResource("vendor/katex/katex.min.css").replacingOccurrences(of: "url(fonts/", with: "url(\(katexFontsURL)/"),
+            try readWebResource("vendor/highlight.js/github.min.css"),
+            try readWebResource("vendor/highlight.js/github-dark.min.css"),
+            try readWebResource("skimdown.css")
         ].joined(separator: "\n")
 
         let scripts = [
-            try Self.readWebResource("vendor/markdown-it/markdown-it.min.js"),
-            try Self.readWebResource("vendor/markdown-it-footnote/markdown-it-footnote.min.js"),
-            try Self.readWebResource("vendor/dompurify/purify.min.js"),
-            try Self.readWebResource("vendor/katex/katex.min.js"),
-            try Self.readWebResource("vendor/katex/auto-render.min.js"),
-            try Self.readWebResource("vendor/mermaid/mermaid.min.js"),
-            try Self.readWebResource("vendor/highlight.js/highlight.min.js"),
-            try Self.readWebResource("renderer.js")
+            try readWebResource("vendor/markdown-it/markdown-it.min.js"),
+            try readWebResource("vendor/markdown-it-footnote/markdown-it-footnote.min.js"),
+            try readWebResource("vendor/dompurify/purify.min.js"),
+            try readWebResource("vendor/katex/katex.min.js"),
+            try readWebResource("vendor/katex/auto-render.min.js"),
+            try readWebResource("vendor/mermaid/mermaid.min.js"),
+            try readWebResource("vendor/highlight.js/highlight.min.js"),
+            try readWebResource("renderer.js")
         ].joined(separator: "\n")
 
         return """
         <!doctype html>
-        <html data-theme="\(currentTheme.rawValue)">
+        <html data-theme="\(theme.rawValue)">
           <head>
             <meta charset="utf-8">
             <meta name="viewport" content="width=device-width, initial-scale=1">
