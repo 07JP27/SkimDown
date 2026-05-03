@@ -35,6 +35,7 @@ final class MarkdownWebView: NSView, WKScriptMessageHandler, WKNavigationDelegat
         case linkClick
         case copyCode
         case renderReady
+        case userInteracted
     }
 
     private struct PendingNavigation {
@@ -122,7 +123,8 @@ final class MarkdownWebView: NSView, WKScriptMessageHandler, WKNavigationDelegat
             rootURL: rootFolderURL,
             theme: theme,
             fontSize: fontSize,
-            generation: generation
+            generation: generation,
+            awaitFullSettle: preserveScrollPosition
         )
 
         let html: String
@@ -164,7 +166,8 @@ final class MarkdownWebView: NSView, WKScriptMessageHandler, WKNavigationDelegat
             rootURL: Bundle.main.bundleURL,
             theme: theme,
             fontSize: fontSize,
-            generation: generation
+            generation: generation,
+            awaitFullSettle: false
         )
         do {
             loadHTML(
@@ -246,7 +249,25 @@ final class MarkdownWebView: NSView, WKScriptMessageHandler, WKNavigationDelegat
                 return
             }
             markRenderReady(generation: renderID)
+        case .userInteracted:
+            cancelPendingScrollRestoration()
         }
+    }
+
+    private func cancelPendingScrollRestoration() {
+        guard var pendingNavigation, pendingNavigation.scrollY != nil else {
+            return
+        }
+        pendingNavigation = PendingNavigation(
+            navigation: pendingNavigation.navigation,
+            generation: pendingNavigation.generation,
+            scrollY: nil,
+            completion: pendingNavigation.completion,
+            waitsForRenderReady: pendingNavigation.waitsForRenderReady,
+            didFinishNavigation: pendingNavigation.didFinishNavigation,
+            didRenderContent: pendingNavigation.didRenderContent
+        )
+        self.pendingNavigation = pendingNavigation
     }
 
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
@@ -376,14 +397,23 @@ final class MarkdownWebView: NSView, WKScriptMessageHandler, WKNavigationDelegat
         """
     }
 
-    private static func renderPayload(markdown: String, baseURL: URL, rootURL: URL, theme: AppTheme, fontSize: Double, generation: Int) -> [String: Any] {
+    private static func renderPayload(
+        markdown: String,
+        baseURL: URL,
+        rootURL: URL,
+        theme: AppTheme,
+        fontSize: Double,
+        generation: Int,
+        awaitFullSettle: Bool
+    ) -> [String: Any] {
         [
             "markdown": markdown,
             "baseURL": baseURL.absoluteString,
             "rootURL": directoryURLString(for: rootURL),
             "theme": theme.rawValue,
             "fontSize": fontSize,
-            "renderID": generation
+            "renderID": generation,
+            "awaitFullSettle": awaitFullSettle
         ]
     }
 

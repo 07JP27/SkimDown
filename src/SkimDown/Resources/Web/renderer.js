@@ -63,7 +63,24 @@
     renderMath(content);
     clearSearch();
 
-    notifyWhenRenderSettled(content, payload.renderID, mermaidTasks);
+    notifyWhenRenderSettled(content, payload.renderID, mermaidTasks, payload.awaitFullSettle === true);
+    installUserInteractionWatcher();
+  }
+
+  function installUserInteractionWatcher() {
+    function onInteract() {
+      window.removeEventListener("wheel", onInteract, { capture: true });
+      window.removeEventListener("touchstart", onInteract, { capture: true });
+      window.removeEventListener("keydown", onInteract, { capture: true });
+      window.removeEventListener("mousedown", onInteract, { capture: true });
+      if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.userInteracted) {
+        window.webkit.messageHandlers.userInteracted.postMessage({});
+      }
+    }
+    window.addEventListener("wheel", onInteract, { capture: true, once: true, passive: true });
+    window.addEventListener("touchstart", onInteract, { capture: true, once: true, passive: true });
+    window.addEventListener("keydown", onInteract, { capture: true, once: true });
+    window.addEventListener("mousedown", onInteract, { capture: true, once: true });
   }
 
   function normalizeTaskLists(content) {
@@ -487,21 +504,31 @@
     });
   }
 
-  function notifyWhenRenderSettled(content, renderID, mermaidTasks) {
-    waitForRenderSettled(content, mermaidTasks).then(function () {
+  function notifyWhenRenderSettled(content, renderID, mermaidTasks, awaitFullSettle) {
+    waitForRenderSettled(content, mermaidTasks, awaitFullSettle).then(function () {
       postRenderReady(renderID);
     }, function () {
       postRenderReady(renderID);
     });
   }
 
-  function waitForRenderSettled(content, mermaidTasks) {
-    return Promise.all(mermaidTasks)
+  function waitForRenderSettled(content, mermaidTasks, awaitFullSettle) {
+    const mermaid = Promise.all(mermaidTasks);
+    if (!awaitFullSettle) {
+      return mermaid.then(waitForSingleLayoutFrame);
+    }
+    return mermaid
       .then(function () {
         return waitForImages(content);
       })
       .then(waitForFonts)
       .then(waitForLayoutFrame);
+  }
+
+  function waitForSingleLayoutFrame() {
+    return new Promise(function (resolve) {
+      window.requestAnimationFrame(resolve);
+    });
   }
 
   function waitForFonts() {
