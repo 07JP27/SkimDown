@@ -36,6 +36,7 @@ final class MarkdownWebView: NSView, WKScriptMessageHandler, WKNavigationDelegat
         case copyCode
         case renderReady
         case userInteracted
+        case scrollPosition
     }
 
     private struct PendingNavigation {
@@ -66,6 +67,7 @@ final class MarkdownWebView: NSView, WKScriptMessageHandler, WKNavigationDelegat
     private let webView: WKWebView
     private var renderGeneration = 0
     private var pendingNavigation: PendingNavigation?
+    private var observedScrollY: Double = 0
 
     override init(frame frameRect: NSRect) {
         let configuration = WKWebViewConfiguration()
@@ -111,12 +113,14 @@ final class MarkdownWebView: NSView, WKScriptMessageHandler, WKNavigationDelegat
         theme: AppTheme,
         fontSize: Double,
         preserveScrollPosition: Bool = false,
+        restoreScrollY: Double? = nil,
         completion: (() -> Void)? = nil
     ) {
         let generation = advanceRenderGeneration()
         applyNativeAppearance(theme)
 
         let baseURL = currentFileURL.deletingLastPathComponent()
+        let awaitFullSettle = preserveScrollPosition || restoreScrollY != nil
         let payload = Self.renderPayload(
             markdown: markdown,
             baseURL: baseURL,
@@ -124,7 +128,7 @@ final class MarkdownWebView: NSView, WKScriptMessageHandler, WKNavigationDelegat
             theme: theme,
             fontSize: fontSize,
             generation: generation,
-            awaitFullSettle: preserveScrollPosition
+            awaitFullSettle: awaitFullSettle
         )
 
         let html: String
@@ -142,6 +146,12 @@ final class MarkdownWebView: NSView, WKScriptMessageHandler, WKNavigationDelegat
             return
         }
 
+        if let restoreScrollY {
+            let target = restoreScrollY > 0 ? restoreScrollY : nil
+            loadHTML(html, baseURL: baseURL, generation: generation, scrollY: target, completion: completion)
+            return
+        }
+
         guard preserveScrollPosition else {
             loadHTML(html, baseURL: baseURL, generation: generation, scrollY: nil, completion: completion)
             return
@@ -155,6 +165,10 @@ final class MarkdownWebView: NSView, WKScriptMessageHandler, WKNavigationDelegat
             }
             self.loadHTML(html, baseURL: baseURL, generation: generation, scrollY: Self.doubleValue(value), completion: completion)
         }
+    }
+
+    var currentObservedScrollY: Double {
+        observedScrollY
     }
 
     func showError(_ message: String, theme: AppTheme, fontSize: Double, completion: (() -> Void)? = nil) {
@@ -251,6 +265,12 @@ final class MarkdownWebView: NSView, WKScriptMessageHandler, WKNavigationDelegat
             markRenderReady(generation: renderID)
         case .userInteracted:
             cancelPendingScrollRestoration()
+        case .scrollPosition:
+            guard let body = message.body as? [String: Any],
+                  let value = Self.doubleValue(body["scrollY"]) else {
+                return
+            }
+            observedScrollY = value
         }
     }
 
@@ -321,6 +341,7 @@ final class MarkdownWebView: NSView, WKScriptMessageHandler, WKNavigationDelegat
         guard renderGeneration == generation else {
             return
         }
+        observedScrollY = 0
         guard let navigation = webView.loadHTMLString(html, baseURL: baseURL) else {
             completion?()
             return

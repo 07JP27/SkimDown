@@ -65,6 +65,24 @@
 
     notifyWhenRenderSettled(content, payload.renderID, mermaidTasks, payload.awaitFullSettle === true);
     installUserInteractionWatcher();
+    installScrollPositionListener();
+  }
+
+  function installScrollPositionListener() {
+    let scheduled = false;
+    function postScroll() {
+      scheduled = false;
+      if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.scrollPosition) {
+        window.webkit.messageHandlers.scrollPosition.postMessage({ scrollY: window.scrollY });
+      }
+    }
+    window.addEventListener("scroll", function () {
+      if (scheduled) {
+        return;
+      }
+      scheduled = true;
+      window.requestAnimationFrame(postScroll);
+    }, { passive: true });
   }
 
   function installUserInteractionWatcher() {
