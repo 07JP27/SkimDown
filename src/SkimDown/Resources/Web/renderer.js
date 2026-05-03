@@ -74,7 +74,6 @@
         window.webkit.messageHandlers.scrollPosition.postMessage({ renderID: renderID, scrollY: window.scrollY });
       }
     }
-    postScroll();
     window.addEventListener("scroll", postScroll, { passive: true });
   }
 

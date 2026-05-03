@@ -381,6 +381,9 @@ final class MarkdownWebView: NSView, WKScriptMessageHandler, WKNavigationDelegat
         if let scrollY = pendingNavigation.scrollY, scrollY > 0 {
             webView.evaluateJavaScript("window.scrollTo(0, \(scrollY))")
         }
+        if observedScrollY == nil {
+            observedScrollY = pendingNavigation.scrollY ?? 0
+        }
         pendingNavigation.completion?()
     }
 
