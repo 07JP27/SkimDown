@@ -151,7 +151,7 @@ final class MarkdownWebView: NSView, WKScriptMessageHandler, WKNavigationDelegat
             guard self.renderGeneration == generation else {
                 return
             }
-            self.loadHTML(html, baseURL: baseURL, generation: generation, scrollY: value as? Double, completion: completion)
+            self.loadHTML(html, baseURL: baseURL, generation: generation, scrollY: Self.doubleValue(value), completion: completion)
         }
     }
 
@@ -486,6 +486,19 @@ final class MarkdownWebView: NSView, WKScriptMessageHandler, WKNavigationDelegat
         }
         if let number = value as? NSNumber {
             return number.intValue
+        }
+        return nil
+    }
+
+    private static func doubleValue(_ value: Any?) -> Double? {
+        if let double = value as? Double {
+            return double
+        }
+        if let int = value as? Int {
+            return Double(int)
+        }
+        if let number = value as? NSNumber {
+            return number.doubleValue
         }
         return nil
     }
