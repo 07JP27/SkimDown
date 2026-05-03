@@ -119,7 +119,7 @@
 
   function wrapTables(content) {
     content.querySelectorAll("table").forEach(function (table) {
-      if (table.closest(".table-scroll")) {
+      if (isWrappedTable(table)) {
         return;
       }
       const wrapper = document.createElement("div");
@@ -130,6 +130,14 @@
       wrapper.appendChild(viewport);
       viewport.appendChild(table);
     });
+  }
+
+  function isWrappedTable(table) {
+    const viewport = table.parentElement;
+    return viewport &&
+      viewport.classList.contains("table-scroll-viewport") &&
+      viewport.parentElement &&
+      viewport.parentElement.classList.contains("table-scroll");
   }
 
   function initializeTableScrollCues(content) {
@@ -201,13 +209,13 @@
     const isOverflowing = maxScrollLeft > tolerance;
     const scrollLeft = Math.max(0, viewport.scrollLeft);
 
-    wrapper.classList.toggle("is-overflowing", isOverflowing);
     wrapper.classList.toggle("can-scroll-left", isOverflowing && scrollLeft > tolerance);
     wrapper.classList.toggle("can-scroll-right", isOverflowing && scrollLeft < maxScrollLeft - tolerance);
   }
 
   function tableScrollViewport(wrapper) {
-    return wrapper.querySelector(".table-scroll-viewport") || wrapper;
+    const viewport = wrapper.firstElementChild;
+    return viewport && viewport.classList.contains("table-scroll-viewport") ? viewport : wrapper;
   }
 
   function renderMermaidBlocks(content, payload) {
