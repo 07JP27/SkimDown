@@ -531,11 +531,11 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Side
                 fontSize: settings.fontSize,
                 preserveScrollPosition: shouldPreserveScrollPosition
             ) { [weak self] in
+                self?.performSearch()
                 if let anchor {
                     self?.markdownWebView.scrollToAnchor(anchor)
                 }
             }
-            performSearch()
         } catch {
             session.selectedFileURL = fileURL.skimdownCanonicalFileURL
             sidebarViewController.selectFile(fileURL)

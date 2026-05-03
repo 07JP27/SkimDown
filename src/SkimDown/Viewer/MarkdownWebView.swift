@@ -39,7 +39,6 @@ final class MarkdownWebView: NSView, WKScriptMessageHandler, WKNavigationDelegat
     }
 
     private let webView: WKWebView
-    private var currentTheme: AppTheme = .system
     private var renderGeneration = 0
     private var pendingNavigation: PendingNavigation?
 
@@ -87,7 +86,6 @@ final class MarkdownWebView: NSView, WKScriptMessageHandler, WKNavigationDelegat
         preserveScrollPosition: Bool = false,
         completion: (() -> Void)? = nil
     ) {
-        currentTheme = theme
         let generation = advanceRenderGeneration()
         applyNativeAppearance(theme)
 
@@ -131,7 +129,6 @@ final class MarkdownWebView: NSView, WKScriptMessageHandler, WKNavigationDelegat
     }
 
     func showError(_ message: String, theme: AppTheme, fontSize: Double, completion: (() -> Void)? = nil) {
-        currentTheme = theme
         let generation = advanceRenderGeneration()
         applyNativeAppearance(theme)
         let payload: [String: Any] = [
@@ -319,7 +316,6 @@ final class MarkdownWebView: NSView, WKScriptMessageHandler, WKNavigationDelegat
         generation: Int,
         completion: (() -> Void)?
     ) {
-        currentTheme = theme
         applyNativeAppearance(theme)
 
         let escapedMessage = Self.htmlEscaped(message)
