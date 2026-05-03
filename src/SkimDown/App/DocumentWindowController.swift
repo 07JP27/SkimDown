@@ -4,6 +4,7 @@ import AppKit
 final class DocumentWindowController: NSWindowController, NSWindowDelegate, SidebarViewControllerDelegate, EmptyStateViewDelegate, MarkdownWebViewDelegate, SearchBarViewDelegate {
     private let settingsStore: SettingsStore
     private let bookmarkStore: FolderBookmarkStore
+    private let themeStore: ThemeStore
     private weak var windowManager: WindowManager?
 
     private let splitViewController = NSSplitViewController()
@@ -43,9 +44,10 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Side
         settings.sidebarPosition
     }
 
-    init(settingsStore: SettingsStore, bookmarkStore: FolderBookmarkStore, windowManager: WindowManager) {
+    init(settingsStore: SettingsStore, bookmarkStore: FolderBookmarkStore, themeStore: ThemeStore, windowManager: WindowManager) {
         self.settingsStore = settingsStore
         self.bookmarkStore = bookmarkStore
+        self.themeStore = themeStore
         self.windowManager = windowManager
         self.settings = settingsStore.settings
 
@@ -82,8 +84,16 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Side
             self?.handleDroppedFolder(folderURL)
         }
 
-        applyWindowAppearance(settings.theme)
+        applyEffectiveAppearance()
+        sidebarViewController.applyTheme(resolvedCustomTheme)
         showEmptyState(.initial)
+
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(settingsDidChange(_:)),
+            name: .skimDownSettingsDidChange,
+            object: nil
+        )
     }
 
     required init?(coder: NSCoder) {
@@ -261,12 +271,38 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Side
     func setTheme(_ theme: AppTheme) {
         settings.theme = theme
         settingsStore.theme = theme
-        applyWindowAppearance(theme)
+        applyEffectiveAppearance()
+        sidebarViewController.applyTheme(resolvedCustomTheme)
         reloadSelectedMarkdown()
     }
 
     override func cancelOperation(_ sender: Any?) {
         setSearchBarVisible(false)
+    }
+
+    @objc private func settingsDidChange(_ notification: Notification) {
+        let newSettings = settingsStore.settings
+        let newCustomThemeID = settingsStore.customThemeID
+        let needsRerender = settings.theme != newSettings.theme
+            || settings.fontSize != newSettings.fontSize
+            || settings.fontFamily != newSettings.fontFamily
+            || settings.customThemeID != newCustomThemeID
+
+        if settings.sidebarPosition != newSettings.sidebarPosition {
+            settings.sidebarPosition = newSettings.sidebarPosition
+            rebuildSplitItems()
+        }
+
+        settings.theme = newSettings.theme
+        settings.fontSize = newSettings.fontSize
+        settings.fontFamily = newSettings.fontFamily
+        settings.customThemeID = newCustomThemeID
+
+        if needsRerender {
+            applyEffectiveAppearance()
+            sidebarViewController.applyTheme(resolvedCustomTheme)
+            reloadSelectedMarkdown()
+        }
     }
 
     func sidebarViewController(_ controller: SidebarViewController, didSelectFile fileURL: URL) {
@@ -381,6 +417,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Side
             object: splitViewController.splitView
         )
         rebuildSplitItems()
+
         window?.contentViewController = splitViewController
     }
 
@@ -506,12 +543,18 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Side
         }
     }
 
+    private var resolvedCustomTheme: ThemeDefinition? {
+        guard let id = settings.customThemeID else { return nil }
+        return themeStore.theme(for: id)
+    }
+
     private func selectFile(_ fileURL: URL, anchor: String?) {
         guard let session, PathSecurity.isFileURL(fileURL, containedIn: session.folderURL) else {
             NSSound.beep()
             return
         }
 
+        let customTheme = resolvedCustomTheme
         do {
             let markdown = try MarkdownDocumentLoader().load(fileURL: fileURL)
             session.selectedFileURL = fileURL.skimdownCanonicalFileURL
@@ -519,7 +562,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Side
             sidebarViewController.selectFile(fileURL)
             emptyStateView.isHidden = true
             markdownWebView.isHidden = false
-            markdownWebView.render(markdown: markdown, currentFileURL: fileURL, rootFolderURL: session.folderURL, theme: settings.theme, fontSize: settings.fontSize) { [weak self] in
+            markdownWebView.render(markdown: markdown, currentFileURL: fileURL, rootFolderURL: session.folderURL, theme: settings.theme, fontSize: settings.fontSize, fontFamily: settings.fontFamily, customTheme: customTheme) { [weak self] in
                 if let anchor {
                     self?.markdownWebView.scrollToAnchor(anchor)
                 }
@@ -530,7 +573,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Side
             sidebarViewController.selectFile(fileURL)
             emptyStateView.isHidden = true
             markdownWebView.isHidden = false
-            markdownWebView.showError(error.localizedDescription, theme: settings.theme, fontSize: settings.fontSize)
+            markdownWebView.showError(error.localizedDescription, theme: settings.theme, fontSize: settings.fontSize, fontFamily: settings.fontFamily, customTheme: customTheme)
         }
     }
 
@@ -581,6 +624,46 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Side
             window?.appearance = NSAppearance(named: .aqua)
         case .dark:
             window?.appearance = NSAppearance(named: .darkAqua)
+        }
+    }
+
+    /// Sets window appearance based on custom theme's colorScheme when active,
+    /// otherwise falls back to the AppTheme setting.
+    private func applyEffectiveAppearance() {
+        if let customTheme = resolvedCustomTheme {
+            switch customTheme.colorScheme {
+            case .light:
+                window?.appearance = NSAppearance(named: .aqua)
+            case .dark:
+                window?.appearance = NSAppearance(named: .darkAqua)
+            }
+            window?.titlebarAppearsTransparent = true
+
+            if customTheme.opacity < 1.0 {
+                let bgColor = SidebarViewController.nsColor(from: customTheme.colors.subtle)
+                window?.isOpaque = false
+                window?.backgroundColor = bgColor.withAlphaComponent(CGFloat(customTheme.opacity))
+                splitViewController.splitView.wantsLayer = true
+                splitViewController.splitView.layer?.backgroundColor = NSColor.clear.cgColor
+                splitViewController.view.wantsLayer = true
+                splitViewController.view.layer?.backgroundColor = NSColor.clear.cgColor
+                contentRootView.wantsLayer = true
+                contentRootView.layer?.backgroundColor = NSColor.clear.cgColor
+            } else {
+                window?.isOpaque = true
+                window?.backgroundColor = SidebarViewController.nsColor(from: customTheme.colors.subtle)
+                splitViewController.splitView.layer?.backgroundColor = nil
+                splitViewController.view.layer?.backgroundColor = nil
+                contentRootView.layer?.backgroundColor = nil
+            }
+        } else {
+            applyWindowAppearance(settings.theme)
+            window?.titlebarAppearsTransparent = false
+            window?.isOpaque = true
+            window?.backgroundColor = .windowBackgroundColor
+            splitViewController.splitView.layer?.backgroundColor = nil
+            splitViewController.view.layer?.backgroundColor = nil
+            contentRootView.layer?.backgroundColor = nil
         }
     }
 

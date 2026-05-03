@@ -41,6 +41,7 @@ See [`samples/README.md`](https://github.com/07JP27/SkimDown/blob/main/samples/R
 
 - [Open folders](./usage/open-folder.md)
 - [Preview](./usage/preview.md)
+- [Settings](./usage/settings.md)
 - [Search](./usage/search.md)
 - [Live reload](./usage/reload.md)
 - [Security model](./security.md)

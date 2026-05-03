@@ -17,6 +17,7 @@ final class SettingsStoreTests: XCTestCase {
         store.sidebarWidth = 320
         store.theme = .dark
         store.fontSize = 18
+        store.fontFamily = "Menlo-Regular"
         store.isSearchCaseSensitive = true
 
         let reloaded = SettingsStore(defaults: defaults)
@@ -25,7 +26,26 @@ final class SettingsStoreTests: XCTestCase {
         XCTAssertEqual(reloaded.sidebarWidth, 320)
         XCTAssertEqual(reloaded.theme, .dark)
         XCTAssertEqual(reloaded.fontSize, 18)
+        XCTAssertEqual(reloaded.fontFamily, "Menlo-Regular")
         XCTAssertTrue(reloaded.isSearchCaseSensitive)
+    }
+
+    func testFontFamilyDefaultNilAndRoundTrip() throws {
+        let suiteName = "dev.jp27.SkimDownTests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer {
+            defaults.removePersistentDomain(forName: suiteName)
+        }
+
+        let store = SettingsStore(defaults: defaults)
+        XCTAssertNil(store.fontFamily)
+        XCTAssertNil(store.settings.fontFamily)
+
+        store.fontFamily = "Helvetica"
+        XCTAssertEqual(SettingsStore(defaults: defaults).fontFamily, "Helvetica")
+
+        store.fontFamily = nil
+        XCTAssertNil(SettingsStore(defaults: defaults).fontFamily)
     }
 
     func testPerFolderLastSelectionAndExpandedPaths() throws {

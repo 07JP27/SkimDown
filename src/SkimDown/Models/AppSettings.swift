@@ -16,7 +16,9 @@ struct AppSettings: Equatable {
     var isSidebarVisible: Bool = true
     var sidebarWidth: Double = 260
     var theme: AppTheme = .system
+    var customThemeID: String?
     var fontSize: Double = 16
+    var fontFamily: String?
     var isSearchCaseSensitive: Bool = false
 }
 

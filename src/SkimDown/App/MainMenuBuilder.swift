@@ -11,6 +11,8 @@ enum MainMenuBuilder {
         appMenuItem.submenu = appMenu
         appMenu.addItem(withTitle: "About SkimDown", action: #selector(NSApplication.orderFrontStandardAboutPanel(_:)), keyEquivalent: "")
         appMenu.addItem(.separator())
+        appMenu.addItem(menuItem("Settings…", action: #selector(AppDelegate.openSettings(_:)), key: ",", target: target))
+        appMenu.addItem(.separator())
         appMenu.addItem(withTitle: "Quit SkimDown", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
 
         let fileMenuItem = NSMenuItem()

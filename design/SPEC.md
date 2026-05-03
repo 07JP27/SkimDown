@@ -163,6 +163,12 @@ GitHub Flavored Markdown寄りの表示を基本にする。
 
 ## メニュー
 
+### SkimDown (App)
+
+- `About SkimDown`
+- `Settings…` (`Cmd + ,`)
+- `Quit SkimDown` (`Cmd + Q`)
+
 ### File
 
 - `New Window` (`Cmd + N`)
@@ -214,9 +220,20 @@ GitHub Flavored Markdown寄りの表示を基本にする。
 - サイドバー幅
 - テーマ
 - フォントサイズ
+- 本文フォントファミリ
 - 本文検索の大文字小文字設定
 
-専用Settings画面はMVPでは作らず、メニュー操作や状態変更を自動保存する。
+`SkimDown > Settings…`（`Cmd + ,`）でSettingsウィンドウを開く。タブは General / Themes / Editing の3構成。
+
+| タブ | 項目 | UI |
+|---|---|---|
+| General | サイドバー位置（左/右） | Picker |
+| General | 最近開いたフォルダのクリア | Button |
+| Themes | テーマ（System/Light/Dark） | Segmented Picker |
+| Editing | 本文フォントファミリ | "Choose Font…" ボタン → `NSFontPanel` |
+| Editing | 本文フォントサイズ | Slider（11–28pt）+ Reset |
+
+設定変更は即座にすべてのウィンドウへ反映される。View メニューの Theme / Zoom 操作も引き続き使用可能。
 
 ## セキュリティ
 

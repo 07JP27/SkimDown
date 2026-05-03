@@ -43,6 +43,7 @@ export default defineConfig({
                 items: [
                   { text: 'Open folders', link: '/usage/open-folder' },
                   { text: 'Preview', link: '/usage/preview' },
+                  { text: 'Settings', link: '/usage/settings' },
                   { text: 'Search', link: '/usage/search' },
                   { text: 'Live reload', link: '/usage/reload' },
                 ],
@@ -74,6 +75,7 @@ export default defineConfig({
                 items: [
                   { text: 'フォルダを開く', link: '/ja/usage/open-folder' },
                   { text: 'プレビュー', link: '/ja/usage/preview' },
+                  { text: '設定', link: '/ja/usage/settings' },
                   { text: '検索', link: '/ja/usage/search' },
                   { text: '自動更新', link: '/ja/usage/reload' },
                 ],
