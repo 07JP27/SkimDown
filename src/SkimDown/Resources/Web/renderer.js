@@ -4,6 +4,7 @@
   let currentSearchIndex = -1;
   let tableResizeObserver = null;
   let tableResizeHandler = null;
+  const IMAGE_READY_TIMEOUT_MS = 3000;
 
   function renderer() {
     if (!markdownIt) {
@@ -431,16 +432,36 @@
       return Promise.resolve();
     }
 
-    return Promise.all(images.map(function (image) {
-      return new Promise(function (resolve) {
-        if (image.complete) {
-          resolve();
+    return Promise.all(images.map(waitForImage));
+  }
+
+  function waitForImage(image) {
+    return new Promise(function (resolve) {
+      if (image.complete) {
+        resolve();
+        return;
+      }
+
+      let didResolve = false;
+      const timeoutID = window.setTimeout(finish, IMAGE_READY_TIMEOUT_MS);
+
+      function finish() {
+        if (didResolve) {
           return;
         }
-        image.addEventListener("load", resolve, { once: true });
-        image.addEventListener("error", resolve, { once: true });
-      });
-    }));
+        didResolve = true;
+        window.clearTimeout(timeoutID);
+        image.removeEventListener("load", finish);
+        image.removeEventListener("error", finish);
+        resolve();
+      }
+
+      image.addEventListener("load", finish, { once: true });
+      image.addEventListener("error", finish, { once: true });
+      if (image.complete) {
+        finish();
+      }
+    });
   }
 
   function notifyWhenRenderSettled(content, renderID, mermaidTasks) {
