@@ -186,9 +186,6 @@ pre code {
 .table-scroll {
   width: 100%;
   overflow-x: auto;
-  border: 1px solid var(--skimdown-border);
-  border-radius: 14px;
-  background: var(--skimdown-surface);
 }
 
 table {
