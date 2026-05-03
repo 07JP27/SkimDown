@@ -57,10 +57,20 @@
     normalizeLinksAndImages(content, payload);
     wrapTables(content);
     initializeTableScrollCues(content);
-    renderMermaidBlocks(content, payload);
+    const mermaidTasks = renderMermaidBlocks(content, payload);
     decorateCodeBlocks(content);
     renderMath(content);
     clearSearch();
+
+    Promise.all(mermaidTasks)
+      .then(function () {
+        return waitForImages(content);
+      })
+      .then(waitForFonts)
+      .then(waitForLayoutFrame)
+      .then(function () {
+        postRenderReady(payload.renderID);
+      });
   }
 
   function normalizeTaskLists(content) {
@@ -224,6 +234,7 @@
       window.mermaid.initialize({ startOnLoad: false, theme: isDark ? "dark" : "default", securityLevel: "strict" });
     }
 
+    const tasks = [];
     content.querySelectorAll("pre > code").forEach(function (code) {
       const language = code.className.match(/language-([A-Za-z0-9_-]+)/);
       if (!language || language[1].toLowerCase() !== "mermaid") {
@@ -241,11 +252,14 @@
       code.parentElement.replaceWith(wrapper);
 
       if (window.mermaid) {
-        window.mermaid.run({ nodes: [diagram] }).catch(function () {
-          wrapper.replaceWith(fallback);
-        });
+        tasks.push(
+          window.mermaid.run({ nodes: [diagram] }).catch(function () {
+            wrapper.replaceWith(fallback);
+          })
+        );
       }
     });
+    return tasks;
   }
 
   function decorateCodeBlocks(content) {
@@ -309,7 +323,7 @@
     }
   }
 
-  function performSearch(query, caseSensitive) {
+  function performSearch(query, caseSensitive, scrollToMatch) {
     clearSearch();
     if (!query) {
       return searchState();
@@ -358,7 +372,11 @@
 
     if (searchMatches.length > 0) {
       currentSearchIndex = 0;
-      scrollToCurrentSearchMatch();
+      if (scrollToMatch === false) {
+        markCurrentSearchMatch();
+      } else {
+        scrollToCurrentSearchMatch();
+      }
     }
     return searchState();
   }
@@ -382,14 +400,21 @@
   }
 
   function scrollToCurrentSearchMatch() {
+    const current = markCurrentSearchMatch();
+    if (current) {
+      current.scrollIntoView({ block: "center" });
+    }
+  }
+
+  function markCurrentSearchMatch() {
     searchMatches.forEach(function (match) {
       match.classList.remove("skimdown-search-current");
     });
     const current = searchMatches[currentSearchIndex];
     if (current) {
       current.classList.add("skimdown-search-current");
-      current.scrollIntoView({ block: "center" });
     }
+    return current;
   }
 
   function searchState() {
@@ -410,6 +435,45 @@
     const target = document.getElementById(decoded) || document.querySelector("[name='" + CSS.escape(decoded) + "']");
     if (target) {
       target.scrollIntoView({ block: "start", behavior: "smooth" });
+    }
+  }
+
+  function waitForImages(content) {
+    const images = Array.from(content.querySelectorAll("img"));
+    if (images.length === 0) {
+      return Promise.resolve();
+    }
+
+    return Promise.all(images.map(function (image) {
+      return new Promise(function (resolve) {
+        if (image.complete) {
+          resolve();
+          return;
+        }
+        image.addEventListener("load", resolve, { once: true });
+        image.addEventListener("error", resolve, { once: true });
+      });
+    }));
+  }
+
+  function waitForFonts() {
+    if (document.fonts && document.fonts.ready) {
+      return document.fonts.ready;
+    }
+    return Promise.resolve();
+  }
+
+  function waitForLayoutFrame() {
+    return new Promise(function (resolve) {
+      window.requestAnimationFrame(function () {
+        window.requestAnimationFrame(resolve);
+      });
+    });
+  }
+
+  function postRenderReady(renderID) {
+    if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.renderReady) {
+      window.webkit.messageHandlers.renderReady.postMessage({ renderID: renderID });
     }
   }
 

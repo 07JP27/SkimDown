@@ -531,7 +531,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Side
                 fontSize: settings.fontSize,
                 preserveScrollPosition: shouldPreserveScrollPosition
             ) { [weak self] in
-                self?.performSearch()
+                self?.performSearch(scrollToMatch: !shouldPreserveScrollPosition)
                 if let anchor {
                     self?.markdownWebView.scrollToAnchor(anchor)
                 }
@@ -562,11 +562,15 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Side
         }
     }
 
-    private func performSearch() {
+    private func performSearch(scrollToMatch: Bool = true) {
         guard !searchBarView.isHidden else {
             return
         }
-        markdownWebView.performSearch(query: searchBarView.query, caseSensitive: searchBarView.isCaseSensitive) { [weak self] result in
+        markdownWebView.performSearch(
+            query: searchBarView.query,
+            caseSensitive: searchBarView.isCaseSensitive,
+            scrollToMatch: scrollToMatch
+        ) { [weak self] result in
             self?.searchBarView.setResult(result)
         }
     }

@@ -36,6 +36,9 @@ final class MarkdownWebView: NSView, WKScriptMessageHandler, WKNavigationDelegat
         let generation: Int
         let scrollY: Double?
         let completion: (() -> Void)?
+        let waitsForRenderReady: Bool
+        var didFinishNavigation: Bool
+        var didRenderContent: Bool
     }
 
     private let webView: WKWebView
@@ -53,6 +56,7 @@ final class MarkdownWebView: NSView, WKScriptMessageHandler, WKNavigationDelegat
 
         userContentController.add(WeakScriptMessageHandler(delegate: self), name: "linkClick")
         userContentController.add(WeakScriptMessageHandler(delegate: self), name: "copyCode")
+        userContentController.add(WeakScriptMessageHandler(delegate: self), name: "renderReady")
 
         webView.navigationDelegate = self
         webView.translatesAutoresizingMaskIntoConstraints = false
@@ -75,6 +79,7 @@ final class MarkdownWebView: NSView, WKScriptMessageHandler, WKNavigationDelegat
         let userContentController = webView.configuration.userContentController
         userContentController.removeScriptMessageHandler(forName: "linkClick")
         userContentController.removeScriptMessageHandler(forName: "copyCode")
+        userContentController.removeScriptMessageHandler(forName: "renderReady")
     }
 
     func render(
@@ -95,7 +100,8 @@ final class MarkdownWebView: NSView, WKScriptMessageHandler, WKNavigationDelegat
             "baseURL": baseURL.absoluteString,
             "rootURL": rootFolderURL.skimdownCanonicalFileURL.absoluteString.hasSuffix("/") ? rootFolderURL.skimdownCanonicalFileURL.absoluteString : rootFolderURL.skimdownCanonicalFileURL.absoluteString + "/",
             "theme": theme.rawValue,
-            "fontSize": fontSize
+            "fontSize": fontSize,
+            "renderID": generation
         ]
 
         let html: String
@@ -136,7 +142,8 @@ final class MarkdownWebView: NSView, WKScriptMessageHandler, WKNavigationDelegat
             "baseURL": Bundle.main.bundleURL.absoluteString,
             "rootURL": Bundle.main.bundleURL.absoluteString,
             "theme": theme.rawValue,
-            "fontSize": fontSize
+            "fontSize": fontSize,
+            "renderID": generation
         ]
         do {
             loadHTML(
@@ -158,8 +165,11 @@ final class MarkdownWebView: NSView, WKScriptMessageHandler, WKNavigationDelegat
         }
     }
 
-    func performSearch(query: String, caseSensitive: Bool, completion: @escaping (SearchResult) -> Void) {
-        evaluateSearchScript("window.skimdown.performSearch(\(Self.jsonString(query)), \(caseSensitive ? "true" : "false"))", completion: completion)
+    func performSearch(query: String, caseSensitive: Bool, scrollToMatch: Bool = true, completion: @escaping (SearchResult) -> Void) {
+        evaluateSearchScript(
+            "window.skimdown.performSearch(\(Self.jsonString(query)), \(caseSensitive ? "true" : "false"), \(scrollToMatch ? "true" : "false"))",
+            completion: completion
+        )
     }
 
     func findNext(completion: @escaping (SearchResult) -> Void) {
@@ -198,22 +208,27 @@ final class MarkdownWebView: NSView, WKScriptMessageHandler, WKNavigationDelegat
             let pasteboard = NSPasteboard.general
             pasteboard.clearContents()
             pasteboard.setString(code, forType: .string)
+        } else if message.name == "renderReady",
+                  let body = message.body as? [String: Any],
+                  let renderID = Self.intValue(body["renderID"]) {
+            markRenderReady(generation: renderID)
         }
     }
 
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
         guard let navigation,
-              let pendingNavigation,
+              var pendingNavigation,
               pendingNavigation.navigation === navigation,
               pendingNavigation.generation == renderGeneration else {
             return
         }
 
-        self.pendingNavigation = nil
-        if let scrollY = pendingNavigation.scrollY, scrollY > 0 {
-            webView.evaluateJavaScript("window.scrollTo(0, \(scrollY))")
+        pendingNavigation.didFinishNavigation = true
+        if !pendingNavigation.waitsForRenderReady {
+            pendingNavigation.didRenderContent = true
         }
-        pendingNavigation.completion?()
+        self.pendingNavigation = pendingNavigation
+        finishPendingNavigationIfReady()
     }
 
     private func evaluateSearchScript(_ script: String, completion: @escaping (SearchResult) -> Void) {
@@ -243,7 +258,14 @@ final class MarkdownWebView: NSView, WKScriptMessageHandler, WKNavigationDelegat
         return renderGeneration
     }
 
-    private func loadHTML(_ html: String, baseURL: URL, generation: Int, scrollY: Double?, completion: (() -> Void)?) {
+    private func loadHTML(
+        _ html: String,
+        baseURL: URL,
+        generation: Int,
+        scrollY: Double?,
+        waitsForRenderReady: Bool = true,
+        completion: (() -> Void)?
+    ) {
         guard renderGeneration == generation else {
             return
         }
@@ -251,7 +273,41 @@ final class MarkdownWebView: NSView, WKScriptMessageHandler, WKNavigationDelegat
             completion?()
             return
         }
-        pendingNavigation = PendingNavigation(navigation: navigation, generation: generation, scrollY: scrollY, completion: completion)
+        pendingNavigation = PendingNavigation(
+            navigation: navigation,
+            generation: generation,
+            scrollY: scrollY,
+            completion: completion,
+            waitsForRenderReady: waitsForRenderReady,
+            didFinishNavigation: false,
+            didRenderContent: false
+        )
+    }
+
+    private func markRenderReady(generation: Int) {
+        guard var pendingNavigation,
+              pendingNavigation.generation == generation,
+              generation == renderGeneration else {
+            return
+        }
+        pendingNavigation.didRenderContent = true
+        self.pendingNavigation = pendingNavigation
+        finishPendingNavigationIfReady()
+    }
+
+    private func finishPendingNavigationIfReady() {
+        guard let pendingNavigation,
+              pendingNavigation.generation == renderGeneration,
+              pendingNavigation.didFinishNavigation,
+              pendingNavigation.didRenderContent else {
+            return
+        }
+
+        self.pendingNavigation = nil
+        if let scrollY = pendingNavigation.scrollY, scrollY > 0 {
+            webView.evaluateJavaScript("window.scrollTo(0, \(scrollY))")
+        }
+        pendingNavigation.completion?()
     }
 
     private static func buildHTML(payload: [String: Any], theme: AppTheme, katexFontsURL: String) throws -> String {
@@ -356,7 +412,7 @@ final class MarkdownWebView: NSView, WKScriptMessageHandler, WKNavigationDelegat
         </html>
         """
 
-        loadHTML(html, baseURL: baseURL, generation: generation, scrollY: nil, completion: completion)
+        loadHTML(html, baseURL: baseURL, generation: generation, scrollY: nil, waitsForRenderReady: false, completion: completion)
     }
 
     private func katexFontsURLString() -> String {
@@ -376,6 +432,16 @@ final class MarkdownWebView: NSView, WKScriptMessageHandler, WKNavigationDelegat
 
     private static func jsonString(_ string: String) -> String {
         jsonObject([string]).dropFirst().dropLast().description
+    }
+
+    private static func intValue(_ value: Any?) -> Int? {
+        if let int = value as? Int {
+            return int
+        }
+        if let number = value as? NSNumber {
+            return number.intValue
+        }
+        return nil
     }
 
     private static func htmlEscaped(_ string: String) -> String {
