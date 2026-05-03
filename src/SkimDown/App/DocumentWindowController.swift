@@ -531,10 +531,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Side
                 fontSize: settings.fontSize,
                 preserveScrollPosition: shouldPreserveScrollPosition
             ) { [weak self] in
-                self?.performSearch(scrollToMatch: !shouldPreserveScrollPosition)
-                if let anchor {
-                    self?.markdownWebView.scrollToAnchor(anchor)
-                }
+                self?.completeMarkdownRender(anchor: anchor, preservesScrollPosition: shouldPreserveScrollPosition)
             }
         } catch {
             session.selectedFileURL = fileURL.skimdownCanonicalFileURL
@@ -550,6 +547,13 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Side
             return
         }
         selectFile(selectedFileURL, anchor: nil, preserveScrollPosition: preserveScrollPosition)
+    }
+
+    private func completeMarkdownRender(anchor: String?, preservesScrollPosition: Bool) {
+        performSearch(scrollToMatch: !preservesScrollPosition)
+        if let anchor {
+            markdownWebView.scrollToAnchor(anchor)
+        }
     }
 
     private func showEmptyState(_ state: EmptyStateView.State) {

@@ -62,15 +62,7 @@
     renderMath(content);
     clearSearch();
 
-    Promise.all(mermaidTasks)
-      .then(function () {
-        return waitForImages(content);
-      })
-      .then(waitForFonts)
-      .then(waitForLayoutFrame)
-      .then(function () {
-        postRenderReady(payload.renderID);
-      });
+    notifyWhenRenderSettled(content, payload.renderID, mermaidTasks);
   }
 
   function normalizeTaskLists(content) {
@@ -372,11 +364,7 @@
 
     if (searchMatches.length > 0) {
       currentSearchIndex = 0;
-      if (scrollToMatch === false) {
-        markCurrentSearchMatch();
-      } else {
-        scrollToCurrentSearchMatch();
-      }
+      updateCurrentSearchMatch(scrollToMatch !== false);
     }
     return searchState();
   }
@@ -400,21 +388,20 @@
   }
 
   function scrollToCurrentSearchMatch() {
-    const current = markCurrentSearchMatch();
-    if (current) {
-      current.scrollIntoView({ block: "center" });
-    }
+    updateCurrentSearchMatch(true);
   }
 
-  function markCurrentSearchMatch() {
+  function updateCurrentSearchMatch(scrollToMatch) {
     searchMatches.forEach(function (match) {
       match.classList.remove("skimdown-search-current");
     });
     const current = searchMatches[currentSearchIndex];
     if (current) {
       current.classList.add("skimdown-search-current");
+      if (scrollToMatch) {
+        current.scrollIntoView({ block: "center" });
+      }
     }
-    return current;
   }
 
   function searchState() {
@@ -454,6 +441,23 @@
         image.addEventListener("error", resolve, { once: true });
       });
     }));
+  }
+
+  function notifyWhenRenderSettled(content, renderID, mermaidTasks) {
+    waitForRenderSettled(content, mermaidTasks).then(function () {
+      postRenderReady(renderID);
+    }, function () {
+      postRenderReady(renderID);
+    });
+  }
+
+  function waitForRenderSettled(content, mermaidTasks) {
+    return Promise.all(mermaidTasks)
+      .then(function () {
+        return waitForImages(content);
+      })
+      .then(waitForFonts)
+      .then(waitForLayoutFrame);
   }
 
   function waitForFonts() {

@@ -31,6 +31,12 @@ final class MarkdownWebView: NSView, WKScriptMessageHandler, WKNavigationDelegat
 
     private static var webResourceCache: [String: String] = [:]
 
+    private enum ScriptMessage: String, CaseIterable {
+        case linkClick
+        case copyCode
+        case renderReady
+    }
+
     private struct PendingNavigation {
         let navigation: WKNavigation
         let generation: Int
@@ -39,6 +45,21 @@ final class MarkdownWebView: NSView, WKScriptMessageHandler, WKNavigationDelegat
         let waitsForRenderReady: Bool
         var didFinishNavigation: Bool
         var didRenderContent: Bool
+
+        var isReady: Bool {
+            didFinishNavigation && didRenderContent
+        }
+
+        mutating func markNavigationFinished() {
+            didFinishNavigation = true
+            if !waitsForRenderReady {
+                didRenderContent = true
+            }
+        }
+
+        mutating func markRenderReady() {
+            didRenderContent = true
+        }
     }
 
     private let webView: WKWebView
@@ -54,9 +75,9 @@ final class MarkdownWebView: NSView, WKScriptMessageHandler, WKNavigationDelegat
         webView = WKWebView(frame: .zero, configuration: configuration)
         super.init(frame: frameRect)
 
-        userContentController.add(WeakScriptMessageHandler(delegate: self), name: "linkClick")
-        userContentController.add(WeakScriptMessageHandler(delegate: self), name: "copyCode")
-        userContentController.add(WeakScriptMessageHandler(delegate: self), name: "renderReady")
+        for scriptMessage in ScriptMessage.allCases {
+            userContentController.add(WeakScriptMessageHandler(delegate: self), name: scriptMessage.rawValue)
+        }
 
         webView.navigationDelegate = self
         webView.translatesAutoresizingMaskIntoConstraints = false
@@ -77,9 +98,9 @@ final class MarkdownWebView: NSView, WKScriptMessageHandler, WKNavigationDelegat
 
     deinit {
         let userContentController = webView.configuration.userContentController
-        userContentController.removeScriptMessageHandler(forName: "linkClick")
-        userContentController.removeScriptMessageHandler(forName: "copyCode")
-        userContentController.removeScriptMessageHandler(forName: "renderReady")
+        for scriptMessage in ScriptMessage.allCases {
+            userContentController.removeScriptMessageHandler(forName: scriptMessage.rawValue)
+        }
     }
 
     func render(
@@ -95,14 +116,14 @@ final class MarkdownWebView: NSView, WKScriptMessageHandler, WKNavigationDelegat
         applyNativeAppearance(theme)
 
         let baseURL = currentFileURL.deletingLastPathComponent()
-        let payload: [String: Any] = [
-            "markdown": markdown,
-            "baseURL": baseURL.absoluteString,
-            "rootURL": rootFolderURL.skimdownCanonicalFileURL.absoluteString.hasSuffix("/") ? rootFolderURL.skimdownCanonicalFileURL.absoluteString : rootFolderURL.skimdownCanonicalFileURL.absoluteString + "/",
-            "theme": theme.rawValue,
-            "fontSize": fontSize,
-            "renderID": generation
-        ]
+        let payload = Self.renderPayload(
+            markdown: markdown,
+            baseURL: baseURL,
+            rootURL: rootFolderURL,
+            theme: theme,
+            fontSize: fontSize,
+            generation: generation
+        )
 
         let html: String
         do {
@@ -137,14 +158,14 @@ final class MarkdownWebView: NSView, WKScriptMessageHandler, WKNavigationDelegat
     func showError(_ message: String, theme: AppTheme, fontSize: Double, completion: (() -> Void)? = nil) {
         let generation = advanceRenderGeneration()
         applyNativeAppearance(theme)
-        let payload: [String: Any] = [
-            "markdown": "> **Error**\\n>\\n> \(message)",
-            "baseURL": Bundle.main.bundleURL.absoluteString,
-            "rootURL": Bundle.main.bundleURL.absoluteString,
-            "theme": theme.rawValue,
-            "fontSize": fontSize,
-            "renderID": generation
-        ]
+        let payload = Self.renderPayload(
+            markdown: "> **Error**\\n>\\n> \(message)",
+            baseURL: Bundle.main.bundleURL,
+            rootURL: Bundle.main.bundleURL,
+            theme: theme,
+            fontSize: fontSize,
+            generation: generation
+        )
         do {
             loadHTML(
                 try Self.buildHTML(payload: payload, theme: theme, katexFontsURL: katexFontsURLString()),
@@ -202,15 +223,28 @@ final class MarkdownWebView: NSView, WKScriptMessageHandler, WKNavigationDelegat
     }
 
     func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
-        if message.name == "linkClick", let href = message.body as? String {
+        guard let scriptMessage = ScriptMessage(rawValue: message.name) else {
+            return
+        }
+
+        switch scriptMessage {
+        case .linkClick:
+            guard let href = message.body as? String else {
+                return
+            }
             delegate?.markdownWebView(self, didRequestLink: href)
-        } else if message.name == "copyCode", let code = message.body as? String {
+        case .copyCode:
+            guard let code = message.body as? String else {
+                return
+            }
             let pasteboard = NSPasteboard.general
             pasteboard.clearContents()
             pasteboard.setString(code, forType: .string)
-        } else if message.name == "renderReady",
-                  let body = message.body as? [String: Any],
-                  let renderID = Self.intValue(body["renderID"]) {
+        case .renderReady:
+            guard let body = message.body as? [String: Any],
+                  let renderID = Self.intValue(body["renderID"]) else {
+                return
+            }
             markRenderReady(generation: renderID)
         }
     }
@@ -223,10 +257,7 @@ final class MarkdownWebView: NSView, WKScriptMessageHandler, WKNavigationDelegat
             return
         }
 
-        pendingNavigation.didFinishNavigation = true
-        if !pendingNavigation.waitsForRenderReady {
-            pendingNavigation.didRenderContent = true
-        }
+        pendingNavigation.markNavigationFinished()
         self.pendingNavigation = pendingNavigation
         finishPendingNavigationIfReady()
     }
@@ -290,7 +321,7 @@ final class MarkdownWebView: NSView, WKScriptMessageHandler, WKNavigationDelegat
               generation == renderGeneration else {
             return
         }
-        pendingNavigation.didRenderContent = true
+        pendingNavigation.markRenderReady()
         self.pendingNavigation = pendingNavigation
         finishPendingNavigationIfReady()
     }
@@ -298,8 +329,7 @@ final class MarkdownWebView: NSView, WKScriptMessageHandler, WKNavigationDelegat
     private func finishPendingNavigationIfReady() {
         guard let pendingNavigation,
               pendingNavigation.generation == renderGeneration,
-              pendingNavigation.didFinishNavigation,
-              pendingNavigation.didRenderContent else {
+              pendingNavigation.isReady else {
             return
         }
 
@@ -344,6 +374,22 @@ final class MarkdownWebView: NSView, WKScriptMessageHandler, WKNavigationDelegat
           </body>
         </html>
         """
+    }
+
+    private static func renderPayload(markdown: String, baseURL: URL, rootURL: URL, theme: AppTheme, fontSize: Double, generation: Int) -> [String: Any] {
+        [
+            "markdown": markdown,
+            "baseURL": baseURL.absoluteString,
+            "rootURL": directoryURLString(for: rootURL),
+            "theme": theme.rawValue,
+            "fontSize": fontSize,
+            "renderID": generation
+        ]
+    }
+
+    private static func directoryURLString(for url: URL) -> String {
+        let absoluteString = url.skimdownCanonicalFileURL.absoluteString
+        return absoluteString.hasSuffix("/") ? absoluteString : absoluteString + "/"
     }
 
     private static func readWebResource(_ relativePath: String) throws -> String {
