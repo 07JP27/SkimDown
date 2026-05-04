@@ -402,7 +402,10 @@
     }
     viewport.dataset.zoom = String(next);
     updateViewportTransform(viewport, next, parseFloat(viewport.dataset.panX) || 0, parseFloat(viewport.dataset.panY) || 0);
-    viewport.closest(".mermaid-container").classList.toggle("mermaid-zoomed", next !== 1);
+    // Only flag as "zoomed" when above 1x — drag-to-pan is gated on zoom > 1, so the
+    // grab cursor should not appear for zoom-out states (0.25x–0.95x) where panning
+    // is intentionally disabled.
+    viewport.closest(".mermaid-container").classList.toggle("mermaid-zoomed", next > 1);
   }
 
   function resetMermaidZoom(viewport) {
