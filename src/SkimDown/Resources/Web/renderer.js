@@ -305,7 +305,8 @@
     }
 
     // Mermaid 内部のグローバル状態が並列 run() で混線するのを避けるため、
-    // 全ノードを 1 回の run() にまとめて渡す。
+    // 全ノードを 1 回の run() にまとめて渡す。失敗時は suppressErrors で握りつぶし、
+    // 後段で個別に SVG が生成されているかを確認してフォールバックする。
     const allDiagrams = entries.map(function (entry) { return entry.diagram; });
     const task = window.mermaid
       .run({ nodes: allDiagrams, suppressErrors: true })
@@ -317,15 +318,78 @@
             entry.wrapper.replaceWith(entry.fallback);
             return;
           }
-          // Mermaid が付ける固有サイズを取り除き、CSS でのレイアウトに任せる
-          svg.removeAttribute("width");
-          svg.removeAttribute("height");
-          svg.style.maxWidth = "";
-          svg.style.width = "";
-          svg.style.height = "";
+          normalizeMermaidSvg(svg);
+        });
+        // テキストフィットはレイアウト確定後に実行（フォントロード待ち + 二重 rAF）
+        afterPaintWithFonts(function () {
+          entries.forEach(function (entry) {
+            const svg = entry.diagram.querySelector("svg");
+            if (svg) {
+              fitMermaidSvgToBodyText(svg);
+            }
+          });
         });
       });
     return [task];
+  }
+
+  // Mermaid が SVG に付ける固有サイズ属性とインラインスタイルを除去し、
+  // CSS の width/height ルールでレイアウトされるようにする。
+  function normalizeMermaidSvg(svg) {
+    svg.removeAttribute("width");
+    svg.removeAttribute("height");
+    svg.style.maxWidth = "";
+    svg.style.width = "";
+    svg.style.height = "";
+  }
+
+  // フォント読込完了 → 次フレーム → 次フレームのタイミングで callback 実行。
+  // SVG 内テキストの実測値が安定してから fit を計算するために二重 rAF を使う。
+  function afterPaintWithFonts(callback) {
+    const schedule = function () {
+      window.requestAnimationFrame(function () {
+        window.requestAnimationFrame(callback);
+      });
+    };
+    if (document.fonts && document.fonts.ready && typeof document.fonts.ready.then === "function") {
+      document.fonts.ready.then(schedule, schedule);
+    } else {
+      schedule();
+    }
+  }
+
+  // SVG 内のテキストの視覚サイズが本文より大きければ、SVG 表示幅を縮めて
+  // 「最大文字 = 本文文字」になるよう調整する。本文 → 図の視線誘導を自然にする目的。
+  function fitMermaidSvgToBodyText(svg) {
+    const svgRect = svg.getBoundingClientRect();
+    if (svgRect.width <= 0) { return; }
+    const vb = svg.viewBox && svg.viewBox.baseVal;
+    if (!vb || vb.width <= 0) { return; }
+
+    const bodyPx = parseFloat(window.getComputedStyle(document.body).fontSize);
+    if (!isFinite(bodyPx) || bodyPx <= 0) { return; }
+
+    // テキストを直接持つ要素のフォントサイズだけ拾う:
+    // - SVG <text> / <tspan>
+    // - foreignObject 内の .nodeLabel と子を持たない末端要素
+    let maxFs = 0;
+    svg.querySelectorAll("text, tspan, foreignObject .nodeLabel, foreignObject *").forEach(function (el) {
+      if (el.namespaceURI !== "http://www.w3.org/2000/svg" && el.children.length > 0 && !el.classList.contains("nodeLabel")) {
+        return;
+      }
+      const fs = parseFloat(window.getComputedStyle(el).fontSize);
+      if (isFinite(fs) && fs > maxFs) { maxFs = fs; }
+    });
+    if (maxFs <= 0) { return; }
+
+    // foreignObject 内 HTML / SVG <text> どちらも viewBox 座標系のフォントサイズを返すので、
+    // SVG の表示倍率で乗じて視覚サイズに換算する。
+    const visualPx = maxFs * (svgRect.width / vb.width);
+    if (visualPx <= bodyPx) { return; }
+
+    const target = Math.max(1, Math.floor(bodyPx * vb.width / maxFs));
+    svg.style.setProperty("max-width", target + "px");
+    svg.style.setProperty("width", target + "px");
   }
 
   function buildMermaidToolbar(viewport) {
