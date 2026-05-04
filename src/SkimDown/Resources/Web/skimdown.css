@@ -312,8 +312,8 @@ tr:nth-child(even) td {
   width: 100%;
   margin-left: auto;
   margin-right: auto;
-  /* Allow horizontal scroll inside the card when the window is narrower than the
-     diagram width, so text never has to scale down with the window. */
+  /* Allow scrolling inside the card when the diagram is larger than the card,
+     so text never has to scale down with the window. */
   overflow: auto;
   padding: 1.1em;
   border: 1px solid var(--skimdown-border);

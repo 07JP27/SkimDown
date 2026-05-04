@@ -273,6 +273,20 @@
       // Mermaid is unavailable: leave the original code blocks untouched and bail out.
       return [];
     }
+
+    // Detect Mermaid code blocks up front so non-Mermaid documents skip the
+    // matchMedia / getComputedStyle / mermaid.initialize work entirely.
+    const codeBlocks = [];
+    content.querySelectorAll("pre > code").forEach(function (code) {
+      const language = code.className.match(/language-([A-Za-z0-9_-]+)/);
+      if (language && language[1].toLowerCase() === "mermaid") {
+        codeBlocks.push(code);
+      }
+    });
+    if (codeBlocks.length === 0) {
+      return [];
+    }
+
     const isDark = payload.theme === "dark" || (payload.theme === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches);
     // Match Mermaid's font-family and font-size to the body so diagram labels appear
     // the same size as the surrounding prose.
@@ -289,12 +303,7 @@
     });
 
     const entries = [];
-    content.querySelectorAll("pre > code").forEach(function (code) {
-      const language = code.className.match(/language-([A-Za-z0-9_-]+)/);
-      if (!language || language[1].toLowerCase() !== "mermaid") {
-        return;
-      }
-
+    codeBlocks.forEach(function (code) {
       const source = code.textContent;
       const fallback = code.parentElement.cloneNode(true);
       const wrapper = document.createElement("div");
@@ -318,10 +327,6 @@
 
       entries.push({ diagram: diagram, wrapper: wrapper, fallback: fallback });
     });
-
-    if (entries.length === 0) {
-      return [];
-    }
 
     // Run all diagrams in a single mermaid.run() call to avoid interleaving Mermaid's
     // internal state across parallel runs. Errors are suppressed here and handled per
