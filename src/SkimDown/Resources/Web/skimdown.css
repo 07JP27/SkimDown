@@ -310,11 +310,10 @@ tr:nth-child(even) td {
 .mermaid-container {
   position: relative;
   width: 100%;
-  max-width: 880px;
   margin-left: auto;
   margin-right: auto;
   /* Allow horizontal scroll inside the card when the window is narrower than the
-     fitted SVG width, so text never has to scale down with the window. */
+     diagram width, so text never has to scale down with the window. */
   overflow: auto;
   padding: 1.1em;
   border: 1px solid var(--skimdown-border);
@@ -322,14 +321,17 @@ tr:nth-child(even) td {
   background: var(--skimdown-surface);
 }
 
-  /* Suppress the focus ring for mouse clicks; only show it for keyboard navigation (:focus-visible). */
 .mermaid-container:focus {
-  outline: none;
-}
-
-.mermaid-container:focus-visible {
   outline: 2px solid var(--skimdown-accent);
   outline-offset: 2px;
+}
+
+/* Hide the focus ring for mouse clicks while keeping it for keyboard navigation.
+   `:focus:not(:focus-visible)` removes the ring only in browsers that support
+   :focus-visible, so environments without that support still get a visible
+   indicator for keyboard focus. */
+.mermaid-container:focus:not(:focus-visible) {
+  outline: none;
 }
 
 .mermaid-viewport {
