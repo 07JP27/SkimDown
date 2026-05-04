@@ -22,6 +22,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Side
     private var fileWatcher = FileWatcher()
     private var settings: AppSettings
     private(set) var currentFolderBookmarkData: Data?
+    private var scrollPositions: [URL: Double] = [:]
 
     /// コンテンツ側 (defaultLow = 250) がリサイズを引き受けるよう、
     /// サイドバー側だけ一段高い保持優先度を割り当てる。これにより
@@ -255,14 +256,15 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Side
     func setFontSize(_ size: Double) {
         settings.fontSize = max(11, min(size, 28))
         settingsStore.fontSize = settings.fontSize
-        reloadSelectedMarkdown()
+        scrollPositions.removeAll()
+        reloadSelectedMarkdown(preserveScrollPosition: true)
     }
 
     func setTheme(_ theme: AppTheme) {
         settings.theme = theme
         settingsStore.theme = theme
         applyWindowAppearance(theme)
-        reloadSelectedMarkdown()
+        reloadSelectedMarkdown(preserveScrollPosition: true)
     }
 
     override func cancelOperation(_ sender: Any?) {
@@ -439,6 +441,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Side
         let lastRelativePath = preferredSelection.flatMap { PathSecurity.relativePath(for: $0, in: folderURL) } ?? settingsStore.lastSelectedMarkdownRelativePath(for: folderURL)
         let selectedFile = InitialSelectionResolver().resolve(folderURL: folderURL, markdownFiles: markdownFiles, treeItems: treeItems, lastRelativePath: lastRelativePath)
 
+        scrollPositions.removeAll()
         session = FolderSession(folderURL: folderURL, treeItems: treeItems, markdownFiles: markdownFiles, selectedFileURL: selectedFile)
         window?.title = "\(folderURL.lastPathComponent) \u{2014} SkimDown"
 
@@ -488,6 +491,15 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Side
             session.markdownFiles = markdownFiles
             session.selectedFileURL = stillSelected
 
+            let liveCanonicalURLs = Set(markdownFiles.map(\.skimdownCanonicalFileURL))
+            let preservedKey = stillSelected?.skimdownCanonicalFileURL
+            scrollPositions = scrollPositions.filter { entry in
+                guard liveCanonicalURLs.contains(entry.key) else {
+                    return false
+                }
+                return entry.key == preservedKey
+            }
+
             sidebarViewController.update(
                 folderName: folderURL.skimdownDisplayName,
                 markdownCount: markdownFiles.count,
@@ -496,7 +508,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Side
             )
 
             if let stillSelected {
-                selectFile(stillSelected, anchor: nil)
+                selectFile(stillSelected, anchor: nil, preserveScrollPosition: true)
             } else {
                 settingsStore.setLastSelectedMarkdown(nil, for: folderURL)
                 showEmptyState(markdownFiles.isEmpty ? .noMarkdown : .initial)
@@ -506,25 +518,56 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Side
         }
     }
 
-    private func selectFile(_ fileURL: URL, anchor: String?) {
+    private func selectFile(_ fileURL: URL, anchor: String?, preserveScrollPosition: Bool = false) {
+        guard let session, PathSecurity.isFileURL(fileURL, containedIn: session.folderURL) else {
+            NSSound.beep()
+            return
+        }
+
+        let canonicalNew = fileURL.skimdownCanonicalFileURL
+        let previousCanonical = session.selectedFileURL?.skimdownCanonicalFileURL
+        let isDifferentFile = previousCanonical != canonicalNew
+
+        if isDifferentFile, let previousCanonical {
+            if let observed = markdownWebView.currentObservedScrollY {
+                scrollPositions[previousCanonical] = observed
+            }
+        }
+
+        performSelectFile(fileURL, anchor: anchor, preserveScrollPosition: preserveScrollPosition, isDifferentFile: isDifferentFile)
+    }
+
+    private func performSelectFile(_ fileURL: URL, anchor: String?, preserveScrollPosition: Bool, isDifferentFile: Bool) {
         guard let session, PathSecurity.isFileURL(fileURL, containedIn: session.folderURL) else {
             NSSound.beep()
             return
         }
 
         do {
+            let canonicalFileURL = fileURL.skimdownCanonicalFileURL
+            let shouldPreserveScrollPosition = preserveScrollPosition
+                && anchor == nil
+                && !isDifferentFile
+            let restoreScrollY: Double? = (anchor == nil && isDifferentFile) ? scrollPositions[canonicalFileURL] : nil
+            let hasMeaningfulRestore = (restoreScrollY ?? 0) > 0
+            let preservesViewport = shouldPreserveScrollPosition || hasMeaningfulRestore
             let markdown = try MarkdownDocumentLoader().load(fileURL: fileURL)
-            session.selectedFileURL = fileURL.skimdownCanonicalFileURL
+            session.selectedFileURL = canonicalFileURL
             settingsStore.setLastSelectedMarkdown(fileURL, for: session.folderURL)
             sidebarViewController.selectFile(fileURL)
             emptyStateView.isHidden = true
             markdownWebView.isHidden = false
-            markdownWebView.render(markdown: markdown, currentFileURL: fileURL, rootFolderURL: session.folderURL, theme: settings.theme, fontSize: settings.fontSize) { [weak self] in
-                if let anchor {
-                    self?.markdownWebView.scrollToAnchor(anchor)
-                }
+            markdownWebView.render(
+                markdown: markdown,
+                currentFileURL: fileURL,
+                rootFolderURL: session.folderURL,
+                theme: settings.theme,
+                fontSize: settings.fontSize,
+                preserveScrollPosition: shouldPreserveScrollPosition,
+                restoreScrollY: restoreScrollY
+            ) { [weak self] in
+                self?.completeMarkdownRender(anchor: anchor, preservesViewport: preservesViewport)
             }
-            performSearch()
         } catch {
             session.selectedFileURL = fileURL.skimdownCanonicalFileURL
             sidebarViewController.selectFile(fileURL)
@@ -534,11 +577,18 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Side
         }
     }
 
-    private func reloadSelectedMarkdown() {
+    private func reloadSelectedMarkdown(preserveScrollPosition: Bool = false) {
         guard let selectedFileURL else {
             return
         }
-        selectFile(selectedFileURL, anchor: nil)
+        selectFile(selectedFileURL, anchor: nil, preserveScrollPosition: preserveScrollPosition)
+    }
+
+    private func completeMarkdownRender(anchor: String?, preservesViewport: Bool) {
+        performSearch(scrollToMatch: !preservesViewport)
+        if let anchor {
+            markdownWebView.scrollToAnchor(anchor)
+        }
     }
 
     private func showEmptyState(_ state: EmptyStateView.State) {
@@ -551,11 +601,15 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Side
         }
     }
 
-    private func performSearch() {
+    private func performSearch(scrollToMatch: Bool = true) {
         guard !searchBarView.isHidden else {
             return
         }
-        markdownWebView.performSearch(query: searchBarView.query, caseSensitive: searchBarView.isCaseSensitive) { [weak self] result in
+        markdownWebView.performSearch(
+            query: searchBarView.query,
+            caseSensitive: searchBarView.isCaseSensitive,
+            scrollToMatch: scrollToMatch
+        ) { [weak self] result in
             self?.searchBarView.setResult(result)
         }
     }

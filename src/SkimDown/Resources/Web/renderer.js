@@ -4,6 +4,7 @@
   let currentSearchIndex = -1;
   let tableResizeObserver = null;
   let tableResizeHandler = null;
+  const IMAGE_READY_TIMEOUT_MS = 3000;
 
   function renderer() {
     if (!markdownIt) {
@@ -43,6 +44,10 @@
   }
 
   function render(payload) {
+    const restoreScrollY = Number(payload.restoreScrollY) || 0;
+    if (restoreScrollY > 0) {
+      document.body.classList.add("skimdown-restoring");
+    }
     document.documentElement.dataset.theme = payload.theme || "system";
     document.documentElement.style.setProperty("--skimdown-font-size", String(payload.fontSize || 16) + "px");
 
@@ -57,10 +62,55 @@
     normalizeLinksAndImages(content, payload);
     wrapTables(content);
     initializeTableScrollCues(content);
-    renderMermaidBlocks(content, payload);
+    const mermaidTasks = renderMermaidBlocks(content, payload);
     decorateCodeBlocks(content);
     renderMath(content);
     clearSearch();
+
+    notifyWhenRenderSettled(content, payload.renderID, mermaidTasks, restoreScrollY);
+    installUserInteractionWatcher(payload.renderID);
+    installScrollPositionListener(payload.renderID);
+  }
+
+  function installScrollPositionListener(renderID) {
+    let pending = false;
+    let lastPosted = null;
+    function flush() {
+      pending = false;
+      if (!window.webkit || !window.webkit.messageHandlers || !window.webkit.messageHandlers.scrollPosition) {
+        return;
+      }
+      const value = window.scrollY;
+      if (value === lastPosted) {
+        return;
+      }
+      lastPosted = value;
+      window.webkit.messageHandlers.scrollPosition.postMessage({ renderID: renderID, scrollY: value });
+    }
+    function onScroll() {
+      if (pending) {
+        return;
+      }
+      pending = true;
+      window.requestAnimationFrame(flush);
+    }
+    window.addEventListener("scroll", onScroll, { passive: true });
+  }
+
+  function installUserInteractionWatcher(renderID) {
+    function onInteract() {
+      window.removeEventListener("wheel", onInteract, { capture: true });
+      window.removeEventListener("touchstart", onInteract, { capture: true });
+      window.removeEventListener("keydown", onInteract, { capture: true });
+      window.removeEventListener("mousedown", onInteract, { capture: true });
+      if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.userInteracted) {
+        window.webkit.messageHandlers.userInteracted.postMessage({ renderID: renderID });
+      }
+    }
+    window.addEventListener("wheel", onInteract, { capture: true, once: true, passive: true });
+    window.addEventListener("touchstart", onInteract, { capture: true, once: true, passive: true });
+    window.addEventListener("keydown", onInteract, { capture: true, once: true });
+    window.addEventListener("mousedown", onInteract, { capture: true, once: true });
   }
 
   function normalizeTaskLists(content) {
@@ -224,6 +274,7 @@
       window.mermaid.initialize({ startOnLoad: false, theme: isDark ? "dark" : "default", securityLevel: "strict" });
     }
 
+    const tasks = [];
     content.querySelectorAll("pre > code").forEach(function (code) {
       const language = code.className.match(/language-([A-Za-z0-9_-]+)/);
       if (!language || language[1].toLowerCase() !== "mermaid") {
@@ -247,11 +298,14 @@
       initMermaidZoomPan(wrapper, viewport);
 
       if (window.mermaid) {
-        window.mermaid.run({ nodes: [diagram] }).catch(function () {
-          wrapper.replaceWith(fallback);
-        });
+        tasks.push(
+          window.mermaid.run({ nodes: [diagram] }).catch(function () {
+            wrapper.replaceWith(fallback);
+          })
+        );
       }
     });
+    return tasks;
   }
 
   function buildMermaidToolbar(viewport) {
@@ -424,7 +478,7 @@
     }
   }
 
-  function performSearch(query, caseSensitive) {
+  function performSearch(query, caseSensitive, scrollToMatch) {
     clearSearch();
     if (!query) {
       return searchState();
@@ -472,10 +526,33 @@
     });
 
     if (searchMatches.length > 0) {
-      currentSearchIndex = 0;
-      scrollToCurrentSearchMatch();
+      if (scrollToMatch === false) {
+        currentSearchIndex = nearestSearchIndexToViewport();
+      } else {
+        currentSearchIndex = 0;
+      }
+      updateCurrentSearchMatch(scrollToMatch !== false);
     }
     return searchState();
+  }
+
+  function nearestSearchIndexToViewport() {
+    if (searchMatches.length === 0) {
+      return -1;
+    }
+    const anchor = window.scrollY + window.innerHeight / 2;
+    let bestIndex = 0;
+    let bestDistance = Infinity;
+    for (let i = 0; i < searchMatches.length; i++) {
+      const rect = searchMatches[i].getBoundingClientRect();
+      const center = window.scrollY + rect.top + rect.height / 2;
+      const distance = Math.abs(center - anchor);
+      if (distance < bestDistance) {
+        bestDistance = distance;
+        bestIndex = i;
+      }
+    }
+    return bestIndex;
   }
 
   function nextSearch() {
@@ -497,13 +574,19 @@
   }
 
   function scrollToCurrentSearchMatch() {
+    updateCurrentSearchMatch(true);
+  }
+
+  function updateCurrentSearchMatch(scrollToMatch) {
     searchMatches.forEach(function (match) {
       match.classList.remove("skimdown-search-current");
     });
     const current = searchMatches[currentSearchIndex];
     if (current) {
       current.classList.add("skimdown-search-current");
-      current.scrollIntoView({ block: "center" });
+      if (scrollToMatch) {
+        current.scrollIntoView({ block: "center" });
+      }
     }
   }
 
@@ -525,6 +608,104 @@
     const target = document.getElementById(decoded) || document.querySelector("[name='" + CSS.escape(decoded) + "']");
     if (target) {
       target.scrollIntoView({ block: "start", behavior: "smooth" });
+    }
+  }
+
+  function waitForImages(content) {
+    const images = Array.from(content.querySelectorAll("img"));
+    if (images.length === 0) {
+      return Promise.resolve();
+    }
+
+    return Promise.all(images.map(waitForImage));
+  }
+
+  function waitForImage(image) {
+    return new Promise(function (resolve) {
+      if (image.complete) {
+        resolve();
+        return;
+      }
+
+      let didResolve = false;
+      const timeoutID = window.setTimeout(finish, IMAGE_READY_TIMEOUT_MS);
+
+      function finish() {
+        if (didResolve) {
+          return;
+        }
+        didResolve = true;
+        window.clearTimeout(timeoutID);
+        image.removeEventListener("load", finish);
+        image.removeEventListener("error", finish);
+        resolve();
+      }
+
+      image.addEventListener("load", finish, { once: true });
+      image.addEventListener("error", finish, { once: true });
+      if (image.complete) {
+        finish();
+      }
+    });
+  }
+
+  function notifyWhenRenderSettled(content, renderID, mermaidTasks, restoreScrollY) {
+    const awaitFullSettle = restoreScrollY > 0;
+    waitForRenderSettled(content, mermaidTasks, awaitFullSettle).then(function () {
+      applyRestoreAndUnveil(restoreScrollY);
+      postRenderReady(renderID);
+    }, function () {
+      applyRestoreAndUnveil(restoreScrollY);
+      postRenderReady(renderID);
+    });
+  }
+
+  function applyRestoreAndUnveil(restoreScrollY) {
+    if (restoreScrollY > 0) {
+      window.scrollTo(0, restoreScrollY);
+      // Force a synchronous layout/scroll commit so the unveil paint shows the restored position.
+      void window.scrollY;
+    }
+    document.body.classList.remove("skimdown-restoring");
+  }
+
+  function waitForRenderSettled(content, mermaidTasks, awaitFullSettle) {
+    const mermaid = Promise.all(mermaidTasks);
+    if (!awaitFullSettle) {
+      return mermaid.then(waitForSingleLayoutFrame);
+    }
+    return mermaid
+      .then(function () {
+        return waitForImages(content);
+      })
+      .then(waitForFonts)
+      .then(waitForLayoutFrame);
+  }
+
+  function waitForSingleLayoutFrame() {
+    return new Promise(function (resolve) {
+      window.requestAnimationFrame(resolve);
+    });
+  }
+
+  function waitForFonts() {
+    if (document.fonts && document.fonts.ready) {
+      return document.fonts.ready;
+    }
+    return Promise.resolve();
+  }
+
+  function waitForLayoutFrame() {
+    return new Promise(function (resolve) {
+      window.requestAnimationFrame(function () {
+        window.requestAnimationFrame(resolve);
+      });
+    });
+  }
+
+  function postRenderReady(renderID) {
+    if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.renderReady) {
+      window.webkit.messageHandlers.renderReady.postMessage({ renderID: renderID });
     }
   }
 

@@ -65,6 +65,10 @@ body {
   margin: 0 auto;
 }
 
+body.skimdown-restoring #content {
+  visibility: hidden;
+}
+
 #content > :first-child {
   margin-top: 0;
 }
