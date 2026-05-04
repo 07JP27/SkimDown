@@ -301,6 +301,9 @@
       wrapper.className = "mermaid-container";
       // Make the container focusable so keyboard users can trigger :focus-within and reveal the toolbar.
       wrapper.tabIndex = 0;
+      // Provide an accessible name so screen readers announce the focused container as a Mermaid diagram.
+      wrapper.setAttribute("role", "group");
+      wrapper.setAttribute("aria-label", "Mermaid diagram");
       const viewport = document.createElement("div");
       viewport.className = "mermaid-viewport";
       const diagram = document.createElement("div");
