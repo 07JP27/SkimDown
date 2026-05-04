@@ -274,7 +274,19 @@
       return [];
     }
     const isDark = payload.theme === "dark" || (payload.theme === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches);
-    window.mermaid.initialize({ startOnLoad: false, theme: isDark ? "dark" : "default", securityLevel: "strict" });
+    // Match Mermaid's font-family and font-size to the body so diagram labels appear
+    // the same size as the surrounding prose.
+    const bodyStyle = window.getComputedStyle(document.body);
+    window.mermaid.initialize({
+      startOnLoad: false,
+      theme: isDark ? "dark" : "default",
+      securityLevel: "strict",
+      fontFamily: bodyStyle.fontFamily,
+      themeVariables: {
+        fontFamily: bodyStyle.fontFamily,
+        fontSize: bodyStyle.fontSize
+      }
+    });
 
     const entries = [];
     content.querySelectorAll("pre > code").forEach(function (code) {
@@ -320,79 +332,19 @@
           const svg = entry.diagram.querySelector("svg");
           if (!svg) {
             entry.wrapper.replaceWith(entry.fallback);
-            // Mermaid runs after decorateCodeBlocks(content), so the cloned fallback
+            // mermaid runs after decorateCodeBlocks(content), so the cloned fallback
             // misses the language label / Copy button. Decorate it now.
             const fallbackCode = entry.fallback.querySelector("code");
             if (fallbackCode) {
               decorateCodeBlock(fallbackCode);
             }
-            return;
           }
-          normalizeMermaidSvg(svg);
+          // Intentionally leave Mermaid's width/height attributes on the SVG so the
+          // diagram renders at its intrinsic (1:1) size where in-diagram text matches
+          // body font-size. The card uses overflow: auto for diagrams wider than the card.
         });
-        // Run the fit pass after fonts and layout have settled. Returning this promise
-        // from the chain ensures the outer Promise.all(mermaidTasks) — and therefore
-        // renderReady — waits for the fit, preventing late layout shifts.
-        return waitForFonts()
-          .then(waitForLayoutFrame)
-          .then(function () {
-            entries.forEach(function (entry) {
-              const svg = entry.diagram.querySelector("svg");
-              if (svg) {
-                fitMermaidSvgToBodyText(svg);
-              }
-            });
-          });
       });
     return [task];
-  }
-
-  // Strip the intrinsic width/height attributes and inline styles that Mermaid puts
-  // on the produced SVG so that our CSS rules drive the layout instead.
-  function normalizeMermaidSvg(svg) {
-    svg.removeAttribute("width");
-    svg.removeAttribute("height");
-    svg.style.maxWidth = "";
-    svg.style.width = "";
-    svg.style.height = "";
-  }
-
-  // If the visual size of the largest text inside the SVG exceeds the body font size,
-  // shrink the SVG width so the largest text matches body text. This keeps the visual
-  // flow from prose to diagram natural.
-  function fitMermaidSvgToBodyText(svg) {
-    const svgRect = svg.getBoundingClientRect();
-    if (svgRect.width <= 0) { return; }
-    const vb = svg.viewBox && svg.viewBox.baseVal;
-    if (!vb || vb.width <= 0) { return; }
-
-    const bodyPx = parseFloat(window.getComputedStyle(document.body).fontSize);
-    if (!isFinite(bodyPx) || bodyPx <= 0) { return; }
-
-    // Only consider elements that hold text directly:
-    // - SVG <text> / <tspan>
-    // - foreignObject .nodeLabel and leaf descendants
-    let maxFs = 0;
-    svg.querySelectorAll("text, tspan, foreignObject .nodeLabel, foreignObject *").forEach(function (el) {
-      if (el.namespaceURI !== "http://www.w3.org/2000/svg" && el.children.length > 0 && !el.classList.contains("nodeLabel")) {
-        return;
-      }
-      const fs = parseFloat(window.getComputedStyle(el).fontSize);
-      if (isFinite(fs) && fs > maxFs) { maxFs = fs; }
-    });
-    if (maxFs <= 0) { return; }
-
-    // Both SVG <text> and HTML inside <foreignObject> report their font-size in the
-    // viewBox user-unit space, so multiply by the SVG's display scale to get the
-    // actual visual size in CSS pixels.
-    const visualPx = maxFs * (svgRect.width / vb.width);
-    if (visualPx <= bodyPx) { return; }
-
-    const target = Math.max(1, Math.floor(bodyPx * vb.width / maxFs));
-    // Set only max-width and leave the CSS `width: 100%` rule in place so the SVG can
-    // still shrink with the container if the window/card becomes narrower than `target`,
-    // avoiding clipping inside the overflow: hidden card.
-    svg.style.setProperty("max-width", target + "px");
   }
 
   function buildMermaidToolbar(viewport) {

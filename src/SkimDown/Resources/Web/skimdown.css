@@ -313,7 +313,9 @@ tr:nth-child(even) td {
   max-width: 880px;
   margin-left: auto;
   margin-right: auto;
-  overflow: hidden;
+  /* Allow horizontal scroll inside the card when the window is narrower than the
+     fitted SVG width, so text never has to scale down with the window. */
+  overflow: auto;
   padding: 1.1em;
   border: 1px solid var(--skimdown-border);
   border-radius: 14px;
@@ -346,12 +348,6 @@ tr:nth-child(even) td {
 
 .mermaid-container svg {
   display: block;
-  width: 100%;
-  max-width: 100%;
-  height: auto;
-  /* Cap the height so a tall diagram cannot dominate the page. */
-  max-height: 70vh;
-  /* Center the SVG inside the card when the fit pass shrinks it below the card width. */
   margin-left: auto;
   margin-right: auto;
 }
