@@ -44,6 +44,10 @@
   }
 
   function render(payload) {
+    const restoreScrollY = Number(payload.restoreScrollY) || 0;
+    if (restoreScrollY > 0) {
+      document.body.classList.add("skimdown-restoring");
+    }
     document.documentElement.dataset.theme = payload.theme || "system";
     document.documentElement.style.setProperty("--skimdown-font-size", String(payload.fontSize || 16) + "px");
 
@@ -63,7 +67,7 @@
     renderMath(content);
     clearSearch();
 
-    notifyWhenRenderSettled(content, payload.renderID, mermaidTasks, payload.awaitFullSettle === true);
+    notifyWhenRenderSettled(content, payload.renderID, mermaidTasks, restoreScrollY);
     installUserInteractionWatcher(payload.renderID);
     installScrollPositionListener(payload.renderID);
   }
@@ -530,12 +534,24 @@
     });
   }
 
-  function notifyWhenRenderSettled(content, renderID, mermaidTasks, awaitFullSettle) {
+  function notifyWhenRenderSettled(content, renderID, mermaidTasks, restoreScrollY) {
+    const awaitFullSettle = restoreScrollY > 0;
     waitForRenderSettled(content, mermaidTasks, awaitFullSettle).then(function () {
+      applyRestoreAndUnveil(restoreScrollY);
       postRenderReady(renderID);
     }, function () {
+      applyRestoreAndUnveil(restoreScrollY);
       postRenderReady(renderID);
     });
+  }
+
+  function applyRestoreAndUnveil(restoreScrollY) {
+    if (restoreScrollY > 0) {
+      window.scrollTo(0, restoreScrollY);
+      // Force a synchronous layout/scroll commit so the unveil paint shows the restored position.
+      void window.scrollY;
+    }
+    document.body.classList.remove("skimdown-restoring");
   }
 
   function waitForRenderSettled(content, mermaidTasks, awaitFullSettle) {

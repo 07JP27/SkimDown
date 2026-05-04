@@ -120,50 +120,50 @@ final class MarkdownWebView: NSView, WKScriptMessageHandler, WKNavigationDelegat
         applyNativeAppearance(theme)
 
         let baseURL = currentFileURL.deletingLastPathComponent()
-        let awaitFullSettle = preserveScrollPosition || (restoreScrollY ?? 0) > 0
-        let payload = Self.renderPayload(
-            markdown: markdown,
-            baseURL: baseURL,
-            rootURL: rootFolderURL,
-            theme: theme,
-            fontSize: fontSize,
-            generation: generation,
-            awaitFullSettle: awaitFullSettle
-        )
 
-        let html: String
-        do {
-            html = try Self.buildHTML(payload: payload, theme: theme, katexFontsURL: katexFontsURLString())
-        } catch {
-            loadFallbackErrorHTML(
-                message: "Preview resources could not be loaded.\n\(error.localizedDescription)",
+        let buildAndLoad: (Double) -> Void = { [weak self] effectiveScrollY in
+            guard let self else { return }
+            guard self.renderGeneration == generation else { return }
+            let payload = Self.renderPayload(
+                markdown: markdown,
+                baseURL: baseURL,
+                rootURL: rootFolderURL,
                 theme: theme,
                 fontSize: fontSize,
-                baseURL: baseURL,
                 generation: generation,
-                completion: completion
+                restoreScrollY: effectiveScrollY
             )
-            return
+            do {
+                let html = try Self.buildHTML(payload: payload, theme: theme, katexFontsURL: self.katexFontsURLString())
+                self.loadHTML(html, baseURL: baseURL, generation: generation, scrollY: effectiveScrollY > 0 ? effectiveScrollY : nil, completion: completion)
+            } catch {
+                self.loadFallbackErrorHTML(
+                    message: "Preview resources could not be loaded.\n\(error.localizedDescription)",
+                    theme: theme,
+                    fontSize: fontSize,
+                    baseURL: baseURL,
+                    generation: generation,
+                    completion: completion
+                )
+            }
         }
 
         if let restoreScrollY {
-            let target = restoreScrollY > 0 ? restoreScrollY : nil
-            loadHTML(html, baseURL: baseURL, generation: generation, scrollY: target, completion: completion)
+            buildAndLoad(restoreScrollY > 0 ? restoreScrollY : 0)
             return
         }
 
         guard preserveScrollPosition else {
-            loadHTML(html, baseURL: baseURL, generation: generation, scrollY: nil, completion: completion)
+            buildAndLoad(0)
             return
         }
 
         Task { @MainActor [weak self] in
             guard let self else { return }
             let value = try? await self.webView.evaluateJavaScript("window.scrollY")
-            guard self.renderGeneration == generation else {
-                return
-            }
-            self.loadHTML(html, baseURL: baseURL, generation: generation, scrollY: Self.doubleValue(value), completion: completion)
+            guard self.renderGeneration == generation else { return }
+            let captured = Self.doubleValue(value) ?? 0
+            buildAndLoad(captured > 0 ? captured : 0)
         }
     }
 
@@ -181,7 +181,7 @@ final class MarkdownWebView: NSView, WKScriptMessageHandler, WKNavigationDelegat
             theme: theme,
             fontSize: fontSize,
             generation: generation,
-            awaitFullSettle: false
+            restoreScrollY: 0
         )
         do {
             loadHTML(
@@ -384,23 +384,10 @@ final class MarkdownWebView: NSView, WKScriptMessageHandler, WKNavigationDelegat
 
         self.pendingNavigation = nil
         let completion = pendingNavigation.completion
-        let resumeAfterScroll: () -> Void = { [weak self] in
-            guard let self else {
-                completion?()
-                return
-            }
-            if self.observedScrollY == nil {
-                self.observedScrollY = pendingNavigation.scrollY ?? 0
-            }
-            completion?()
+        if observedScrollY == nil {
+            observedScrollY = pendingNavigation.scrollY ?? 0
         }
-        if let scrollY = pendingNavigation.scrollY, scrollY > 0 {
-            webView.evaluateJavaScript("window.scrollTo(0, \(scrollY))") { _, _ in
-                resumeAfterScroll()
-            }
-        } else {
-            resumeAfterScroll()
-        }
+        completion?()
     }
 
     private static func buildHTML(payload: [String: Any], theme: AppTheme, katexFontsURL: String) throws -> String {
@@ -446,7 +433,7 @@ final class MarkdownWebView: NSView, WKScriptMessageHandler, WKNavigationDelegat
         theme: AppTheme,
         fontSize: Double,
         generation: Int,
-        awaitFullSettle: Bool
+        restoreScrollY: Double
     ) -> [String: Any] {
         [
             "markdown": markdown,
@@ -455,7 +442,7 @@ final class MarkdownWebView: NSView, WKScriptMessageHandler, WKNavigationDelegat
             "theme": theme.rawValue,
             "fontSize": fontSize,
             "renderID": generation,
-            "awaitFullSettle": awaitFullSettle
+            "restoreScrollY": restoreScrollY
         ]
     }
 
