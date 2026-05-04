@@ -31,9 +31,43 @@ final class MarkdownWebView: NSView, WKScriptMessageHandler, WKNavigationDelegat
 
     private static var webResourceCache: [String: String] = [:]
 
+    private enum ScriptMessage: String, CaseIterable {
+        case linkClick
+        case copyCode
+        case renderReady
+        case userInteracted
+        case scrollPosition
+    }
+
+    private struct PendingNavigation {
+        let navigation: WKNavigation
+        let generation: Int
+        let scrollY: Double?
+        let completion: (() -> Void)?
+        let waitsForRenderReady: Bool
+        var didFinishNavigation: Bool
+        var didRenderContent: Bool
+
+        var isReady: Bool {
+            didFinishNavigation && didRenderContent
+        }
+
+        mutating func markNavigationFinished() {
+            didFinishNavigation = true
+            if !waitsForRenderReady {
+                didRenderContent = true
+            }
+        }
+
+        mutating func markRenderReady() {
+            didRenderContent = true
+        }
+    }
+
     private let webView: WKWebView
-    private var currentTheme: AppTheme = .system
-    private var renderCompletion: (() -> Void)?
+    private var renderGeneration = 0
+    private var pendingNavigation: PendingNavigation?
+    private var observedScrollY: Double?
 
     override init(frame frameRect: NSRect) {
         let configuration = WKWebViewConfiguration()
@@ -44,8 +78,9 @@ final class MarkdownWebView: NSView, WKScriptMessageHandler, WKNavigationDelegat
         webView = WKWebView(frame: .zero, configuration: configuration)
         super.init(frame: frameRect)
 
-        userContentController.add(WeakScriptMessageHandler(delegate: self), name: "linkClick")
-        userContentController.add(WeakScriptMessageHandler(delegate: self), name: "copyCode")
+        for scriptMessage in ScriptMessage.allCases {
+            userContentController.add(WeakScriptMessageHandler(delegate: self), name: scriptMessage.rawValue)
+        }
 
         webView.navigationDelegate = self
         webView.translatesAutoresizingMaskIntoConstraints = false
@@ -66,61 +101,113 @@ final class MarkdownWebView: NSView, WKScriptMessageHandler, WKNavigationDelegat
 
     deinit {
         let userContentController = webView.configuration.userContentController
-        userContentController.removeScriptMessageHandler(forName: "linkClick")
-        userContentController.removeScriptMessageHandler(forName: "copyCode")
-    }
-
-    func render(markdown: String, currentFileURL: URL, rootFolderURL: URL, theme: AppTheme, fontSize: Double, completion: (() -> Void)? = nil) {
-        currentTheme = theme
-        renderCompletion = completion
-        applyNativeAppearance(theme)
-
-        let baseURL = currentFileURL.deletingLastPathComponent()
-        let payload: [String: Any] = [
-            "markdown": markdown,
-            "baseURL": baseURL.absoluteString,
-            "rootURL": rootFolderURL.skimdownCanonicalFileURL.absoluteString.hasSuffix("/") ? rootFolderURL.skimdownCanonicalFileURL.absoluteString : rootFolderURL.skimdownCanonicalFileURL.absoluteString + "/",
-            "theme": theme.rawValue,
-            "fontSize": fontSize
-        ]
-
-        do {
-            webView.loadHTMLString(try buildHTML(payload: payload), baseURL: baseURL)
-        } catch {
-            loadFallbackErrorHTML(
-                message: "Preview resources could not be loaded.\n\(error.localizedDescription)",
-                theme: theme,
-                fontSize: fontSize,
-                baseURL: baseURL
-            )
+        for scriptMessage in ScriptMessage.allCases {
+            userContentController.removeScriptMessageHandler(forName: scriptMessage.rawValue)
         }
     }
 
-    func showError(_ message: String, theme: AppTheme, fontSize: Double, completion: (() -> Void)? = nil) {
-        currentTheme = theme
-        renderCompletion = completion
+    func render(
+        markdown: String,
+        currentFileURL: URL,
+        rootFolderURL: URL,
+        theme: AppTheme,
+        fontSize: Double,
+        preserveScrollPosition: Bool = false,
+        restoreScrollY: Double? = nil,
+        completion: (() -> Void)? = nil
+    ) {
+        let generation = advanceRenderGeneration()
         applyNativeAppearance(theme)
-        let payload: [String: Any] = [
-            "markdown": "> **Error**\\n>\\n> \(message)",
-            "baseURL": Bundle.main.bundleURL.absoluteString,
-            "rootURL": Bundle.main.bundleURL.absoluteString,
-            "theme": theme.rawValue,
-            "fontSize": fontSize
-        ]
+
+        let baseURL = currentFileURL.deletingLastPathComponent()
+
+        let buildAndLoad: (Double) -> Void = { [weak self] effectiveScrollY in
+            guard let self else { return }
+            guard self.renderGeneration == generation else { return }
+            let payload = Self.renderPayload(
+                markdown: markdown,
+                baseURL: baseURL,
+                rootURL: rootFolderURL,
+                theme: theme,
+                fontSize: fontSize,
+                generation: generation,
+                restoreScrollY: effectiveScrollY
+            )
+            do {
+                let html = try Self.buildHTML(payload: payload, theme: theme, katexFontsURL: self.katexFontsURLString())
+                self.loadHTML(html, baseURL: baseURL, generation: generation, scrollY: effectiveScrollY > 0 ? effectiveScrollY : nil, completion: completion)
+            } catch {
+                self.loadFallbackErrorHTML(
+                    message: "Preview resources could not be loaded.\n\(error.localizedDescription)",
+                    theme: theme,
+                    fontSize: fontSize,
+                    baseURL: baseURL,
+                    generation: generation,
+                    completion: completion
+                )
+            }
+        }
+
+        if let restoreScrollY {
+            buildAndLoad(restoreScrollY > 0 ? restoreScrollY : 0)
+            return
+        }
+
+        guard preserveScrollPosition else {
+            buildAndLoad(0)
+            return
+        }
+
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            let value = try? await self.webView.evaluateJavaScript("window.scrollY")
+            guard self.renderGeneration == generation else { return }
+            let captured = Self.doubleValue(value) ?? 0
+            buildAndLoad(captured > 0 ? captured : 0)
+        }
+    }
+
+    var currentObservedScrollY: Double? {
+        observedScrollY
+    }
+
+    func showError(_ message: String, theme: AppTheme, fontSize: Double, completion: (() -> Void)? = nil) {
+        let generation = advanceRenderGeneration()
+        applyNativeAppearance(theme)
+        let payload = Self.renderPayload(
+            markdown: "> **Error**\\n>\\n> \(message)",
+            baseURL: Bundle.main.bundleURL,
+            rootURL: Bundle.main.bundleURL,
+            theme: theme,
+            fontSize: fontSize,
+            generation: generation,
+            restoreScrollY: 0
+        )
         do {
-            webView.loadHTMLString(try buildHTML(payload: payload), baseURL: Bundle.main.bundleURL)
+            loadHTML(
+                try Self.buildHTML(payload: payload, theme: theme, katexFontsURL: katexFontsURLString()),
+                baseURL: Bundle.main.bundleURL,
+                generation: generation,
+                scrollY: nil,
+                completion: completion
+            )
         } catch {
             loadFallbackErrorHTML(
                 message: "\(message)\n\n\(error.localizedDescription)",
                 theme: theme,
                 fontSize: fontSize,
-                baseURL: Bundle.main.bundleURL
+                baseURL: Bundle.main.bundleURL,
+                generation: generation,
+                completion: completion
             )
         }
     }
 
-    func performSearch(query: String, caseSensitive: Bool, completion: @escaping (SearchResult) -> Void) {
-        evaluateSearchScript("window.skimdown.performSearch(\(Self.jsonString(query)), \(caseSensitive ? "true" : "false"))", completion: completion)
+    func performSearch(query: String, caseSensitive: Bool, scrollToMatch: Bool = true, completion: @escaping (SearchResult) -> Void) {
+        evaluateSearchScript(
+            "window.skimdown.performSearch(\(Self.jsonString(query)), \(caseSensitive ? "true" : "false"), \(scrollToMatch ? "true" : "false"))",
+            completion: completion
+        )
     }
 
     func findNext(completion: @escaping (SearchResult) -> Void) {
@@ -153,19 +240,74 @@ final class MarkdownWebView: NSView, WKScriptMessageHandler, WKNavigationDelegat
     }
 
     func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
-        if message.name == "linkClick", let href = message.body as? String {
+        guard let scriptMessage = ScriptMessage(rawValue: message.name) else {
+            return
+        }
+
+        switch scriptMessage {
+        case .linkClick:
+            guard let href = message.body as? String else {
+                return
+            }
             delegate?.markdownWebView(self, didRequestLink: href)
-        } else if message.name == "copyCode", let code = message.body as? String {
+        case .copyCode:
+            guard let code = message.body as? String else {
+                return
+            }
             let pasteboard = NSPasteboard.general
             pasteboard.clearContents()
             pasteboard.setString(code, forType: .string)
+        case .renderReady:
+            guard let body = message.body as? [String: Any],
+                  let renderID = Self.intValue(body["renderID"]) else {
+                return
+            }
+            markRenderReady(generation: renderID)
+        case .userInteracted:
+            guard let body = message.body as? [String: Any],
+                  let renderID = Self.intValue(body["renderID"]),
+                  renderID == renderGeneration else {
+                return
+            }
+            cancelPendingScrollRestoration()
+        case .scrollPosition:
+            guard let body = message.body as? [String: Any],
+                  let renderID = Self.intValue(body["renderID"]),
+                  renderID == renderGeneration,
+                  let value = Self.doubleValue(body["scrollY"]) else {
+                return
+            }
+            observedScrollY = value
         }
     }
 
+    private func cancelPendingScrollRestoration() {
+        guard var pendingNavigation, pendingNavigation.scrollY != nil else {
+            return
+        }
+        pendingNavigation = PendingNavigation(
+            navigation: pendingNavigation.navigation,
+            generation: pendingNavigation.generation,
+            scrollY: nil,
+            completion: pendingNavigation.completion,
+            waitsForRenderReady: pendingNavigation.waitsForRenderReady,
+            didFinishNavigation: pendingNavigation.didFinishNavigation,
+            didRenderContent: pendingNavigation.didRenderContent
+        )
+        self.pendingNavigation = pendingNavigation
+    }
+
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
-        let completion = renderCompletion
-        renderCompletion = nil
-        completion?()
+        guard let navigation,
+              var pendingNavigation,
+              pendingNavigation.navigation === navigation,
+              pendingNavigation.generation == renderGeneration else {
+            return
+        }
+
+        pendingNavigation.markNavigationFinished()
+        self.pendingNavigation = pendingNavigation
+        finishPendingNavigationIfReady()
     }
 
     private func evaluateSearchScript(_ script: String, completion: @escaping (SearchResult) -> Void) {
@@ -189,28 +331,87 @@ final class MarkdownWebView: NSView, WKScriptMessageHandler, WKNavigationDelegat
         }
     }
 
-    private func buildHTML(payload: [String: Any]) throws -> String {
+    private func advanceRenderGeneration() -> Int {
+        renderGeneration += 1
+        pendingNavigation = nil
+        return renderGeneration
+    }
+
+    private func loadHTML(
+        _ html: String,
+        baseURL: URL,
+        generation: Int,
+        scrollY: Double?,
+        waitsForRenderReady: Bool = true,
+        completion: (() -> Void)?
+    ) {
+        guard renderGeneration == generation else {
+            return
+        }
+        observedScrollY = nil
+        guard let navigation = webView.loadHTMLString(html, baseURL: baseURL) else {
+            completion?()
+            return
+        }
+        pendingNavigation = PendingNavigation(
+            navigation: navigation,
+            generation: generation,
+            scrollY: scrollY,
+            completion: completion,
+            waitsForRenderReady: waitsForRenderReady,
+            didFinishNavigation: false,
+            didRenderContent: false
+        )
+    }
+
+    private func markRenderReady(generation: Int) {
+        guard var pendingNavigation,
+              pendingNavigation.generation == generation,
+              generation == renderGeneration else {
+            return
+        }
+        pendingNavigation.markRenderReady()
+        self.pendingNavigation = pendingNavigation
+        finishPendingNavigationIfReady()
+    }
+
+    private func finishPendingNavigationIfReady() {
+        guard let pendingNavigation,
+              pendingNavigation.generation == renderGeneration,
+              pendingNavigation.isReady else {
+            return
+        }
+
+        self.pendingNavigation = nil
+        let completion = pendingNavigation.completion
+        if observedScrollY == nil {
+            observedScrollY = pendingNavigation.scrollY ?? 0
+        }
+        completion?()
+    }
+
+    private static func buildHTML(payload: [String: Any], theme: AppTheme, katexFontsURL: String) throws -> String {
         let css = [
-            try Self.readWebResource("vendor/katex/katex.min.css").replacingOccurrences(of: "url(fonts/", with: "url(\(katexFontsURLString())/"),
-            try Self.readWebResource("vendor/highlight.js/github.min.css"),
-            try Self.readWebResource("vendor/highlight.js/github-dark.min.css"),
-            try Self.readWebResource("skimdown.css")
+            try readWebResource("vendor/katex/katex.min.css").replacingOccurrences(of: "url(fonts/", with: "url(\(katexFontsURL)/"),
+            try readWebResource("vendor/highlight.js/github.min.css"),
+            try readWebResource("vendor/highlight.js/github-dark.min.css"),
+            try readWebResource("skimdown.css")
         ].joined(separator: "\n")
 
         let scripts = [
-            try Self.readWebResource("vendor/markdown-it/markdown-it.min.js"),
-            try Self.readWebResource("vendor/markdown-it-footnote/markdown-it-footnote.min.js"),
-            try Self.readWebResource("vendor/dompurify/purify.min.js"),
-            try Self.readWebResource("vendor/katex/katex.min.js"),
-            try Self.readWebResource("vendor/katex/auto-render.min.js"),
-            try Self.readWebResource("vendor/mermaid/mermaid.min.js"),
-            try Self.readWebResource("vendor/highlight.js/highlight.min.js"),
-            try Self.readWebResource("renderer.js")
+            try readWebResource("vendor/markdown-it/markdown-it.min.js"),
+            try readWebResource("vendor/markdown-it-footnote/markdown-it-footnote.min.js"),
+            try readWebResource("vendor/dompurify/purify.min.js"),
+            try readWebResource("vendor/katex/katex.min.js"),
+            try readWebResource("vendor/katex/auto-render.min.js"),
+            try readWebResource("vendor/mermaid/mermaid.min.js"),
+            try readWebResource("vendor/highlight.js/highlight.min.js"),
+            try readWebResource("renderer.js")
         ].joined(separator: "\n")
 
         return """
         <!doctype html>
-        <html data-theme="\(currentTheme.rawValue)">
+        <html data-theme="\(theme.rawValue)">
           <head>
             <meta charset="utf-8">
             <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -225,68 +426,99 @@ final class MarkdownWebView: NSView, WKScriptMessageHandler, WKNavigationDelegat
         """
     }
 
-        private static func readWebResource(_ relativePath: String) throws -> String {
-                if let cached = webResourceCache[relativePath] {
-                        return cached
-                }
+    private static func renderPayload(
+        markdown: String,
+        baseURL: URL,
+        rootURL: URL,
+        theme: AppTheme,
+        fontSize: Double,
+        generation: Int,
+        restoreScrollY: Double
+    ) -> [String: Any] {
+        [
+            "markdown": markdown,
+            "baseURL": baseURL.absoluteString,
+            "rootURL": directoryURLString(for: rootURL),
+            "theme": theme.rawValue,
+            "fontSize": fontSize,
+            "renderID": generation,
+            "restoreScrollY": restoreScrollY
+        ]
+    }
 
-                guard let url = Bundle.main.resourceURL?.appendingPathComponent("Web").appendingPathComponent(relativePath) else {
-                        throw WebResourceError.missing(relativePath)
-                }
+    private static func directoryURLString(for url: URL) -> String {
+        let absoluteString = url.skimdownCanonicalFileURL.absoluteString
+        return absoluteString.hasSuffix("/") ? absoluteString : absoluteString + "/"
+    }
 
-                do {
-                        let contents = try String(contentsOf: url, encoding: .utf8)
-                        webResourceCache[relativePath] = contents
-                        return contents
-                } catch {
-                        throw WebResourceError.unreadable(relativePath, error)
+    private static func readWebResource(_ relativePath: String) throws -> String {
+        if let cached = webResourceCache[relativePath] {
+            return cached
+        }
+
+        guard let url = Bundle.main.resourceURL?.appendingPathComponent("Web").appendingPathComponent(relativePath) else {
+            throw WebResourceError.missing(relativePath)
+        }
+
+        do {
+            let contents = try String(contentsOf: url, encoding: .utf8)
+            webResourceCache[relativePath] = contents
+            return contents
+        } catch {
+            throw WebResourceError.unreadable(relativePath, error)
         }
     }
 
-        private func loadFallbackErrorHTML(message: String, theme: AppTheme, fontSize: Double, baseURL: URL) {
-                currentTheme = theme
-                applyNativeAppearance(theme)
+    private func loadFallbackErrorHTML(
+        message: String,
+        theme: AppTheme,
+        fontSize: Double,
+        baseURL: URL,
+        generation: Int,
+        completion: (() -> Void)?
+    ) {
+        applyNativeAppearance(theme)
 
-                let escapedMessage = Self.htmlEscaped(message)
-                        .replacingOccurrences(of: "\n", with: "<br>")
-                let html = """
-                <!doctype html>
-                <html data-theme="\(theme.rawValue)">
-                    <head>
-                        <meta charset="utf-8">
-                        <meta name="viewport" content="width=device-width, initial-scale=1">
-                        <style>
-                            body {
-                                margin: 0;
-                                padding: 32px;
-                                color: #1f2937;
-                                background: #ffffff;
-                                font: \(fontSize)px -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif;
-                                line-height: 1.6;
-                            }
-                            @media (prefers-color-scheme: dark) {
-                                body { color: #f3f4f6; background: #111827; }
-                            }
-                            .error {
-                                max-width: 760px;
-                                border-left: 4px solid #dc2626;
-                                padding-left: 16px;
-                            }
-                            h1 { margin: 0 0 12px; font-size: 1.2em; }
-                            p { margin: 0; }
-                        </style>
-                    </head>
-                    <body>
-                        <section class="error">
-                            <h1>Preview error</h1>
-                            <p>\(escapedMessage)</p>
-                        </section>
-                    </body>
-                </html>
-                """
+        let escapedMessage = Self.htmlEscaped(message)
+            .replacingOccurrences(of: "\n", with: "<br>")
+        let html = """
+        <!doctype html>
+        <html data-theme="\(theme.rawValue)">
+            <head>
+                <meta charset="utf-8">
+                <meta name="viewport" content="width=device-width, initial-scale=1">
+                <style>
+                    body {
+                        margin: 0;
+                        padding: 32px;
+                        color: #1f2937;
+                        background: #ffffff;
+                        font: \(fontSize)px -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif;
+                        line-height: 1.6;
+                    }
+                    @media (prefers-color-scheme: dark) {
+                        body { color: #f3f4f6; background: #111827; }
+                    }
+                    .error {
+                        max-width: 760px;
+                        border-left: 4px solid #dc2626;
+                        padding-left: 16px;
+                    }
+                    h1 { margin: 0 0 12px; font-size: 1.2em; }
+                    p { margin: 0; }
+                </style>
+            </head>
+            <body>
+                <section class="error">
+                    <h1>Preview error</h1>
+                    <p>\(escapedMessage)</p>
+                </section>
+            </body>
+        </html>
+        """
 
-                webView.loadHTMLString(html, baseURL: baseURL)
-        }
+        loadHTML(html, baseURL: baseURL, generation: generation, scrollY: nil, waitsForRenderReady: false, completion: completion)
+    }
 
     private func katexFontsURLString() -> String {
         guard let url = Bundle.main.resourceURL?.appendingPathComponent("Web/vendor/katex/fonts") else {
@@ -305,6 +537,29 @@ final class MarkdownWebView: NSView, WKScriptMessageHandler, WKNavigationDelegat
 
     private static func jsonString(_ string: String) -> String {
         jsonObject([string]).dropFirst().dropLast().description
+    }
+
+    private static func intValue(_ value: Any?) -> Int? {
+        if let int = value as? Int {
+            return int
+        }
+        if let number = value as? NSNumber {
+            return number.intValue
+        }
+        return nil
+    }
+
+    private static func doubleValue(_ value: Any?) -> Double? {
+        if let double = value as? Double {
+            return double
+        }
+        if let int = value as? Int {
+            return Double(int)
+        }
+        if let number = value as? NSNumber {
+            return number.doubleValue
+        }
+        return nil
     }
 
     private static func htmlEscaped(_ string: String) -> String {
