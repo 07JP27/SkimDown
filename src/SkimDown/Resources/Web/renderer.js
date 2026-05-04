@@ -320,6 +320,12 @@
           const svg = entry.diagram.querySelector("svg");
           if (!svg) {
             entry.wrapper.replaceWith(entry.fallback);
+            // Mermaid runs after decorateCodeBlocks(content), so the cloned fallback
+            // misses the language label / Copy button. Decorate it now.
+            const fallbackCode = entry.fallback.querySelector("code");
+            if (fallbackCode) {
+              decorateCodeBlock(fallbackCode);
+            }
             return;
           }
           normalizeMermaidSvg(svg);
@@ -505,33 +511,35 @@
   }
 
   function decorateCodeBlocks(content) {
-    content.querySelectorAll("pre > code").forEach(function (code) {
-      const pre = code.parentElement;
-      if (pre.querySelector(".code-toolbar")) {
-        return;
-      }
+    content.querySelectorAll("pre > code").forEach(decorateCodeBlock);
+  }
 
-      const languageMatch = code.className.match(/language-([A-Za-z0-9_-]+)/);
-      const toolbar = document.createElement("div");
-      toolbar.className = "code-toolbar";
+  function decorateCodeBlock(code) {
+    const pre = code.parentElement;
+    if (!pre || pre.querySelector(".code-toolbar")) {
+      return;
+    }
 
-      if (languageMatch) {
-        const label = document.createElement("span");
-        label.className = "code-language";
-        label.textContent = languageMatch[1];
-        toolbar.appendChild(label);
-      }
+    const languageMatch = code.className.match(/language-([A-Za-z0-9_-]+)/);
+    const toolbar = document.createElement("div");
+    toolbar.className = "code-toolbar";
 
-      const button = document.createElement("button");
-      button.className = "code-copy";
-      button.type = "button";
-      button.textContent = "Copy";
-      button.addEventListener("click", function () {
-        window.webkit.messageHandlers.copyCode.postMessage(code.textContent || "");
-      });
-      toolbar.appendChild(button);
-      pre.appendChild(toolbar);
+    if (languageMatch) {
+      const label = document.createElement("span");
+      label.className = "code-language";
+      label.textContent = languageMatch[1];
+      toolbar.appendChild(label);
+    }
+
+    const button = document.createElement("button");
+    button.className = "code-copy";
+    button.type = "button";
+    button.textContent = "Copy";
+    button.addEventListener("click", function () {
+      window.webkit.messageHandlers.copyCode.postMessage(code.textContent || "");
     });
+    toolbar.appendChild(button);
+    pre.appendChild(toolbar);
   }
 
   function renderMath(content) {
