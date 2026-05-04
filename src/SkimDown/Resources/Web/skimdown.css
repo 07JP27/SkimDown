@@ -312,9 +312,10 @@ tr:nth-child(even) td {
   width: 100%;
   margin-left: auto;
   margin-right: auto;
-  /* Allow scrolling inside the card when the diagram is larger than the card,
-     so text never has to scale down with the window. */
-  overflow: auto;
+  /* Hide overflow so a wide/tall diagram doesn't add scrollbars that fight with
+     page scroll. The diagram can still be panned via mouse drag when zoomed in or
+     when its intrinsic size overflows the card (the JS adds .mermaid-overflowing). */
+  overflow: hidden;
   padding: 1.1em;
   border: 1px solid var(--skimdown-border);
   border-radius: 14px;
@@ -344,7 +345,8 @@ tr:nth-child(even) td {
   transition: none;
 }
 
-.mermaid-zoomed .mermaid-viewport {
+.mermaid-zoomed .mermaid-viewport,
+.mermaid-overflowing .mermaid-viewport {
   cursor: grab;
 }
 

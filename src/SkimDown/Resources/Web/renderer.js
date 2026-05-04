@@ -346,13 +346,36 @@
             if (fallbackCode) {
               decorateCodeBlock(fallbackCode);
             }
+            return;
           }
           // Intentionally leave Mermaid's width/height attributes on the SVG so the
           // diagram renders at its intrinsic (1:1) size where in-diagram text matches
-          // body font-size. The card uses overflow: auto for diagrams wider than the card.
+          // body font-size. The card uses overflow: hidden, and drag-to-pan handles
+          // diagrams that overflow the card (see initMermaidOverflowWatcher).
+          initMermaidOverflowWatcher(entry.wrapper, svg);
         });
       });
     return [task];
+  }
+
+  // Watch the rendered SVG and toggle .mermaid-overflowing on the wrapper when the
+  // SVG's intrinsic size exceeds the wrapper's content area. The class is used to
+  // show the grab cursor and to enable drag-to-pan even when zoom is 1.
+  function initMermaidOverflowWatcher(wrapper, svg) {
+    const update = function () {
+      const svgRect = svg.getBoundingClientRect();
+      const overflows = svgRect.width > wrapper.clientWidth + 1 ||
+        svgRect.height > wrapper.clientHeight + 1;
+      wrapper.classList.toggle("mermaid-overflowing", overflows);
+    };
+    update();
+    if ("ResizeObserver" in window) {
+      const observer = new ResizeObserver(update);
+      observer.observe(wrapper);
+      observer.observe(svg);
+    } else {
+      window.addEventListener("resize", update);
+    }
   }
 
   function buildMermaidToolbar(viewport) {
@@ -461,7 +484,8 @@
     viewport.addEventListener("mousedown", function (e) {
       if (e.button !== 0) { return; }
       var zoom = parseFloat(viewport.dataset.zoom) || 1;
-      if (zoom <= 1) { return; }
+      // Allow drag-to-pan when zoomed in OR when the diagram overflows the card.
+      if (zoom <= 1 && !container.classList.contains("mermaid-overflowing")) { return; }
       e.preventDefault();
       activeDragViewport = viewport;
       viewport.classList.add("mermaid-dragging");
