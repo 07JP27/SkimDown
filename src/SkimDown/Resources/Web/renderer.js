@@ -269,10 +269,12 @@
   }
 
   function renderMermaidBlocks(content, payload) {
-    const isDark = payload.theme === "dark" || (payload.theme === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches);
-    if (window.mermaid) {
-      window.mermaid.initialize({ startOnLoad: false, theme: isDark ? "dark" : "default", securityLevel: "strict" });
+    if (!window.mermaid) {
+      // Mermaid が利用できない場合は、元のコードブロックをそのまま残してフォールバックする。
+      return [];
     }
+    const isDark = payload.theme === "dark" || (payload.theme === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches);
+    window.mermaid.initialize({ startOnLoad: false, theme: isDark ? "dark" : "default", securityLevel: "strict" });
 
     const entries = [];
     content.querySelectorAll("pre > code").forEach(function (code) {
@@ -302,7 +304,7 @@
       entries.push({ diagram: diagram, wrapper: wrapper, fallback: fallback });
     });
 
-    if (entries.length === 0 || !window.mermaid) {
+    if (entries.length === 0) {
       return [];
     }
 
