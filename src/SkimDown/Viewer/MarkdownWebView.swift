@@ -264,6 +264,11 @@ final class MarkdownWebView: NSView, WKScriptMessageHandler, WKNavigationDelegat
             }
             markRenderReady(generation: renderID)
         case .userInteracted:
+            guard let body = message.body as? [String: Any],
+                  let renderID = Self.intValue(body["renderID"]),
+                  renderID == renderGeneration else {
+                return
+            }
             cancelPendingScrollRestoration()
         case .scrollPosition:
             guard let body = message.body as? [String: Any],
