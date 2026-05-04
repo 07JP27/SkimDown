@@ -320,7 +320,7 @@ tr:nth-child(even) td {
   background: var(--skimdown-surface);
 }
 
-/* マウスでクリックした際にフォーカスリングを出さない。キーボード操作（:focus-visible）時のみ表示。 */
+  /* Suppress the focus ring for mouse clicks; only show it for keyboard navigation (:focus-visible). */
 .mermaid-container:focus {
   outline: none;
 }
@@ -349,9 +349,9 @@ tr:nth-child(even) td {
   width: 100%;
   max-width: 100%;
   height: auto;
-  /* 縦長な図がページを占有しすぎないよう上限を設ける */
+  /* Cap the height so a tall diagram cannot dominate the page. */
   max-height: 70vh;
-  /* fit によって SVG が縮められた場合にカード内で中央寄せ */
+  /* Center the SVG inside the card when the fit pass shrinks it below the card width. */
   margin-left: auto;
   margin-right: auto;
 }

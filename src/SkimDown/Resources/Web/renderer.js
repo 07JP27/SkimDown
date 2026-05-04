@@ -270,7 +270,7 @@
 
   function renderMermaidBlocks(content, payload) {
     if (!window.mermaid) {
-      // Mermaid が利用できない場合は、元のコードブロックをそのまま残してフォールバックする。
+      // Mermaid is unavailable: leave the original code blocks untouched and bail out.
       return [];
     }
     const isDark = payload.theme === "dark" || (payload.theme === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches);
@@ -287,7 +287,7 @@
       const fallback = code.parentElement.cloneNode(true);
       const wrapper = document.createElement("div");
       wrapper.className = "mermaid-container";
-      // キーボード操作で :focus-within を起動できるようコンテナをフォーカス可能にする。
+      // Make the container focusable so keyboard users can trigger :focus-within and reveal the toolbar.
       wrapper.tabIndex = 0;
       const viewport = document.createElement("div");
       viewport.className = "mermaid-viewport";
@@ -308,13 +308,13 @@
       return [];
     }
 
-    // Mermaid 内部のグローバル状態が並列 run() で混線するのを避けるため、
-    // 全ノードを 1 回の run() にまとめて渡す。失敗時は suppressErrors で握りつぶし、
-    // 後段で個別に SVG が生成されているかを確認してフォールバックする。
+    // Run all diagrams in a single mermaid.run() call to avoid interleaving Mermaid's
+    // internal state across parallel runs. Errors are suppressed here and handled per
+    // diagram below by checking whether an SVG was actually produced.
     const allDiagrams = entries.map(function (entry) { return entry.diagram; });
     const task = window.mermaid
       .run({ nodes: allDiagrams, suppressErrors: true })
-      .catch(function () { /* 個別フォールバックで処理する */ })
+      .catch(function () { /* handled by the per-diagram fallback below */ })
       .then(function () {
         entries.forEach(function (entry) {
           const svg = entry.diagram.querySelector("svg");
@@ -324,9 +324,9 @@
           }
           normalizeMermaidSvg(svg);
         });
-        // フォント読込 + レイアウト確定を待ってから fit を実行する。
-        // この Promise を task に繋いでおくことで、外側の Promise.all(mermaidTasks) が
-        // fit 完了まで待ってから renderReady を発火するようにする（後発のレイアウトシフト防止）。
+        // Run the fit pass after fonts and layout have settled. Returning this promise
+        // from the chain ensures the outer Promise.all(mermaidTasks) — and therefore
+        // renderReady — waits for the fit, preventing late layout shifts.
         return waitForFonts()
           .then(waitForLayoutFrame)
           .then(function () {
@@ -341,8 +341,8 @@
     return [task];
   }
 
-  // Mermaid が SVG に付ける固有サイズ属性とインラインスタイルを除去し、
-  // CSS の width/height ルールでレイアウトされるようにする。
+  // Strip the intrinsic width/height attributes and inline styles that Mermaid puts
+  // on the produced SVG so that our CSS rules drive the layout instead.
   function normalizeMermaidSvg(svg) {
     svg.removeAttribute("width");
     svg.removeAttribute("height");
@@ -351,8 +351,9 @@
     svg.style.height = "";
   }
 
-  // SVG 内のテキストの視覚サイズが本文より大きければ、SVG 表示幅を縮めて
-  // 「最大文字 = 本文文字」になるよう調整する。本文 → 図の視線誘導を自然にする目的。
+  // If the visual size of the largest text inside the SVG exceeds the body font size,
+  // shrink the SVG width so the largest text matches body text. This keeps the visual
+  // flow from prose to diagram natural.
   function fitMermaidSvgToBodyText(svg) {
     const svgRect = svg.getBoundingClientRect();
     if (svgRect.width <= 0) { return; }
@@ -362,9 +363,9 @@
     const bodyPx = parseFloat(window.getComputedStyle(document.body).fontSize);
     if (!isFinite(bodyPx) || bodyPx <= 0) { return; }
 
-    // テキストを直接持つ要素のフォントサイズだけ拾う:
+    // Only consider elements that hold text directly:
     // - SVG <text> / <tspan>
-    // - foreignObject 内の .nodeLabel と子を持たない末端要素
+    // - foreignObject .nodeLabel and leaf descendants
     let maxFs = 0;
     svg.querySelectorAll("text, tspan, foreignObject .nodeLabel, foreignObject *").forEach(function (el) {
       if (el.namespaceURI !== "http://www.w3.org/2000/svg" && el.children.length > 0 && !el.classList.contains("nodeLabel")) {
@@ -375,15 +376,16 @@
     });
     if (maxFs <= 0) { return; }
 
-    // foreignObject 内 HTML / SVG <text> どちらも viewBox 座標系のフォントサイズを返すので、
-    // SVG の表示倍率で乗じて視覚サイズに換算する。
+    // Both SVG <text> and HTML inside <foreignObject> report their font-size in the
+    // viewBox user-unit space, so multiply by the SVG's display scale to get the
+    // actual visual size in CSS pixels.
     const visualPx = maxFs * (svgRect.width / vb.width);
     if (visualPx <= bodyPx) { return; }
 
     const target = Math.max(1, Math.floor(bodyPx * vb.width / maxFs));
-    // width は CSS の `width: 100%` を残し、max-width だけを上限として設定する。
-    // これによりウィンドウ/コンテナが target より狭くなった場合も SVG が縮められ、
-    // overflow: hidden のカードでクリップされない。
+    // Set only max-width and leave the CSS `width: 100%` rule in place so the SVG can
+    // still shrink with the container if the window/card becomes narrower than `target`,
+    // avoiding clipping inside the overflow: hidden card.
     svg.style.setProperty("max-width", target + "px");
   }
 
@@ -473,8 +475,8 @@
     activeDragViewport = null;
   }
 
-  // mouseup を取りこぼすケース（ウィンドウ外で離す、Webview がフォーカスを失う等）でも
-  // ドラッグ状態が固まらないよう、blur と mouseleave でも明示的に終了する。
+  // Also end the drag on blur and mouseleave so the dragging state cannot get stuck
+  // when mouseup is missed (mouse released outside the window or focus is lost).
   document.addEventListener("mouseup", endMermaidDrag);
   document.addEventListener("mouseleave", endMermaidDrag);
   window.addEventListener("blur", endMermaidDrag);
