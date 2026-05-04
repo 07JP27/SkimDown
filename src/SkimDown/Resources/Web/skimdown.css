@@ -320,6 +320,16 @@ tr:nth-child(even) td {
   background: var(--skimdown-surface);
 }
 
+/* マウスでクリックした際にフォーカスリングを出さない。キーボード操作（:focus-visible）時のみ表示。 */
+.mermaid-container:focus {
+  outline: none;
+}
+
+.mermaid-container:focus-visible {
+  outline: 2px solid var(--skimdown-accent);
+  outline-offset: 2px;
+}
+
 .mermaid-viewport {
   transform-origin: center center;
   transition: transform 0.1s ease;

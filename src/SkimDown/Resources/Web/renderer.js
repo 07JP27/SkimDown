@@ -285,6 +285,8 @@
       const fallback = code.parentElement.cloneNode(true);
       const wrapper = document.createElement("div");
       wrapper.className = "mermaid-container";
+      // キーボード操作で :focus-within を起動できるようコンテナをフォーカス可能にする。
+      wrapper.tabIndex = 0;
       const viewport = document.createElement("div");
       viewport.className = "mermaid-viewport";
       const diagram = document.createElement("div");
@@ -471,12 +473,18 @@
     updateViewportTransform(activeDragViewport, zoom, dragBasePanX + dx, dragBasePanY + dy);
   });
 
-  document.addEventListener("mouseup", function () {
+  function endMermaidDrag() {
     if (!activeDragViewport) { return; }
     activeDragViewport.classList.remove("mermaid-dragging");
     activeDragViewport.style.cursor = "";
     activeDragViewport = null;
-  });
+  }
+
+  // mouseup を取りこぼすケース（ウィンドウ外で離す、Webview がフォーカスを失う等）でも
+  // ドラッグ状態が固まらないよう、blur と mouseleave でも明示的に終了する。
+  document.addEventListener("mouseup", endMermaidDrag);
+  document.addEventListener("mouseleave", endMermaidDrag);
+  window.addEventListener("blur", endMermaidDrag);
 
   function initMermaidZoomPan(container, viewport) {
     container.addEventListener("wheel", function (e) {
