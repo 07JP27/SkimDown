@@ -274,7 +274,7 @@
       window.mermaid.initialize({ startOnLoad: false, theme: isDark ? "dark" : "default", securityLevel: "strict" });
     }
 
-    const tasks = [];
+    const entries = [];
     content.querySelectorAll("pre > code").forEach(function (code) {
       const language = code.className.match(/language-([A-Za-z0-9_-]+)/);
       if (!language || language[1].toLowerCase() !== "mermaid") {
@@ -297,15 +297,27 @@
 
       initMermaidZoomPan(wrapper, viewport);
 
-      if (window.mermaid) {
-        tasks.push(
-          window.mermaid.run({ nodes: [diagram] }).catch(function () {
-            wrapper.replaceWith(fallback);
-          })
-        );
-      }
+      entries.push({ diagram: diagram, wrapper: wrapper, fallback: fallback });
     });
-    return tasks;
+
+    if (entries.length === 0 || !window.mermaid) {
+      return [];
+    }
+
+    // Mermaid 内部のグローバル状態が並列 run() で混線するのを避けるため、
+    // 全ノードを 1 回の run() にまとめて渡す。
+    const allDiagrams = entries.map(function (entry) { return entry.diagram; });
+    const task = window.mermaid
+      .run({ nodes: allDiagrams, suppressErrors: true })
+      .catch(function () { /* 個別フォールバックで処理する */ })
+      .then(function () {
+        entries.forEach(function (entry) {
+          if (!entry.diagram.querySelector("svg")) {
+            entry.wrapper.replaceWith(entry.fallback);
+          }
+        });
+      });
+    return [task];
   }
 
   function buildMermaidToolbar(viewport) {
