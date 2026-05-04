@@ -256,6 +256,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Side
     func setFontSize(_ size: Double) {
         settings.fontSize = max(11, min(size, 28))
         settingsStore.fontSize = settings.fontSize
+        scrollPositions.removeAll()
         reloadSelectedMarkdown(preserveScrollPosition: true)
     }
 
@@ -491,7 +492,13 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Side
             session.selectedFileURL = stillSelected
 
             let liveCanonicalURLs = Set(markdownFiles.map(\.skimdownCanonicalFileURL))
-            scrollPositions = scrollPositions.filter { liveCanonicalURLs.contains($0.key) }
+            let preservedKey = stillSelected?.skimdownCanonicalFileURL
+            scrollPositions = scrollPositions.filter { entry in
+                guard liveCanonicalURLs.contains(entry.key) else {
+                    return false
+                }
+                return entry.key == preservedKey
+            }
 
             sidebarViewController.update(
                 folderName: folderURL.skimdownDisplayName,

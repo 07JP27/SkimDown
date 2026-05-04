@@ -120,7 +120,7 @@ final class MarkdownWebView: NSView, WKScriptMessageHandler, WKNavigationDelegat
         applyNativeAppearance(theme)
 
         let baseURL = currentFileURL.deletingLastPathComponent()
-        let awaitFullSettle = preserveScrollPosition || restoreScrollY != nil
+        let awaitFullSettle = preserveScrollPosition || (restoreScrollY ?? 0) > 0
         let payload = Self.renderPayload(
             markdown: markdown,
             baseURL: baseURL,
