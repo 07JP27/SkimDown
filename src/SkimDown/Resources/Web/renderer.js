@@ -312,9 +312,17 @@
       .catch(function () { /* 個別フォールバックで処理する */ })
       .then(function () {
         entries.forEach(function (entry) {
-          if (!entry.diagram.querySelector("svg")) {
+          const svg = entry.diagram.querySelector("svg");
+          if (!svg) {
             entry.wrapper.replaceWith(entry.fallback);
+            return;
           }
+          // Mermaid が付ける固有サイズを取り除き、CSS でのレイアウトに任せる
+          svg.removeAttribute("width");
+          svg.removeAttribute("height");
+          svg.style.maxWidth = "";
+          svg.style.width = "";
+          svg.style.height = "";
         });
       });
     return [task];

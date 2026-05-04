@@ -310,6 +310,9 @@ tr:nth-child(even) td {
 .mermaid-container {
   position: relative;
   width: 100%;
+  max-width: 880px;
+  margin-left: auto;
+  margin-right: auto;
   overflow: hidden;
   padding: 1.1em;
   border: 1px solid var(--skimdown-border);
@@ -320,8 +323,7 @@ tr:nth-child(even) td {
 .mermaid-viewport {
   transform-origin: center center;
   transition: transform 0.1s ease;
-  display: flex;
-  justify-content: center;
+  display: block;
 }
 
 .mermaid-viewport.mermaid-dragging {
@@ -333,7 +335,11 @@ tr:nth-child(even) td {
 }
 
 .mermaid-container svg {
-  max-width: 100%;
+  display: block;
+  width: 100% !important;
+  max-width: 100% !important;
+  height: auto !important;
+  max-height: 70vh;
 }
 
 .mermaid-toolbar {
