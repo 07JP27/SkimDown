@@ -383,13 +383,24 @@ final class MarkdownWebView: NSView, WKScriptMessageHandler, WKNavigationDelegat
         }
 
         self.pendingNavigation = nil
+        let completion = pendingNavigation.completion
+        let resumeAfterScroll: () -> Void = { [weak self] in
+            guard let self else {
+                completion?()
+                return
+            }
+            if self.observedScrollY == nil {
+                self.observedScrollY = pendingNavigation.scrollY ?? 0
+            }
+            completion?()
+        }
         if let scrollY = pendingNavigation.scrollY, scrollY > 0 {
-            webView.evaluateJavaScript("window.scrollTo(0, \(scrollY))")
+            webView.evaluateJavaScript("window.scrollTo(0, \(scrollY))") { _, _ in
+                resumeAfterScroll()
+            }
+        } else {
+            resumeAfterScroll()
         }
-        if observedScrollY == nil {
-            observedScrollY = pendingNavigation.scrollY ?? 0
-        }
-        pendingNavigation.completion?()
     }
 
     private static func buildHTML(payload: [String: Any], theme: AppTheme, katexFontsURL: String) throws -> String {

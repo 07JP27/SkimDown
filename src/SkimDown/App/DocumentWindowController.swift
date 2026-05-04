@@ -542,7 +542,8 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Side
                 && anchor == nil
                 && !isDifferentFile
             let restoreScrollY: Double? = (anchor == nil && isDifferentFile) ? scrollPositions[canonicalFileURL] : nil
-            let preservesViewport = shouldPreserveScrollPosition || restoreScrollY != nil
+            let hasMeaningfulRestore = (restoreScrollY ?? 0) > 0
+            let preservesViewport = shouldPreserveScrollPosition || hasMeaningfulRestore
             let markdown = try MarkdownDocumentLoader().load(fileURL: fileURL)
             session.selectedFileURL = canonicalFileURL
             settingsStore.setLastSelectedMarkdown(fileURL, for: session.folderURL)

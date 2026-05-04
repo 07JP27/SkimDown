@@ -69,12 +69,28 @@
   }
 
   function installScrollPositionListener(renderID) {
-    function postScroll() {
-      if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.scrollPosition) {
-        window.webkit.messageHandlers.scrollPosition.postMessage({ renderID: renderID, scrollY: window.scrollY });
+    let pending = false;
+    let lastPosted = null;
+    function flush() {
+      pending = false;
+      if (!window.webkit || !window.webkit.messageHandlers || !window.webkit.messageHandlers.scrollPosition) {
+        return;
       }
+      const value = window.scrollY;
+      if (value === lastPosted) {
+        return;
+      }
+      lastPosted = value;
+      window.webkit.messageHandlers.scrollPosition.postMessage({ renderID: renderID, scrollY: value });
     }
-    window.addEventListener("scroll", postScroll, { passive: true });
+    function onScroll() {
+      if (pending) {
+        return;
+      }
+      pending = true;
+      window.requestAnimationFrame(flush);
+    }
+    window.addEventListener("scroll", onScroll, { passive: true });
   }
 
   function installUserInteractionWatcher(renderID) {
