@@ -322,15 +322,19 @@
           }
           normalizeMermaidSvg(svg);
         });
-        // テキストフィットはレイアウト確定後に実行（フォントロード待ち + 二重 rAF）
-        afterPaintWithFonts(function () {
-          entries.forEach(function (entry) {
-            const svg = entry.diagram.querySelector("svg");
-            if (svg) {
-              fitMermaidSvgToBodyText(svg);
-            }
+        // フォント読込 + レイアウト確定を待ってから fit を実行する。
+        // この Promise を task に繋いでおくことで、外側の Promise.all(mermaidTasks) が
+        // fit 完了まで待ってから renderReady を発火するようにする（後発のレイアウトシフト防止）。
+        return waitForFonts()
+          .then(waitForLayoutFrame)
+          .then(function () {
+            entries.forEach(function (entry) {
+              const svg = entry.diagram.querySelector("svg");
+              if (svg) {
+                fitMermaidSvgToBodyText(svg);
+              }
+            });
           });
-        });
       });
     return [task];
   }
@@ -343,21 +347,6 @@
     svg.style.maxWidth = "";
     svg.style.width = "";
     svg.style.height = "";
-  }
-
-  // フォント読込完了 → 次フレーム → 次フレームのタイミングで callback 実行。
-  // SVG 内テキストの実測値が安定してから fit を計算するために二重 rAF を使う。
-  function afterPaintWithFonts(callback) {
-    const schedule = function () {
-      window.requestAnimationFrame(function () {
-        window.requestAnimationFrame(callback);
-      });
-    };
-    if (document.fonts && document.fonts.ready && typeof document.fonts.ready.then === "function") {
-      document.fonts.ready.then(schedule, schedule);
-    } else {
-      schedule();
-    }
   }
 
   // SVG 内のテキストの視覚サイズが本文より大きければ、SVG 表示幅を縮めて
@@ -390,8 +379,10 @@
     if (visualPx <= bodyPx) { return; }
 
     const target = Math.max(1, Math.floor(bodyPx * vb.width / maxFs));
+    // width は CSS の `width: 100%` を残し、max-width だけを上限として設定する。
+    // これによりウィンドウ/コンテナが target より狭くなった場合も SVG が縮められ、
+    // overflow: hidden のカードでクリップされない。
     svg.style.setProperty("max-width", target + "px");
-    svg.style.setProperty("width", target + "px");
   }
 
   function buildMermaidToolbar(viewport) {
