@@ -293,12 +293,17 @@
   }
 
   function updateViewportTransform(viewport, zoom, px, py) {
-    viewport.style.transform = "scale(" + zoom + ") translate(" + px + "px, " + py + "px)";
+    viewport.style.transform = "translate(" + px + "px, " + py + "px) scale(" + zoom + ")";
   }
 
   function applyMermaidZoom(viewport, delta) {
     var current = parseFloat(viewport.dataset.zoom) || 1;
-    var next = Math.min(Math.max(current + delta, 0.25), 4);
+    var next = Math.round(Math.min(Math.max(current + delta, 0.25), 4) * 100) / 100;
+    if (Math.abs(next - 1) < 0.05) { next = 1; }
+    if (next === 1) {
+      resetMermaidZoom(viewport);
+      return;
+    }
     viewport.dataset.zoom = String(next);
     updateViewportTransform(viewport, next, parseFloat(viewport.dataset.panX) || 0, parseFloat(viewport.dataset.panY) || 0);
     viewport.closest(".mermaid-container").classList.toggle("mermaid-zoomed", next !== 1);
@@ -321,8 +326,8 @@
   document.addEventListener("mousemove", function (e) {
     if (!activeDragViewport) { return; }
     var zoom = parseFloat(activeDragViewport.dataset.zoom) || 1;
-    var dx = (e.clientX - dragStartX) / zoom;
-    var dy = (e.clientY - dragStartY) / zoom;
+    var dx = (e.clientX - dragStartX);
+    var dy = (e.clientY - dragStartY);
     activeDragViewport.dataset.panX = String(dragBasePanX + dx);
     activeDragViewport.dataset.panY = String(dragBasePanY + dy);
     updateViewportTransform(activeDragViewport, zoom, dragBasePanX + dx, dragBasePanY + dy);
@@ -330,6 +335,7 @@
 
   document.addEventListener("mouseup", function () {
     if (!activeDragViewport) { return; }
+    activeDragViewport.classList.remove("mermaid-dragging");
     activeDragViewport.style.cursor = "";
     activeDragViewport = null;
   });
@@ -343,10 +349,12 @@
     }, { passive: false });
 
     viewport.addEventListener("mousedown", function (e) {
+      if (e.button !== 0) { return; }
       var zoom = parseFloat(viewport.dataset.zoom) || 1;
       if (zoom <= 1) { return; }
       e.preventDefault();
       activeDragViewport = viewport;
+      viewport.classList.add("mermaid-dragging");
       dragStartX = e.clientX;
       dragStartY = e.clientY;
       dragBasePanX = parseFloat(viewport.dataset.panX) || 0;

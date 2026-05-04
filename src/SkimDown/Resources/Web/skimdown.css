@@ -320,6 +320,10 @@ tr:nth-child(even) td {
   justify-content: center;
 }
 
+.mermaid-viewport.mermaid-dragging {
+  transition: none;
+}
+
 .mermaid-zoomed .mermaid-viewport {
   cursor: grab;
 }
@@ -335,12 +339,17 @@ tr:nth-child(even) td {
   display: flex;
   gap: 4px;
   opacity: 0;
-  transition: opacity 0.2s ease;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 0.2s ease, visibility 0.2s ease;
   z-index: 10;
 }
 
-.mermaid-container:hover .mermaid-toolbar {
+.mermaid-container:hover .mermaid-toolbar,
+.mermaid-container:focus-within .mermaid-toolbar {
   opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
 }
 
 .mermaid-zoom-btn {
