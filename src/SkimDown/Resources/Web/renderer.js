@@ -64,17 +64,27 @@
     clearSearch();
 
     notifyWhenRenderSettled(content, payload.renderID, mermaidTasks, payload.awaitFullSettle === true);
-    installUserInteractionWatcher();
+    installUserInteractionWatcher(payload.renderID);
+    installScrollPositionListener(payload.renderID);
   }
 
-  function installUserInteractionWatcher() {
+  function installScrollPositionListener(renderID) {
+    function postScroll() {
+      if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.scrollPosition) {
+        window.webkit.messageHandlers.scrollPosition.postMessage({ renderID: renderID, scrollY: window.scrollY });
+      }
+    }
+    window.addEventListener("scroll", postScroll, { passive: true });
+  }
+
+  function installUserInteractionWatcher(renderID) {
     function onInteract() {
       window.removeEventListener("wheel", onInteract, { capture: true });
       window.removeEventListener("touchstart", onInteract, { capture: true });
       window.removeEventListener("keydown", onInteract, { capture: true });
       window.removeEventListener("mousedown", onInteract, { capture: true });
       if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.userInteracted) {
-        window.webkit.messageHandlers.userInteracted.postMessage({});
+        window.webkit.messageHandlers.userInteracted.postMessage({ renderID: renderID });
       }
     }
     window.addEventListener("wheel", onInteract, { capture: true, once: true, passive: true });
