@@ -4,6 +4,8 @@
   let currentSearchIndex = -1;
   let tableResizeObserver = null;
   let tableResizeHandler = null;
+  let mermaidResizeObserver = null;
+  let mermaidResizeHandler = null;
   const IMAGE_READY_TIMEOUT_MS = 3000;
 
   function renderer() {
@@ -269,67 +271,311 @@
   }
 
   function renderMermaidBlocks(content, payload) {
-    const isDark = payload.theme === "dark" || (payload.theme === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches);
-    if (window.mermaid) {
-      window.mermaid.initialize({ startOnLoad: false, theme: isDark ? "dark" : "default", securityLevel: "strict" });
+    // Tear down any observers/listeners from the previous render so they don't
+    // accumulate across renders or keep detached nodes alive.
+    teardownMermaidOverflowWatchers();
+
+    if (!window.mermaid) {
+      // Mermaid is unavailable: leave the original code blocks untouched and bail out.
+      return [];
     }
 
-    const tasks = [];
+    // Detect Mermaid code blocks up front so non-Mermaid documents skip the
+    // matchMedia / getComputedStyle / mermaid.initialize work entirely.
+    const codeBlocks = [];
     content.querySelectorAll("pre > code").forEach(function (code) {
       const language = code.className.match(/language-([A-Za-z0-9_-]+)/);
-      if (!language || language[1].toLowerCase() !== "mermaid") {
-        return;
+      if (language && language[1].toLowerCase() === "mermaid") {
+        codeBlocks.push(code);
       }
+    });
+    if (codeBlocks.length === 0) {
+      return [];
+    }
 
+    const isDark = payload.theme === "dark" || (payload.theme === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches);
+    // Match Mermaid's font-family and font-size to the body so diagram labels appear
+    // the same size as the surrounding prose.
+    const bodyStyle = window.getComputedStyle(document.body);
+    window.mermaid.initialize({
+      startOnLoad: false,
+      theme: isDark ? "dark" : "default",
+      securityLevel: "strict",
+      fontFamily: bodyStyle.fontFamily,
+      themeVariables: {
+        fontFamily: bodyStyle.fontFamily,
+        fontSize: bodyStyle.fontSize
+      }
+    });
+
+    const entries = [];
+    codeBlocks.forEach(function (code) {
       const source = code.textContent;
       const fallback = code.parentElement.cloneNode(true);
       const wrapper = document.createElement("div");
       wrapper.className = "mermaid-container";
+      // Make the container focusable so keyboard users can trigger :focus-within and reveal the toolbar.
+      wrapper.tabIndex = 0;
+      // Provide an accessible name so screen readers announce the focused container as a Mermaid diagram.
+      wrapper.setAttribute("role", "group");
+      wrapper.setAttribute("aria-label", "Mermaid diagram");
+      const viewport = document.createElement("div");
+      viewport.className = "mermaid-viewport";
       const diagram = document.createElement("div");
       diagram.className = "mermaid";
       diagram.textContent = source;
-      wrapper.appendChild(diagram);
+      viewport.appendChild(diagram);
+      wrapper.appendChild(viewport);
+      wrapper.appendChild(buildMermaidToolbar(viewport));
       code.parentElement.replaceWith(wrapper);
 
-      if (window.mermaid) {
-        tasks.push(
-          window.mermaid.run({ nodes: [diagram] }).catch(function () {
-            wrapper.replaceWith(fallback);
-          })
-        );
-      }
+      initMermaidZoomPan(wrapper, viewport);
+
+      entries.push({ diagram: diagram, wrapper: wrapper, fallback: fallback });
     });
-    return tasks;
+
+    // Run all diagrams in a single mermaid.run() call to avoid interleaving Mermaid's
+    // internal state across parallel runs. Errors are suppressed here and handled per
+    // diagram below by checking whether an SVG was actually produced.
+    const allDiagrams = entries.map(function (entry) { return entry.diagram; });
+    const task = window.mermaid
+      .run({ nodes: allDiagrams, suppressErrors: true })
+      .catch(function () { /* handled by the per-diagram fallback below */ })
+      .then(function () {
+        entries.forEach(function (entry) {
+          const svg = entry.diagram.querySelector("svg");
+          if (!svg) {
+            entry.wrapper.replaceWith(entry.fallback);
+            // mermaid runs after decorateCodeBlocks(content), so the cloned fallback
+            // misses the language label / Copy button. Decorate it now.
+            const fallbackCode = entry.fallback.querySelector("code");
+            if (fallbackCode) {
+              decorateCodeBlock(fallbackCode);
+            }
+            return;
+          }
+          // Intentionally leave Mermaid's width/height attributes on the SVG so the
+          // diagram renders at its intrinsic (1:1) size where in-diagram text matches
+          // body font-size. The card uses overflow: hidden, and drag-to-pan handles
+          // diagrams that overflow the card (see initMermaidOverflowWatcher).
+          initMermaidOverflowWatcher(entry.wrapper, svg);
+        });
+      });
+    return [task];
+  }
+
+  // Watch the rendered SVG and toggle .mermaid-overflowing on the wrapper when the
+  // SVG's intrinsic size exceeds the wrapper's content area. The class is used to
+  // show the grab cursor and to enable drag-to-pan even when zoom is 1.
+  //
+  // Observers and resize handlers are kept at module scope so they can be torn down
+  // at the start of each render (see teardownMermaidOverflowWatchers) — otherwise
+  // they would leak across renders and keep detached wrappers alive.
+  function initMermaidOverflowWatcher(wrapper, svg) {
+    const update = function () {
+      const svgRect = svg.getBoundingClientRect();
+      const overflows = svgRect.width > wrapper.clientWidth + 1 ||
+        svgRect.height > wrapper.clientHeight + 1;
+      wrapper.classList.toggle("mermaid-overflowing", overflows);
+    };
+    update();
+    if ("ResizeObserver" in window) {
+      if (!mermaidResizeObserver) {
+        mermaidResizeObserver = new ResizeObserver(function (entries) {
+          // The observer is shared across all Mermaid wrappers; rerun the check for
+          // each affected wrapper rather than tracking per-target callbacks.
+          const wrappers = new Set();
+          entries.forEach(function (entry) {
+            const w = entry.target.classList && entry.target.classList.contains("mermaid-container")
+              ? entry.target
+              : entry.target.closest && entry.target.closest(".mermaid-container");
+            if (w) { wrappers.add(w); }
+          });
+          wrappers.forEach(function (w) {
+            const s = w.querySelector("svg");
+            if (!s) { return; }
+            const r = s.getBoundingClientRect();
+            w.classList.toggle("mermaid-overflowing",
+              r.width > w.clientWidth + 1 || r.height > w.clientHeight + 1);
+          });
+        });
+      }
+      mermaidResizeObserver.observe(wrapper);
+      mermaidResizeObserver.observe(svg);
+    } else if (!mermaidResizeHandler) {
+      mermaidResizeHandler = function () {
+        document.querySelectorAll(".mermaid-container").forEach(function (w) {
+          const s = w.querySelector("svg");
+          if (!s) { return; }
+          const r = s.getBoundingClientRect();
+          w.classList.toggle("mermaid-overflowing",
+            r.width > w.clientWidth + 1 || r.height > w.clientHeight + 1);
+        });
+      };
+      window.addEventListener("resize", mermaidResizeHandler);
+    }
+  }
+
+  function teardownMermaidOverflowWatchers() {
+    if (mermaidResizeObserver) {
+      mermaidResizeObserver.disconnect();
+      mermaidResizeObserver = null;
+    }
+    if (mermaidResizeHandler) {
+      window.removeEventListener("resize", mermaidResizeHandler);
+      mermaidResizeHandler = null;
+    }
+  }
+
+  function buildMermaidToolbar(viewport) {
+    var toolbar = document.createElement("div");
+    toolbar.className = "mermaid-toolbar";
+
+    var zoomIn = document.createElement("button");
+    zoomIn.type = "button";
+    zoomIn.className = "mermaid-zoom-btn";
+    zoomIn.textContent = "+";
+    zoomIn.setAttribute("aria-label", "Zoom in");
+
+    var zoomOut = document.createElement("button");
+    zoomOut.type = "button";
+    zoomOut.className = "mermaid-zoom-btn";
+    zoomOut.textContent = "\u2212";
+    zoomOut.setAttribute("aria-label", "Zoom out");
+
+    var zoomReset = document.createElement("button");
+    zoomReset.type = "button";
+    zoomReset.className = "mermaid-zoom-btn mermaid-zoom-reset";
+    zoomReset.textContent = "Reset";
+    zoomReset.setAttribute("aria-label", "Reset zoom");
+
+    zoomIn.addEventListener("click", function () {
+      applyMermaidZoom(viewport, 0.25);
+    });
+    zoomOut.addEventListener("click", function () {
+      applyMermaidZoom(viewport, -0.25);
+    });
+    zoomReset.addEventListener("click", function () {
+      resetMermaidZoom(viewport);
+    });
+
+    toolbar.appendChild(zoomOut);
+    toolbar.appendChild(zoomReset);
+    toolbar.appendChild(zoomIn);
+    return toolbar;
+  }
+
+  function updateViewportTransform(viewport, zoom, px, py) {
+    viewport.style.transform = "translate(" + px + "px, " + py + "px) scale(" + zoom + ")";
+  }
+
+  function applyMermaidZoom(viewport, delta) {
+    var current = parseFloat(viewport.dataset.zoom) || 1;
+    var next = Math.round(Math.min(Math.max(current + delta, 0.25), 4) * 100) / 100;
+    if (Math.abs(next - 1) < 0.05) { next = 1; }
+    if (next === 1) {
+      resetMermaidZoom(viewport);
+      return;
+    }
+    viewport.dataset.zoom = String(next);
+    updateViewportTransform(viewport, next, parseFloat(viewport.dataset.panX) || 0, parseFloat(viewport.dataset.panY) || 0);
+    // Only flag as "zoomed" when above 1x — drag-to-pan is gated on zoom > 1, so the
+    // grab cursor should not appear for zoom-out states (0.25x–0.95x) where panning
+    // is intentionally disabled.
+    viewport.closest(".mermaid-container").classList.toggle("mermaid-zoomed", next > 1);
+  }
+
+  function resetMermaidZoom(viewport) {
+    viewport.dataset.zoom = "1";
+    viewport.dataset.panX = "0";
+    viewport.dataset.panY = "0";
+    viewport.style.transform = "";
+    viewport.closest(".mermaid-container").classList.remove("mermaid-zoomed");
+  }
+
+  var activeDragViewport = null;
+  var dragStartX = 0;
+  var dragStartY = 0;
+  var dragBasePanX = 0;
+  var dragBasePanY = 0;
+
+  document.addEventListener("mousemove", function (e) {
+    if (!activeDragViewport) { return; }
+    var zoom = parseFloat(activeDragViewport.dataset.zoom) || 1;
+    var dx = (e.clientX - dragStartX);
+    var dy = (e.clientY - dragStartY);
+    activeDragViewport.dataset.panX = String(dragBasePanX + dx);
+    activeDragViewport.dataset.panY = String(dragBasePanY + dy);
+    updateViewportTransform(activeDragViewport, zoom, dragBasePanX + dx, dragBasePanY + dy);
+  });
+
+  function endMermaidDrag() {
+    if (!activeDragViewport) { return; }
+    activeDragViewport.classList.remove("mermaid-dragging");
+    activeDragViewport.style.cursor = "";
+    activeDragViewport = null;
+  }
+
+  // Also end the drag on blur and mouseleave so the dragging state cannot get stuck
+  // when mouseup is missed (mouse released outside the window or focus is lost).
+  document.addEventListener("mouseup", endMermaidDrag);
+  document.addEventListener("mouseleave", endMermaidDrag);
+  window.addEventListener("blur", endMermaidDrag);
+
+  function initMermaidZoomPan(container, viewport) {
+    container.addEventListener("wheel", function (e) {
+      if (!e.ctrlKey && !e.metaKey) { return; }
+      e.preventDefault();
+      var delta = e.deltaY > 0 ? -0.1 : 0.1;
+      applyMermaidZoom(viewport, delta);
+    }, { passive: false });
+
+    viewport.addEventListener("mousedown", function (e) {
+      if (e.button !== 0) { return; }
+      var zoom = parseFloat(viewport.dataset.zoom) || 1;
+      // Allow drag-to-pan when zoomed in OR when the diagram overflows the card.
+      if (zoom <= 1 && !container.classList.contains("mermaid-overflowing")) { return; }
+      e.preventDefault();
+      activeDragViewport = viewport;
+      viewport.classList.add("mermaid-dragging");
+      dragStartX = e.clientX;
+      dragStartY = e.clientY;
+      dragBasePanX = parseFloat(viewport.dataset.panX) || 0;
+      dragBasePanY = parseFloat(viewport.dataset.panY) || 0;
+      viewport.style.cursor = "grabbing";
+    });
   }
 
   function decorateCodeBlocks(content) {
-    content.querySelectorAll("pre > code").forEach(function (code) {
-      const pre = code.parentElement;
-      if (pre.querySelector(".code-toolbar")) {
-        return;
-      }
+    content.querySelectorAll("pre > code").forEach(decorateCodeBlock);
+  }
 
-      const languageMatch = code.className.match(/language-([A-Za-z0-9_-]+)/);
-      const toolbar = document.createElement("div");
-      toolbar.className = "code-toolbar";
+  function decorateCodeBlock(code) {
+    const pre = code.parentElement;
+    if (!pre || pre.querySelector(".code-toolbar")) {
+      return;
+    }
 
-      if (languageMatch) {
-        const label = document.createElement("span");
-        label.className = "code-language";
-        label.textContent = languageMatch[1];
-        toolbar.appendChild(label);
-      }
+    const languageMatch = code.className.match(/language-([A-Za-z0-9_-]+)/);
+    const toolbar = document.createElement("div");
+    toolbar.className = "code-toolbar";
 
-      const button = document.createElement("button");
-      button.className = "code-copy";
-      button.type = "button";
-      button.textContent = "Copy";
-      button.addEventListener("click", function () {
-        window.webkit.messageHandlers.copyCode.postMessage(code.textContent || "");
-      });
-      toolbar.appendChild(button);
-      pre.appendChild(toolbar);
+    if (languageMatch) {
+      const label = document.createElement("span");
+      label.className = "code-language";
+      label.textContent = languageMatch[1];
+      toolbar.appendChild(label);
+    }
+
+    const button = document.createElement("button");
+    button.className = "code-copy";
+    button.type = "button";
+    button.textContent = "Copy";
+    button.addEventListener("click", function () {
+      window.webkit.messageHandlers.copyCode.postMessage(code.textContent || "");
     });
+    toolbar.appendChild(button);
+    pre.appendChild(toolbar);
   }
 
   function renderMath(content) {

@@ -308,16 +308,98 @@ tr:nth-child(even) td {
 }
 
 .mermaid-container {
+  position: relative;
   width: 100%;
-  overflow-x: auto;
+  margin-left: auto;
+  margin-right: auto;
+  /* Hide overflow so a wide/tall diagram doesn't add scrollbars that fight with
+     page scroll. The diagram can still be panned via mouse drag when zoomed in or
+     when its intrinsic size overflows the card (the JS adds .mermaid-overflowing). */
+  overflow: hidden;
   padding: 1.1em;
   border: 1px solid var(--skimdown-border);
   border-radius: 14px;
   background: var(--skimdown-surface);
 }
 
+.mermaid-container:focus {
+  outline: 2px solid var(--skimdown-accent);
+  outline-offset: 2px;
+}
+
+/* Hide the focus ring for mouse clicks while keeping it for keyboard navigation.
+   `:focus:not(:focus-visible)` removes the ring only in browsers that support
+   :focus-visible, so environments without that support still get a visible
+   indicator for keyboard focus. */
+.mermaid-container:focus:not(:focus-visible) {
+  outline: none;
+}
+
+.mermaid-viewport {
+  transform-origin: center center;
+  transition: transform 0.1s ease;
+  display: block;
+}
+
+.mermaid-viewport.mermaid-dragging {
+  transition: none;
+}
+
+.mermaid-zoomed .mermaid-viewport,
+.mermaid-overflowing .mermaid-viewport {
+  cursor: grab;
+}
+
 .mermaid-container svg {
-  max-width: 100%;
+  display: block;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.mermaid-toolbar {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: flex;
+  gap: 4px;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 0.2s ease, visibility 0.2s ease;
+  z-index: 10;
+}
+
+.mermaid-container:hover .mermaid-toolbar,
+.mermaid-container:focus-within .mermaid-toolbar {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+}
+
+.mermaid-zoom-btn {
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--skimdown-border);
+  border-radius: 6px;
+  background: var(--skimdown-surface);
+  color: var(--skimdown-fg);
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  backdrop-filter: blur(4px);
+}
+
+.mermaid-zoom-btn:hover {
+  background: var(--skimdown-border);
+}
+
+.mermaid-zoom-btn.mermaid-zoom-reset {
+  width: auto;
+  padding: 0 8px;
+  font-size: 11px;
 }
 
 .skimdown-search-match {
