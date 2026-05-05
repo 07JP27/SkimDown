@@ -246,7 +246,22 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Side
     func toggleSidebar() {
         settings.isSidebarVisible.toggle()
         settingsStore.isSidebarVisible = settings.isSidebarVisible
-        sidebarItem.isCollapsed = !settings.isSidebarVisible
+        if settings.isSidebarVisible {
+            // Reapply the persisted width when the sidebar becomes visible so a
+            // window that was restored with the sidebar hidden still recovers
+            // its per-window width on first reveal. We also briefly clear the
+            // initial-layout flag to suppress the resize notification AppKit
+            // fires while uncollapsing — otherwise that intermediate width
+            // would overwrite settings.sidebarWidth before applySidebarWidth()
+            // restores the saved value.
+            isInitialLayoutComplete = false
+            sidebarItem.isCollapsed = false
+            DispatchQueue.main.async { [weak self] in
+                self?.applySidebarWidth()
+            }
+        } else {
+            sidebarItem.isCollapsed = true
+        }
     }
 
     func moveSidebar(to position: SidebarPosition) {
