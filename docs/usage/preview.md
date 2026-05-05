@@ -31,7 +31,7 @@ You can zoom and pan a diagram when you want to inspect details:
 - Hover the card (or focus it with `Tab`) to reveal the toolbar in the top-right corner.
 - Use **+** / **−** to zoom in and out, or **Reset** to return to the default size.
 - `⌘` (or `Ctrl`) + mouse wheel zooms in and out.
-- When zoomed in, click and drag inside the card to pan.
+- When zoomed in, or when the diagram is larger than the card, click and drag inside the card to pan.
 
 ## Links
 
