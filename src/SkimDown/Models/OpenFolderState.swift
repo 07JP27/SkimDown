@@ -17,14 +17,11 @@ struct OpenFolderState: Equatable {
     }
 
     var dictionaryRepresentation: [String: Any] {
-        var dict: [String: Any] = [
+        [
             DictionaryKey.bookmark: bookmark,
-            DictionaryKey.frame: Self.encode(frame: frame)
+            DictionaryKey.frame: Self.encode(frame: frame),
+            DictionaryKey.sidebarWidth: sidebarWidth
         ]
-        if sidebarWidth > 0 {
-            dict[DictionaryKey.sidebarWidth] = sidebarWidth
-        }
-        return dict
     }
 
     init(bookmark: Data, frame: CGRect, sidebarWidth: Double = 0) {

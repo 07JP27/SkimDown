@@ -23,7 +23,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Side
     private var settings: AppSettings
     private(set) var currentFolderBookmarkData: Data?
     private var scrollPositions: [URL: Double] = [:]
-    private var isApplyingInitialWidth = true
+    private var isInitialLayoutComplete = false
 
     /// コンテンツ側 (defaultLow = 250) がリサイズを引き受けるよう、
     /// サイドバー側だけ一段高い保持優先度を割り当てる。これにより
@@ -397,7 +397,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Side
     }
 
     @objc private func splitViewDidResizeSubviewsNotification(_ notification: Notification) {
-        guard !isApplyingInitialWidth,
+        guard isInitialLayoutComplete,
               !sidebarItem.isCollapsed,
               splitViewController.splitViewItems.count == 2 else {
             return
@@ -434,7 +434,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Side
     private func applySidebarWidth() {
         guard !sidebarItem.isCollapsed,
               splitViewController.splitViewItems.count == 2 else {
-            isApplyingInitialWidth = false
+            isInitialLayoutComplete = true
             return
         }
 
@@ -444,7 +444,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Side
         } else {
             splitView.setPosition(splitView.bounds.width - settings.sidebarWidth, ofDividerAt: 0)
         }
-        isApplyingInitialWidth = false
+        isInitialLayoutComplete = true
     }
 
     private func loadFolder(folderURL: URL, preferredSelection: URL?) throws {
