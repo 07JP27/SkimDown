@@ -99,16 +99,20 @@ final class SettingsStoreTests: XCTestCase {
 
         let stateA = OpenFolderState(
             bookmark: Data([0x01, 0x02]),
-            frame: CGRect(x: 100, y: 200, width: 1024, height: 768)
+            frame: CGRect(x: 100, y: 200, width: 1024, height: 768),
+            sidebarWidth: 300
         )
         let stateB = OpenFolderState(
             bookmark: Data([0x03, 0x04]),
-            frame: CGRect(x: -50, y: 0, width: 960, height: 660)
+            frame: CGRect(x: -50, y: 0, width: 960, height: 660),
+            sidebarWidth: 220
         )
         store.openFolderStates = [stateA, stateB]
 
         let reloaded = SettingsStore(defaults: defaults)
         XCTAssertEqual(reloaded.openFolderStates, [stateA, stateB])
+        XCTAssertEqual(reloaded.openFolderStates[0].sidebarWidth, 300)
+        XCTAssertEqual(reloaded.openFolderStates[1].sidebarWidth, 220)
     }
 
     func testWritingOpenFolderStatesClearsLegacyBookmarksKey() throws {

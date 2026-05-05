@@ -1,28 +1,36 @@
 import Foundation
 import CoreGraphics
 
-/// Persisted state for a single open folder window: the folder bookmark and
-/// the on-screen frame the window had when last persisted, so that windows
-/// can be restored at the same position and size on next launch.
+/// Persisted state for a single open folder window: the folder bookmark,
+/// the on-screen frame, and the sidebar width the window had when last
+/// persisted, so that windows can be restored at the same position, size,
+/// and sidebar layout on next launch.
 struct OpenFolderState: Equatable {
     let bookmark: Data
     let frame: CGRect
+    let sidebarWidth: Double
 
     private enum DictionaryKey {
         static let bookmark = "bookmark"
         static let frame = "frame"
+        static let sidebarWidth = "sidebarWidth"
     }
 
     var dictionaryRepresentation: [String: Any] {
-        [
+        var dict: [String: Any] = [
             DictionaryKey.bookmark: bookmark,
             DictionaryKey.frame: Self.encode(frame: frame)
         ]
+        if sidebarWidth > 0 {
+            dict[DictionaryKey.sidebarWidth] = sidebarWidth
+        }
+        return dict
     }
 
-    init(bookmark: Data, frame: CGRect) {
+    init(bookmark: Data, frame: CGRect, sidebarWidth: Double = 0) {
         self.bookmark = bookmark
         self.frame = frame
+        self.sidebarWidth = sidebarWidth
     }
 
     init?(dictionary: [String: Any]) {
@@ -38,6 +46,7 @@ struct OpenFolderState: Equatable {
         }
         self.bookmark = bookmark
         self.frame = frame
+        self.sidebarWidth = dictionary[DictionaryKey.sidebarWidth] as? Double ?? 0
     }
 
     private static func encode(frame: CGRect) -> String {
