@@ -3,15 +3,6 @@ name: CI
 on:
   pull_request:
     branches: [main]
-    paths-ignore:
-      - 'docs/**'
-      - 'design/**'
-      - 'samples/**'
-      - '**/*.md'
-      - 'icon.png'
-      - 'LICENSE'
-      - '.gitignore'
-      - '.env.example'
 
 concurrency:
   group: ci-${{ github.ref }}
