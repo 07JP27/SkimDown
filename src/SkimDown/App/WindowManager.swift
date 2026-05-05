@@ -26,6 +26,9 @@ final class WindowManager {
             }
             let initialFrame: CGRect? = state.frame == .zero ? nil : state.frame
             let controller = createWindow(initialFrame: initialFrame)
+            if state.sidebarWidth > 0 {
+                controller.setInitialSidebarWidth(state.sidebarWidth)
+            }
             controller.openFolder(url, bookmarkData: state.bookmark)
             restoredAny = true
         }
@@ -115,7 +118,7 @@ final class WindowManager {
                   let frame = controller.window?.frame else {
                 return nil
             }
-            return OpenFolderState(bookmark: bookmark, frame: frame)
+            return OpenFolderState(bookmark: bookmark, frame: frame, sidebarWidth: controller.currentSidebarWidth)
         }
     }
 

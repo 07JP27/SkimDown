@@ -23,6 +23,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Side
     private var settings: AppSettings
     private(set) var currentFolderBookmarkData: Data?
     private var scrollPositions: [URL: Double] = [:]
+    private var isInitialLayoutComplete = false
 
     /// コンテンツ側 (defaultLow = 250) がリサイズを引き受けるよう、
     /// サイドバー側だけ一段高い保持優先度を割り当てる。これにより
@@ -42,6 +43,18 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Side
 
     var sidebarPosition: SidebarPosition {
         settings.sidebarPosition
+    }
+
+    var currentSidebarWidth: Double {
+        settings.sidebarWidth
+    }
+
+    func setInitialSidebarWidth(_ width: Double) {
+        guard width > 0 else { return }
+        // Clamp to the same range enforced by SettingsStore.sidebarWidth so that
+        // a malformed or hand-edited persisted entry cannot push the split view
+        // into an invalid layout on launch.
+        settings.sidebarWidth = max(180, min(width, 520))
     }
 
     init(settingsStore: SettingsStore, bookmarkStore: FolderBookmarkStore, windowManager: WindowManager) {
@@ -233,7 +246,22 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Side
     func toggleSidebar() {
         settings.isSidebarVisible.toggle()
         settingsStore.isSidebarVisible = settings.isSidebarVisible
-        sidebarItem.isCollapsed = !settings.isSidebarVisible
+        if settings.isSidebarVisible {
+            // Reapply the persisted width when the sidebar becomes visible so a
+            // window that was restored with the sidebar hidden still recovers
+            // its per-window width on first reveal. We also briefly clear the
+            // initial-layout flag to suppress the resize notification AppKit
+            // fires while uncollapsing — otherwise that intermediate width
+            // would overwrite settings.sidebarWidth before applySidebarWidth()
+            // restores the saved value.
+            isInitialLayoutComplete = false
+            sidebarItem.isCollapsed = false
+            DispatchQueue.main.async { [weak self] in
+                self?.applySidebarWidth()
+            }
+        } else {
+            sidebarItem.isCollapsed = true
+        }
     }
 
     func moveSidebar(to position: SidebarPosition) {
@@ -387,7 +415,8 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Side
     }
 
     @objc private func splitViewDidResizeSubviewsNotification(_ notification: Notification) {
-        guard !sidebarItem.isCollapsed,
+        guard isInitialLayoutComplete,
+              !sidebarItem.isCollapsed,
               splitViewController.splitViewItems.count == 2 else {
             return
         }
@@ -423,6 +452,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Side
     private func applySidebarWidth() {
         guard !sidebarItem.isCollapsed,
               splitViewController.splitViewItems.count == 2 else {
+            isInitialLayoutComplete = true
             return
         }
 
@@ -432,6 +462,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Side
         } else {
             splitView.setPosition(splitView.bounds.width - settings.sidebarWidth, ofDividerAt: 0)
         }
+        isInitialLayoutComplete = true
     }
 
     private func loadFolder(folderURL: URL, preferredSelection: URL?) throws {
