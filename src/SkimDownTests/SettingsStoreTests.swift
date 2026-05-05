@@ -115,6 +115,32 @@ final class SettingsStoreTests: XCTestCase {
         XCTAssertEqual(reloaded.openFolderStates[1].sidebarWidth, 220)
     }
 
+    func testOpenFolderStatesDecodesLegacyEntriesWithoutSidebarWidth() throws {
+        let suiteName = "dev.jp27.SkimDownTests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer {
+            defaults.removePersistentDomain(forName: suiteName)
+        }
+
+        // Seed UserDefaults with the pre-sidebarWidth on-disk shape so we
+        // verify upgrades from older installations still decode correctly.
+        let bookmark = Data([0xAB, 0xCD])
+        let frame = CGRect(x: 50, y: 60, width: 1024, height: 768)
+        let legacyEntry: [String: Any] = [
+            "bookmark": bookmark,
+            "frame": "\(frame.origin.x),\(frame.origin.y),\(frame.size.width),\(frame.size.height)"
+        ]
+        defaults.set([legacyEntry], forKey: "openFolderStates")
+
+        let store = SettingsStore(defaults: defaults)
+        let states = store.openFolderStates
+        XCTAssertEqual(states.count, 1)
+        XCTAssertEqual(states.first?.bookmark, bookmark)
+        XCTAssertEqual(states.first?.frame, frame)
+        XCTAssertEqual(states.first?.sidebarWidth, 0,
+                       "Legacy entries without a sidebarWidth field must decode with sidebarWidth=0 so WindowManager skips the override.")
+    }
+
     func testWritingOpenFolderStatesClearsLegacyBookmarksKey() throws {
         let suiteName = "dev.jp27.SkimDownTests.\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))

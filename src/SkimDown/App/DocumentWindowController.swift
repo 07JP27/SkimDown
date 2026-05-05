@@ -51,7 +51,10 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Side
 
     func setInitialSidebarWidth(_ width: Double) {
         guard width > 0 else { return }
-        settings.sidebarWidth = width
+        // Clamp to the same range enforced by SettingsStore.sidebarWidth so that
+        // a malformed or hand-edited persisted entry cannot push the split view
+        // into an invalid layout on launch.
+        settings.sidebarWidth = max(180, min(width, 520))
     }
 
     init(settingsStore: SettingsStore, bookmarkStore: FolderBookmarkStore, windowManager: WindowManager) {
