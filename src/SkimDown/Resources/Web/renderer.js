@@ -4,6 +4,8 @@
   let currentSearchIndex = -1;
   let tableResizeObserver = null;
   let tableResizeHandler = null;
+  let mermaidResizeObserver = null;
+  let mermaidResizeHandler = null;
   const IMAGE_READY_TIMEOUT_MS = 3000;
 
   function renderer() {
@@ -269,6 +271,10 @@
   }
 
   function renderMermaidBlocks(content, payload) {
+    // Tear down any observers/listeners from the previous render so they don't
+    // accumulate across renders or keep detached nodes alive.
+    teardownMermaidOverflowWatchers();
+
     if (!window.mermaid) {
       // Mermaid is unavailable: leave the original code blocks untouched and bail out.
       return [];
@@ -361,6 +367,10 @@
   // Watch the rendered SVG and toggle .mermaid-overflowing on the wrapper when the
   // SVG's intrinsic size exceeds the wrapper's content area. The class is used to
   // show the grab cursor and to enable drag-to-pan even when zoom is 1.
+  //
+  // Observers and resize handlers are kept at module scope so they can be torn down
+  // at the start of each render (see teardownMermaidOverflowWatchers) — otherwise
+  // they would leak across renders and keep detached wrappers alive.
   function initMermaidOverflowWatcher(wrapper, svg) {
     const update = function () {
       const svgRect = svg.getBoundingClientRect();
@@ -370,11 +380,50 @@
     };
     update();
     if ("ResizeObserver" in window) {
-      const observer = new ResizeObserver(update);
-      observer.observe(wrapper);
-      observer.observe(svg);
-    } else {
-      window.addEventListener("resize", update);
+      if (!mermaidResizeObserver) {
+        mermaidResizeObserver = new ResizeObserver(function (entries) {
+          // The observer is shared across all Mermaid wrappers; rerun the check for
+          // each affected wrapper rather than tracking per-target callbacks.
+          const wrappers = new Set();
+          entries.forEach(function (entry) {
+            const w = entry.target.classList && entry.target.classList.contains("mermaid-container")
+              ? entry.target
+              : entry.target.closest && entry.target.closest(".mermaid-container");
+            if (w) { wrappers.add(w); }
+          });
+          wrappers.forEach(function (w) {
+            const s = w.querySelector("svg");
+            if (!s) { return; }
+            const r = s.getBoundingClientRect();
+            w.classList.toggle("mermaid-overflowing",
+              r.width > w.clientWidth + 1 || r.height > w.clientHeight + 1);
+          });
+        });
+      }
+      mermaidResizeObserver.observe(wrapper);
+      mermaidResizeObserver.observe(svg);
+    } else if (!mermaidResizeHandler) {
+      mermaidResizeHandler = function () {
+        document.querySelectorAll(".mermaid-container").forEach(function (w) {
+          const s = w.querySelector("svg");
+          if (!s) { return; }
+          const r = s.getBoundingClientRect();
+          w.classList.toggle("mermaid-overflowing",
+            r.width > w.clientWidth + 1 || r.height > w.clientHeight + 1);
+        });
+      };
+      window.addEventListener("resize", mermaidResizeHandler);
+    }
+  }
+
+  function teardownMermaidOverflowWatchers() {
+    if (mermaidResizeObserver) {
+      mermaidResizeObserver.disconnect();
+      mermaidResizeObserver = null;
+    }
+    if (mermaidResizeHandler) {
+      window.removeEventListener("resize", mermaidResizeHandler);
+      mermaidResizeHandler = null;
     }
   }
 
