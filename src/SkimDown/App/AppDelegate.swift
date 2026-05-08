@@ -10,7 +10,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.regular)
         NSApp.mainMenu = MainMenuBuilder.build(target: self)
-        windowManager.restoreOrCreateInitialWindow()
+
+        if let folderURL = Self.folderURLFromArguments() {
+            windowManager.openFolder(folderURL)
+        } else {
+            windowManager.restoreOrCreateInitialWindow()
+        }
+    }
+
+    /// Returns a folder URL from command-line arguments, if a valid directory
+    /// path was supplied. The first argument after the executable is treated as
+    /// the target folder path.
+    private static func folderURLFromArguments() -> URL? {
+        let args = CommandLine.arguments
+        guard args.count > 1 else { return nil }
+        let path = (args[1] as NSString).standardizingPath
+        var isDirectory: ObjCBool = false
+        guard FileManager.default.fileExists(atPath: path, isDirectory: &isDirectory),
+              isDirectory.boolValue else {
+            return nil
+        }
+        return URL(fileURLWithPath: path, isDirectory: true)
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
