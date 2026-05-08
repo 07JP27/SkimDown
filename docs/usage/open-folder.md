@@ -10,6 +10,7 @@ Use any of these entry points:
 - `Cmd+O`
 - the empty-state `Open Folder...` button
 - drag a folder into an empty SkimDown window
+- command line: pass a folder path as the first argument (see below)
 
 If a window already has a folder open and you drop another folder onto it, SkimDown opens the new folder in a separate window.
 
@@ -25,4 +26,24 @@ After opening a folder, SkimDown chooses what to display in this order:
 ## Recent folders
 
 Recently opened folders are available from `File > Open Recent`. Folder access is restored with security-scoped bookmarks when possible.
+
+## Command line
+
+To set up the `skimdown` command, create a symbolic link to the app binary:
+
+```sh
+ln -s /Applications/SkimDown.app/Contents/MacOS/SkimDown /usr/local/bin/skimdown
+```
+
+Launch SkimDown from the terminal:
+
+```sh
+# Open with specific folder
+skimdown /xxx/yyy/zzz
+
+# Open with current folder
+skimdown
+```
+
+When launched with a folder path argument, SkimDown opens that folder directly instead of restoring the previous session. When launched without arguments from the terminal, it opens the current working directory. If the current directory is the root (`/`), SkimDown falls back to normal session restore.
 
