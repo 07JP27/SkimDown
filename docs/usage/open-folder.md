@@ -29,6 +29,12 @@ Recently opened folders are available from `File > Open Recent`. Folder access i
 
 ## Command line
 
+To set up the `skimdown` command, create a symbolic link to the app binary:
+
+```sh
+ln -s /Applications/SkimDown.app/Contents/MacOS/SkimDown /usr/local/bin/skimdown
+```
+
 Launch SkimDown from the terminal:
 
 ```sh
@@ -40,10 +46,4 @@ skimdown
 ```
 
 When launched with a folder path argument, SkimDown opens that folder directly instead of restoring the previous session. When launched without arguments from the terminal, it opens the current working directory.
-
-To set up the `skimdown` command, create a symbolic link to the app binary:
-
-```sh
-ln -s /Applications/SkimDown.app/Contents/MacOS/SkimDown /usr/local/bin/skimdown
-```
 
