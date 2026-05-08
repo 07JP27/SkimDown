@@ -159,9 +159,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         panel.canChooseDirectories = false
         panel.allowsMultipleSelection = false
         panel.allowedContentTypes = [
-            .init(filenameExtension: "md")!,
-            .init(filenameExtension: "markdown")!
-        ]
+            UTType(filenameExtension: "md"),
+            UTType(filenameExtension: "markdown")
+        ].compactMap { $0 }
         panel.prompt = "Open File"
         panel.begin { [weak self] response in
             guard response == .OK, let url = panel.url else {
