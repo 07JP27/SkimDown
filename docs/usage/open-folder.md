@@ -45,5 +45,5 @@ skimdown /xxx/yyy/zzz
 skimdown
 ```
 
-When launched with a folder path argument, SkimDown opens that folder directly instead of restoring the previous session. When launched without arguments from the terminal, it opens the current working directory.
+When launched with a folder path argument, SkimDown opens that folder directly instead of restoring the previous session. When launched without arguments from the terminal, it opens the current working directory. If the current directory is the root (`/`), SkimDown falls back to normal session restore.
 
