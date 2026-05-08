@@ -29,15 +29,21 @@ Recently opened folders are available from `File > Open Recent`. Folder access i
 
 ## Command line
 
-Launch SkimDown from the terminal to open a specific folder:
+Launch SkimDown from the terminal:
 
 ```sh
-# Open a specific folder
-open -a SkimDown --args /path/to/folder
+# Open with specific folder
+skimdown /xxx/yyy/zzz
 
-# Or invoke the binary directly
-/Applications/SkimDown.app/Contents/MacOS/SkimDown /path/to/folder
+# Open with current folder
+skimdown
 ```
 
-If the argument is a valid directory, SkimDown opens it directly instead of restoring the previous session.
+When launched with a folder path argument, SkimDown opens that folder directly instead of restoring the previous session. When launched without arguments from the terminal, it opens the current working directory.
+
+To set up the `skimdown` command, create a symbolic link to the app binary:
+
+```sh
+ln -s /Applications/SkimDown.app/Contents/MacOS/SkimDown /usr/local/bin/skimdown
+```
 

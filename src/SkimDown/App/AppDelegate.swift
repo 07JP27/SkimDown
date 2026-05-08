@@ -20,17 +20,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
 
     /// Returns a folder URL from command-line arguments, if a valid directory
     /// path was supplied. The first argument after the executable is treated as
-    /// the target folder path.
+    /// the target folder path. When launched from a terminal without arguments,
+    /// the current working directory is used.
     private static func folderURLFromArguments() -> URL? {
         let args = CommandLine.arguments
-        guard args.count > 1 else { return nil }
-        let path = (args[1] as NSString).standardizingPath
-        var isDirectory: ObjCBool = false
-        guard FileManager.default.fileExists(atPath: path, isDirectory: &isDirectory),
-              isDirectory.boolValue else {
-            return nil
+        if args.count > 1 {
+            let path = (args[1] as NSString).standardizingPath
+            var isDirectory: ObjCBool = false
+            guard FileManager.default.fileExists(atPath: path, isDirectory: &isDirectory),
+                  isDirectory.boolValue else {
+                return nil
+            }
+            return URL(fileURLWithPath: path, isDirectory: true)
         }
-        return URL(fileURLWithPath: path, isDirectory: true)
+
+        // When launched from a terminal without arguments, open the current
+        // working directory. isatty(STDIN_FILENO) distinguishes terminal
+        // launches from Finder/Dock launches where stdin is not a TTY.
+        guard isatty(STDIN_FILENO) != 0 else { return nil }
+        let cwd = FileManager.default.currentDirectoryPath
+        guard cwd != "/" else { return nil }
+        return URL(fileURLWithPath: cwd, isDirectory: true)
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
