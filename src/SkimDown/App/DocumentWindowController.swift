@@ -195,7 +195,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Side
 
         window?.title = "\(canonicalFile.lastPathComponent) \u{2014} SkimDown"
 
-        savedSidebarVisible = settings.isSidebarVisible
+        savedSidebarVisible = savedSidebarVisible ?? settings.isSidebarVisible
         settings.isSidebarVisible = false
         sidebarItem.isCollapsed = true
 
