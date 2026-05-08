@@ -22,6 +22,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Side
     private var fileWatcher = FileWatcher()
     private var settings: AppSettings
     private(set) var currentFolderBookmarkData: Data?
+    private var isSingleFileMode = false
     private var scrollPositions: [URL: Double] = [:]
     private var isInitialLayoutComplete = false
 
@@ -35,6 +36,10 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Side
 
     var isEmpty: Bool {
         session == nil
+    }
+
+    var isSingleFile: Bool {
+        isSingleFileMode
     }
 
     var selectedFileURL: URL? {
@@ -89,11 +94,20 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Side
         contentRootView.onFolderDropped = { [weak self] folderURL in
             self?.handleDroppedFolder(folderURL)
         }
+        contentRootView.onFileDropped = { [weak self] fileURL in
+            self?.handleDroppedFile(fileURL)
+        }
         sidebarViewController.onFolderDropped = { [weak self] folderURL in
             self?.handleDroppedFolder(folderURL)
         }
+        sidebarViewController.onFileDropped = { [weak self] fileURL in
+            self?.handleDroppedFile(fileURL)
+        }
         dragOverlayView.onFolderDropped = { [weak self] folderURL in
             self?.handleDroppedFolder(folderURL)
+        }
+        dragOverlayView.onFileDropped = { [weak self] fileURL in
+            self?.handleDroppedFile(fileURL)
         }
 
         applyWindowAppearance(settings.theme)
@@ -147,6 +161,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Side
     }
 
     func openFolder(_ folderURL: URL, bookmarkData: Data? = nil) {
+        isSingleFileMode = false
         do {
             let bookmark = try bookmarkData ?? bookmarkStore.bookmarkData(for: folderURL)
             settingsStore.recordRecentFolderBookmark(bookmark)
@@ -156,6 +171,34 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Side
         } catch {
             showOpenError(error)
         }
+    }
+
+    func openFile(_ fileURL: URL) {
+        isSingleFileMode = true
+        currentFolderBookmarkData = nil
+        scrollPositions.removeAll()
+
+        let parentURL = fileURL.deletingLastPathComponent()
+        let canonicalFile = fileURL.skimdownCanonicalFileURL
+        session = FolderSession(
+            folderURL: parentURL,
+            treeItems: [],
+            markdownFiles: [canonicalFile],
+            selectedFileURL: canonicalFile
+        )
+
+        window?.title = "\(fileURL.lastPathComponent) \u{2014} SkimDown"
+
+        sidebarItem.isCollapsed = true
+
+        performSelectFile(
+            fileURL,
+            anchor: nil,
+            preserveScrollPosition: false,
+            isDifferentFile: true
+        )
+
+        startWatching(folderURL: parentURL)
     }
 
     func requestFolderSelectionForThisWindow() {
@@ -508,6 +551,11 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Side
             return
         }
 
+        if isSingleFileMode {
+            reloadSingleFileAfterChange()
+            return
+        }
+
         let previousSelection = session.selectedFileURL
         let folderURL = session.folderURL
         do {
@@ -651,10 +699,33 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Side
     }
 
     private func handleDroppedFolder(_ folderURL: URL) {
-        if isEmpty || session?.markdownFiles.isEmpty == true {
+        if isEmpty || isSingleFileMode || session?.markdownFiles.isEmpty == true {
+            isSingleFileMode = false
             openFolder(folderURL)
         } else {
             windowManager?.openFolder(folderURL, preferExistingEmptyWindow: false)
+        }
+    }
+
+    private func handleDroppedFile(_ fileURL: URL) {
+        if isEmpty || isSingleFileMode {
+            openFile(fileURL)
+        } else {
+            windowManager?.openFile(fileURL, preferExistingEmptyWindow: false)
+        }
+    }
+
+    private func reloadSingleFileAfterChange() {
+        guard let session, let fileURL = session.selectedFileURL else {
+            return
+        }
+
+        if FileManager.default.fileExists(atPath: fileURL.path) {
+            selectFile(fileURL, anchor: nil, preserveScrollPosition: true)
+        } else {
+            session.selectedFileURL = nil
+            session.markdownFiles = []
+            showEmptyState(.noMarkdown)
         }
     }
 

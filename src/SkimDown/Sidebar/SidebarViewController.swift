@@ -10,6 +10,7 @@ protocol SidebarViewControllerDelegate: AnyObject {
 final class SidebarViewController: NSViewController, NSOutlineViewDataSource, NSOutlineViewDelegate {
     weak var delegate: SidebarViewControllerDelegate?
     var onFolderDropped: ((URL) -> Void)?
+    var onFileDropped: ((URL) -> Void)?
 
     private let titleLabel = NSTextField(labelWithString: "")
     private let countLabel = NSTextField(labelWithString: "")
@@ -29,6 +30,9 @@ final class SidebarViewController: NSViewController, NSOutlineViewDataSource, NS
         rootView.state = .active
         rootView.onFolderDropped = { [weak self] url in
             self?.onFolderDropped?(url)
+        }
+        rootView.onFileDropped = { [weak self] url in
+            self?.onFileDropped?(url)
         }
         view = rootView
 

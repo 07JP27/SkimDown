@@ -11,4 +11,19 @@ extension NSPasteboard {
             return FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory) && isDirectory.boolValue
         }
     }
+
+    var skimdownMarkdownFileURL: URL? {
+        guard let urls = readObjects(forClasses: [NSURL.self], options: [.urlReadingFileURLsOnly: true]) as? [URL] else {
+            return nil
+        }
+
+        return urls.first { url in
+            var isDirectory: ObjCBool = false
+            guard FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory),
+                  !isDirectory.boolValue else {
+                return false
+            }
+            return url.skimdownIsMarkdownFile
+        }
+    }
 }

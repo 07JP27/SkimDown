@@ -10,6 +10,7 @@ import AppKit
 @MainActor
 final class DragOverlayView: NSView {
     var onFolderDropped: ((URL) -> Void)?
+    var onFileDropped: ((URL) -> Void)?
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
@@ -24,12 +25,19 @@ final class DragOverlayView: NSView {
         nil
     }
 
+    private func dragOperation(for pasteboard: NSPasteboard) -> NSDragOperation {
+        if pasteboard.skimdownFolderURL != nil || pasteboard.skimdownMarkdownFileURL != nil {
+            return .copy
+        }
+        return []
+    }
+
     override func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation {
-        sender.draggingPasteboard.skimdownFolderURL == nil ? [] : .copy
+        dragOperation(for: sender.draggingPasteboard)
     }
 
     override func draggingUpdated(_ sender: NSDraggingInfo) -> NSDragOperation {
-        sender.draggingPasteboard.skimdownFolderURL == nil ? [] : .copy
+        dragOperation(for: sender.draggingPasteboard)
     }
 
     override func draggingExited(_ sender: NSDraggingInfo?) {
@@ -37,10 +45,15 @@ final class DragOverlayView: NSView {
     }
 
     override func performDragOperation(_ sender: NSDraggingInfo) -> Bool {
-        guard let url = sender.draggingPasteboard.skimdownFolderURL else {
-            return false
+        let pasteboard = sender.draggingPasteboard
+        if let folderURL = pasteboard.skimdownFolderURL {
+            onFolderDropped?(folderURL)
+            return true
         }
-        onFolderDropped?(url)
-        return true
+        if let fileURL = pasteboard.skimdownMarkdownFileURL {
+            onFileDropped?(fileURL)
+            return true
+        }
+        return false
     }
 }
