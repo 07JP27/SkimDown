@@ -18,7 +18,7 @@ If a window already has a folder open and you drop a Markdown file onto it, Skim
 
 - The sidebar is hidden and cannot be toggled.
 - The window title shows the file name.
-- Relative links and images that stay inside the file's parent directory are resolved normally.
+- Relative image paths and asset links that stay inside the file's parent directory are resolved normally. Links to other Markdown files are not followed — use folder mode for multi-file navigation.
 - Live reload watches for changes to the file and refreshes the preview automatically.
 - Dropping a folder onto a single-file window switches it to folder mode.
 

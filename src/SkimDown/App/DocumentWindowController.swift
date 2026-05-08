@@ -23,6 +23,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Side
     private var settings: AppSettings
     private(set) var currentFolderBookmarkData: Data?
     private var isSingleFileMode = false
+    private var savedSidebarVisible: Bool?
     private var scrollPositions: [URL: Double] = [:]
     private var isInitialLayoutComplete = false
 
@@ -162,6 +163,11 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Side
 
     func openFolder(_ folderURL: URL, bookmarkData: Data? = nil) {
         isSingleFileMode = false
+        if let saved = savedSidebarVisible {
+            settings.isSidebarVisible = saved
+            settingsStore.isSidebarVisible = saved
+            savedSidebarVisible = nil
+        }
         do {
             let bookmark = try bookmarkData ?? bookmarkStore.bookmarkData(for: folderURL)
             settingsStore.recordRecentFolderBookmark(bookmark)
@@ -178,8 +184,8 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Side
         currentFolderBookmarkData = nil
         scrollPositions.removeAll()
 
-        let parentURL = fileURL.deletingLastPathComponent()
         let canonicalFile = fileURL.skimdownCanonicalFileURL
+        let parentURL = canonicalFile.deletingLastPathComponent()
         session = FolderSession(
             folderURL: parentURL,
             treeItems: [],
@@ -187,12 +193,14 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Side
             selectedFileURL: canonicalFile
         )
 
-        window?.title = "\(fileURL.lastPathComponent) \u{2014} SkimDown"
+        window?.title = "\(canonicalFile.lastPathComponent) \u{2014} SkimDown"
 
+        savedSidebarVisible = settings.isSidebarVisible
+        settings.isSidebarVisible = false
         sidebarItem.isCollapsed = true
 
         performSelectFile(
-            fileURL,
+            canonicalFile,
             anchor: nil,
             preserveScrollPosition: false,
             isDifferentFile: true
