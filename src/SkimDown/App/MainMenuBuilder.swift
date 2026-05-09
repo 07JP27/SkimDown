@@ -19,6 +19,9 @@ enum MainMenuBuilder {
         fileMenuItem.submenu = fileMenu
         fileMenu.addItem(menuItem("New Window", action: #selector(AppDelegate.newWindow(_:)), key: "n", target: target))
         fileMenu.addItem(menuItem("Open Folder...", action: #selector(AppDelegate.openFolder(_:)), key: "o", target: target))
+        let openFileItem = menuItem("Open File...", action: #selector(AppDelegate.openFile(_:)), key: "O", target: target)
+        openFileItem.keyEquivalentModifierMask = [.command, .shift]
+        fileMenu.addItem(openFileItem)
 
         let openRecent = NSMenuItem(title: "Open Recent", action: nil, keyEquivalent: "")
         let openRecentMenu = NSMenu(title: "Open Recent")

@@ -1,4 +1,5 @@
 import AppKit
+import UniformTypeIdentifiers
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenuItemValidation {
@@ -11,10 +12,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         NSApp.setActivationPolicy(.regular)
         NSApp.mainMenu = MainMenuBuilder.build(target: self)
 
-        if let folderURL = Self.folderURLFromArguments() {
+        if let fileURL = Self.fileURLFromArguments() {
+            windowManager.openFile(fileURL)
+        } else if let folderURL = Self.folderURLFromArguments() {
             windowManager.openFolder(folderURL)
         } else {
             windowManager.restoreOrCreateInitialWindow()
+        }
+    }
+
+    func application(_ sender: NSApplication, open urls: [URL]) {
+        var isFirstFile = true
+        for url in urls {
+            var isDirectory: ObjCBool = false
+            guard FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory) else {
+                continue
+            }
+            if isDirectory.boolValue {
+                windowManager.openFolder(url)
+            } else if url.skimdownIsMarkdownFile {
+                windowManager.openFile(url, preferExistingEmptyWindow: isFirstFile)
+                isFirstFile = false
+            }
         }
     }
 
@@ -41,6 +60,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         let cwd = FileManager.default.currentDirectoryPath
         guard cwd != "/" else { return nil }
         return URL(fileURLWithPath: cwd, isDirectory: true)
+    }
+
+    /// Returns a markdown file URL from command-line arguments, if the first
+    /// argument after the executable is a path to a markdown file.
+    private static func fileURLFromArguments() -> URL? {
+        let args = CommandLine.arguments
+        guard args.count > 1 else {
+            return nil
+        }
+        let path = (args[1] as NSString).standardizingPath
+        var isDirectory: ObjCBool = false
+        guard FileManager.default.fileExists(atPath: path, isDirectory: &isDirectory),
+              !isDirectory.boolValue else {
+            return nil
+        }
+        let url = URL(fileURLWithPath: path, isDirectory: false)
+        return url.skimdownIsMarkdownFile ? url : nil
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
@@ -95,10 +131,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
             return controller?.selectedFileURL != nil
         case #selector(copy(_:)), #selector(selectAll(_:)), #selector(showFind(_:)), #selector(findNext(_:)), #selector(findPrevious(_:)), #selector(useSelectionForFind(_:)):
             return controller?.selectedFileURL != nil
-        case #selector(toggleSidebar(_:)), #selector(zoomIn(_:)), #selector(zoomOut(_:)), #selector(actualSize(_:)), #selector(themeSystem(_:)), #selector(themeLight(_:)), #selector(themeDark(_:)):
-            return controller != nil
+        case #selector(toggleSidebar(_:)):
+            return controller != nil && !controller!.isSingleFile
         case #selector(swapSidebarPosition(_:)):
             menuItem.title = controller?.sidebarPosition == .right ? "Move Sidebar to Left" : "Move Sidebar to Right"
+            return controller != nil && !controller!.isSingleFile
+        case #selector(zoomIn(_:)), #selector(zoomOut(_:)), #selector(actualSize(_:)), #selector(themeSystem(_:)), #selector(themeLight(_:)), #selector(themeDark(_:)):
             return controller != nil
         default:
             return true
@@ -121,6 +159,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
             }
             Task { @MainActor in
                 self?.windowManager.openFolder(url)
+            }
+        }
+    }
+
+    @objc func openFile(_ sender: Any?) {
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = false
+        panel.allowedContentTypes = [
+            UTType(filenameExtension: "md"),
+            UTType(filenameExtension: "markdown")
+        ].compactMap { $0 }
+        panel.prompt = "Open File"
+        panel.begin { [weak self] response in
+            guard response == .OK, let url = panel.url else {
+                return
+            }
+            Task { @MainActor in
+                self?.windowManager.openFile(url)
             }
         }
     }

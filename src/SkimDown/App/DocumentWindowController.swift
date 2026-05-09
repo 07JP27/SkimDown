@@ -22,6 +22,8 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Side
     private var fileWatcher = FileWatcher()
     private var settings: AppSettings
     private(set) var currentFolderBookmarkData: Data?
+    private var isSingleFileMode = false
+    private var savedSidebarVisible: Bool?
     private var scrollPositions: [URL: Double] = [:]
     private var isInitialLayoutComplete = false
 
@@ -35,6 +37,10 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Side
 
     var isEmpty: Bool {
         session == nil
+    }
+
+    var isSingleFile: Bool {
+        isSingleFileMode
     }
 
     var selectedFileURL: URL? {
@@ -89,11 +95,20 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Side
         contentRootView.onFolderDropped = { [weak self] folderURL in
             self?.handleDroppedFolder(folderURL)
         }
+        contentRootView.onFileDropped = { [weak self] fileURL in
+            self?.handleDroppedFile(fileURL)
+        }
         sidebarViewController.onFolderDropped = { [weak self] folderURL in
             self?.handleDroppedFolder(folderURL)
         }
+        sidebarViewController.onFileDropped = { [weak self] fileURL in
+            self?.handleDroppedFile(fileURL)
+        }
         dragOverlayView.onFolderDropped = { [weak self] folderURL in
             self?.handleDroppedFolder(folderURL)
+        }
+        dragOverlayView.onFileDropped = { [weak self] fileURL in
+            self?.handleDroppedFile(fileURL)
         }
 
         applyWindowAppearance(settings.theme)
@@ -151,11 +166,47 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Side
             let bookmark = try bookmarkData ?? bookmarkStore.bookmarkData(for: folderURL)
             settingsStore.recordRecentFolderBookmark(bookmark)
             try loadFolder(folderURL: folderURL, preferredSelection: nil)
+            isSingleFileMode = false
+            if let saved = savedSidebarVisible {
+                settings.isSidebarVisible = saved
+                settingsStore.isSidebarVisible = saved
+                savedSidebarVisible = nil
+            }
             currentFolderBookmarkData = bookmark
             windowManager?.persistOpenFolderState()
         } catch {
             showOpenError(error)
         }
+    }
+
+    func openFile(_ fileURL: URL) {
+        isSingleFileMode = true
+        currentFolderBookmarkData = nil
+        scrollPositions.removeAll()
+
+        let canonicalFile = fileURL.skimdownCanonicalFileURL
+        let parentURL = canonicalFile.deletingLastPathComponent()
+        session = FolderSession(
+            folderURL: parentURL,
+            treeItems: [],
+            markdownFiles: [canonicalFile],
+            selectedFileURL: canonicalFile
+        )
+
+        window?.title = "\(canonicalFile.lastPathComponent) \u{2014} SkimDown"
+
+        savedSidebarVisible = savedSidebarVisible ?? settings.isSidebarVisible
+        settings.isSidebarVisible = false
+        sidebarItem.isCollapsed = true
+
+        performSelectFile(
+            canonicalFile,
+            anchor: nil,
+            preserveScrollPosition: false,
+            isDifferentFile: true
+        )
+
+        startWatching(folderURL: parentURL)
     }
 
     func requestFolderSelectionForThisWindow() {
@@ -499,12 +550,18 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Side
                 self?.reloadFolderAfterChange()
             }
         } catch {
-            showOpenError(error)
+            let title = isSingleFileMode ? "Could not start live reload" : "Could not open folder"
+            showOpenError(error, title: title)
         }
     }
 
     private func reloadFolderAfterChange() {
         guard let session else {
+            return
+        }
+
+        if isSingleFileMode {
+            reloadSingleFileAfterChange()
             return
         }
 
@@ -651,10 +708,32 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Side
     }
 
     private func handleDroppedFolder(_ folderURL: URL) {
-        if isEmpty || session?.markdownFiles.isEmpty == true {
+        if isEmpty || isSingleFileMode || session?.markdownFiles.isEmpty == true {
             openFolder(folderURL)
         } else {
             windowManager?.openFolder(folderURL, preferExistingEmptyWindow: false)
+        }
+    }
+
+    private func handleDroppedFile(_ fileURL: URL) {
+        if isEmpty || isSingleFileMode {
+            openFile(fileURL)
+        } else {
+            windowManager?.openFile(fileURL, preferExistingEmptyWindow: false)
+        }
+    }
+
+    private func reloadSingleFileAfterChange() {
+        guard let session, let fileURL = session.selectedFileURL else {
+            return
+        }
+
+        if FileManager.default.fileExists(atPath: fileURL.path) {
+            selectFile(fileURL, anchor: nil, preserveScrollPosition: true)
+        } else {
+            session.selectedFileURL = nil
+            session.markdownFiles = []
+            showEmptyState(.noMarkdown)
         }
     }
 
@@ -669,9 +748,9 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Side
         }
     }
 
-    private func showOpenError(_ error: Error) {
+    private func showOpenError(_ error: Error, title: String = "Could not open folder") {
         let alert = NSAlert()
-        alert.messageText = "Could not open folder"
+        alert.messageText = title
         alert.informativeText = error.localizedDescription
         alert.alertStyle = .warning
         if let window {

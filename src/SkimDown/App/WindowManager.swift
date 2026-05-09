@@ -90,6 +90,16 @@ final class WindowManager {
         target.openFolder(folderURL)
     }
 
+    func openFile(_ fileURL: URL, preferExistingEmptyWindow: Bool = true) {
+        let target: DocumentWindowController
+        if preferExistingEmptyWindow, let activeController, activeController.isEmpty || activeController.isSingleFile {
+            target = activeController
+        } else {
+            target = createWindow()
+        }
+        target.openFile(fileURL)
+    }
+
     func openBookmarkData(_ bookmarkData: Data) {
         do {
             let url = try bookmarkStore.resolveBookmarkData(bookmarkData)
