@@ -162,16 +162,16 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Side
     }
 
     func openFolder(_ folderURL: URL, bookmarkData: Data? = nil) {
-        isSingleFileMode = false
-        if let saved = savedSidebarVisible {
-            settings.isSidebarVisible = saved
-            settingsStore.isSidebarVisible = saved
-            savedSidebarVisible = nil
-        }
         do {
             let bookmark = try bookmarkData ?? bookmarkStore.bookmarkData(for: folderURL)
             settingsStore.recordRecentFolderBookmark(bookmark)
             try loadFolder(folderURL: folderURL, preferredSelection: nil)
+            isSingleFileMode = false
+            if let saved = savedSidebarVisible {
+                settings.isSidebarVisible = saved
+                settingsStore.isSidebarVisible = saved
+                savedSidebarVisible = nil
+            }
             currentFolderBookmarkData = bookmark
             windowManager?.persistOpenFolderState()
         } catch {
@@ -709,7 +709,6 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Side
 
     private func handleDroppedFolder(_ folderURL: URL) {
         if isEmpty || isSingleFileMode || session?.markdownFiles.isEmpty == true {
-            isSingleFileMode = false
             openFolder(folderURL)
         } else {
             windowManager?.openFolder(folderURL, preferExistingEmptyWindow: false)
