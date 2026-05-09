@@ -550,7 +550,8 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Side
                 self?.reloadFolderAfterChange()
             }
         } catch {
-            showOpenError(error)
+            let title = isSingleFileMode ? "Could not start live reload" : "Could not open folder"
+            showOpenError(error, title: title)
         }
     }
 
@@ -748,9 +749,9 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Side
         }
     }
 
-    private func showOpenError(_ error: Error) {
+    private func showOpenError(_ error: Error, title: String = "Could not open folder") {
         let alert = NSAlert()
-        alert.messageText = "Could not open folder"
+        alert.messageText = title
         alert.informativeText = error.localizedDescription
         alert.alertStyle = .warning
         if let window {

@@ -22,9 +22,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
     }
 
     func application(_ sender: NSApplication, open urls: [URL]) {
-        let markdownURLs = urls.filter { $0.skimdownIsMarkdownFile }
-        for (index, url) in markdownURLs.enumerated() {
-            windowManager.openFile(url, preferExistingEmptyWindow: index == 0)
+        var isFirstFile = true
+        for url in urls {
+            var isDirectory: ObjCBool = false
+            guard FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory) else {
+                continue
+            }
+            if isDirectory.boolValue {
+                windowManager.openFolder(url)
+            } else if url.skimdownIsMarkdownFile {
+                windowManager.openFile(url, preferExistingEmptyWindow: isFirstFile)
+                isFirstFile = false
+            }
         }
     }
 
