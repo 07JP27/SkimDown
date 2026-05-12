@@ -32,6 +32,10 @@
       if (window.markdownitFootnote) {
         markdownIt.use(window.markdownitFootnote);
       }
+
+      if (window.markdownitImsize || window["markdown-it-imsize.js"]) {
+        markdownIt.use(window.markdownitImsize || window["markdown-it-imsize.js"]);
+      }
     }
     return markdownIt;
   }
@@ -140,6 +144,7 @@
   function normalizeLinksAndImages(content, payload) {
     const baseURL = payload.baseURL || document.baseURI;
     const rootURL = payload.rootURL || "";
+    const localFileScheme = payload.localFileScheme || "skimdown-local";
 
     content.querySelectorAll("a[href]").forEach(function (link) {
       const href = link.getAttribute("href");
@@ -160,8 +165,12 @@
       }
       try {
         const resolved = new URL(src, baseURL);
-        if (resolved.protocol === "file:" && rootURL && !resolved.href.startsWith(rootURL)) {
-          image.removeAttribute("src");
+        if (resolved.protocol === "file:") {
+          if (rootURL && !resolved.href.startsWith(rootURL)) {
+            image.removeAttribute("src");
+          } else {
+            image.setAttribute("src", localFileScheme + "://" + resolved.pathname);
+          }
         }
       } catch (_) {
         image.removeAttribute("src");

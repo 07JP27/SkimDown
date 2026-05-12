@@ -33,6 +33,10 @@ Auto-link: https://github.com/07JP27/SkimDown
 
 ![Octocat](https://github.githubassets.com/images/icons/emoji/octocat.png)
 
+### Local Image (Relative Path)
+
+![SkimDown Icon](../../images/skimdown-icon.png =627x627)
+
 ### Image with Title
 
 ![GitHub Logo](https://github.githubassets.com/favicons/favicon.svg "GitHub Logo")
