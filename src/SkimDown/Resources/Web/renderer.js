@@ -36,6 +36,37 @@
       if (window.markdownitImsize || window["markdown-it-imsize.js"]) {
         markdownIt.use(window.markdownitImsize || window["markdown-it-imsize.js"]);
       }
+
+      // Single-tilde strikethrough (~text~) — GitHub extension not in GFM spec.
+      markdownIt.inline.ruler.after("strikethrough", "single_tilde_strikethrough", function (state, silent) {
+        var src = state.src;
+        var pos = state.pos;
+        if (src.charCodeAt(pos) !== 0x7E) { return false; }
+        // Must be single ~, not ~~
+        if (pos + 1 < src.length && src.charCodeAt(pos + 1) === 0x7E) { return false; }
+        var end = src.indexOf("~", pos + 1);
+        if (end < 0) { return false; }
+        // Closing ~ must also be single (not adjacent to another ~)
+        if (end + 1 < src.length && src.charCodeAt(end + 1) === 0x7E) { return false; }
+        if (end > 0 && src.charCodeAt(end - 1) === 0x7E) { return false; }
+        // No empty content, no newlines
+        var inner = src.slice(pos + 1, end);
+        if (!inner.trim() || inner.indexOf("\n") >= 0) { return false; }
+        if (!silent) {
+          var token = state.push("s_open", "s", 1);
+          token.markup = "~";
+          var tokenInner = state.push("text", "", 0);
+          tokenInner.content = inner;
+          var tokenClose = state.push("s_close", "s", -1);
+          tokenClose.markup = "~";
+        }
+        state.pos = end + 1;
+        return true;
+      });
+
+      if (window.markdownitEmoji) {
+        markdownIt.use(window.markdownitEmoji);
+      }
     }
     return markdownIt;
   }
@@ -49,6 +80,68 @@
       .replace(/'/g, "&#39;");
   }
 
+  function preprocessMath(md) {
+    // Convert GitHub's $`…`$ backtick-math variant to standard \(…\) before
+    // markdown-it turns the backticks into <code> elements.
+    // Skip content inside fenced code blocks and inline code spans.
+    var result = "";
+    var i = 0;
+    var len = md.length;
+    while (i < len) {
+      // Skip fenced code blocks (``` or ~~~)
+      if ((md[i] === "`" || md[i] === "~") && (i === 0 || md[i - 1] === "\n")) {
+        var fence = md[i];
+        var fenceStart = i;
+        var fenceLen = 0;
+        while (i < len && md[i] === fence) { fenceLen++; i++; }
+        if (fenceLen >= 3) {
+          result += md.slice(fenceStart, i);
+          // Skip to closing fence
+          var closePattern = "\n" + fence.repeat(fenceLen);
+          var closeIdx = md.indexOf(closePattern, i);
+          if (closeIdx >= 0) {
+            var endOfClose = closeIdx + closePattern.length;
+            while (endOfClose < len && md[endOfClose] === fence) { endOfClose++; }
+            result += md.slice(i, endOfClose);
+            i = endOfClose;
+          } else {
+            result += md.slice(i);
+            i = len;
+          }
+          continue;
+        }
+        i = fenceStart;
+      }
+      // Skip inline code spans
+      if (md[i] === "`") {
+        var tickStart = i;
+        var tickCount = 0;
+        while (i < len && md[i] === "`") { tickCount++; i++; }
+        var closeTickIdx = md.indexOf("`".repeat(tickCount), i);
+        if (closeTickIdx >= 0) {
+          result += md.slice(tickStart, closeTickIdx + tickCount);
+          i = closeTickIdx + tickCount;
+        } else {
+          result += md.slice(tickStart, i);
+        }
+        continue;
+      }
+      // Match $`…`$ pattern
+      if (md[i] === "$" && i + 1 < len && md[i + 1] === "`") {
+        var closeBacktick = md.indexOf("`$", i + 2);
+        if (closeBacktick >= 0 && md.slice(i + 2, closeBacktick).indexOf("\n") < 0) {
+          var inner = md.slice(i + 2, closeBacktick);
+          result += "\\(" + inner + "\\)";
+          i = closeBacktick + 2;
+          continue;
+        }
+      }
+      result += md[i];
+      i++;
+    }
+    return result;
+  }
+
   function render(payload) {
     const restoreScrollY = Number(payload.restoreScrollY) || 0;
     if (restoreScrollY > 0) {
@@ -58,18 +151,21 @@
     document.documentElement.style.setProperty("--skimdown-font-size", String(payload.fontSize || 16) + "px");
 
     const content = document.getElementById("content");
-    const dirtyHtml = renderer().render(payload.markdown || "");
+    const markdown = preprocessMath(payload.markdown || "");
+    const dirtyHtml = renderer().render(markdown);
     content.innerHTML = window.DOMPurify.sanitize(dirtyHtml, {
       FORBID_TAGS: ["script", "iframe", "object", "embed", "style"],
       ALLOW_DATA_ATTR: false
     });
 
+    convertAlerts(content);
     normalizeTaskLists(content);
     normalizeLinksAndImages(content, payload);
     wrapTables(content);
     initializeTableScrollCues(content);
     const mermaidTasks = renderMermaidBlocks(content, payload);
     decorateCodeBlocks(content);
+    convertMathBlocks(content);
     renderMath(content);
     clearSearch();
 
@@ -117,6 +213,66 @@
     window.addEventListener("touchstart", onInteract, { capture: true, once: true, passive: true });
     window.addEventListener("keydown", onInteract, { capture: true, once: true });
     window.addEventListener("mousedown", onInteract, { capture: true, once: true });
+  }
+
+  var ALERT_TYPES = {
+    NOTE:      { icon: "ℹ", label: "Note" },
+    TIP:       { icon: "💡", label: "Tip" },
+    IMPORTANT: { icon: "❗", label: "Important" },
+    WARNING:   { icon: "⚠️", label: "Warning" },
+    CAUTION:   { icon: "🔴", label: "Caution" }
+  };
+
+  function convertAlerts(content) {
+    content.querySelectorAll("blockquote").forEach(function (bq) {
+      var firstP = bq.firstElementChild;
+      if (!firstP || firstP.tagName !== "P") {
+        return;
+      }
+      var firstNode = firstP.firstChild;
+      if (!firstNode) {
+        return;
+      }
+      // The alert marker may be in the first text node: "[!TYPE]" or "[!TYPE]\n..."
+      var text = "";
+      if (firstNode.nodeType === Node.TEXT_NODE) {
+        text = firstNode.nodeValue;
+      } else if (firstNode.nodeType === Node.ELEMENT_NODE && firstNode.tagName === "BR") {
+        // markdown-it may render the line break as <br>, check previous sibling or combined text
+        return;
+      } else {
+        return;
+      }
+
+      var match = text.match(/^\[!(\w+)\]\s*/);
+      if (!match) {
+        return;
+      }
+      var typeKey = match[1].toUpperCase();
+      var alertDef = ALERT_TYPES[typeKey];
+      if (!alertDef) {
+        return;
+      }
+
+      // Remove the marker text from the first text node
+      firstNode.nodeValue = text.slice(match[0].length);
+      // If the text node is now empty, remove it
+      if (firstNode.nodeValue === "") {
+        firstP.removeChild(firstNode);
+      }
+      // If the <p> is now empty, remove it entirely
+      if (firstP.childNodes.length === 0) {
+        bq.removeChild(firstP);
+      }
+
+      // Build the alert title element
+      var title = document.createElement("p");
+      title.className = "skimdown-alert-title";
+      title.textContent = alertDef.icon + " " + alertDef.label;
+      bq.insertBefore(title, bq.firstChild);
+
+      bq.classList.add("skimdown-alert", "skimdown-alert-" + typeKey.toLowerCase());
+    });
   }
 
   function normalizeTaskLists(content) {
@@ -585,6 +741,16 @@
     });
     toolbar.appendChild(button);
     pre.appendChild(toolbar);
+  }
+
+  function convertMathBlocks(content) {
+    content.querySelectorAll("pre > code.language-math").forEach(function (code) {
+      var pre = code.parentElement;
+      var mathDiv = document.createElement("div");
+      mathDiv.className = "skimdown-math-block";
+      mathDiv.textContent = "$$" + code.textContent + "$$";
+      pre.replaceWith(mathDiv);
+    });
   }
 
   function renderMath(content) {

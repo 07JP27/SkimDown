@@ -405,6 +405,7 @@ final class MarkdownWebView: NSView, WKScriptMessageHandler, WKNavigationDelegat
             try readWebResource("vendor/markdown-it/markdown-it.min.js"),
             try readWebResource("vendor/markdown-it-footnote/markdown-it-footnote.min.js"),
             try readWebResource("vendor/markdown-it-imsize/markdown-it-imsize.min.js"),
+            try readWebResource("vendor/markdown-it-emoji/markdown-it-emoji.min.js"),
             try readWebResource("vendor/dompurify/purify.min.js"),
             try readWebResource("vendor/katex/katex.min.js"),
             try readWebResource("vendor/katex/auto-render.min.js"),
