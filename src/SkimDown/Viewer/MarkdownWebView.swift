@@ -65,6 +65,7 @@ final class MarkdownWebView: NSView, WKScriptMessageHandler, WKNavigationDelegat
     }
 
     private let webView: WKWebView
+    private let localFileSchemeHandler = LocalFileSchemeHandler()
     private var renderGeneration = 0
     private var pendingNavigation: PendingNavigation?
     private var observedScrollY: Double?
@@ -74,6 +75,7 @@ final class MarkdownWebView: NSView, WKScriptMessageHandler, WKNavigationDelegat
         let userContentController = WKUserContentController()
         configuration.userContentController = userContentController
         configuration.preferences.javaScriptCanOpenWindowsAutomatically = false
+        configuration.setURLSchemeHandler(localFileSchemeHandler, forURLScheme: LocalFileSchemeHandler.scheme)
 
         webView = WKWebView(frame: .zero, configuration: configuration)
         super.init(frame: frameRect)
@@ -118,6 +120,7 @@ final class MarkdownWebView: NSView, WKScriptMessageHandler, WKNavigationDelegat
     ) {
         let generation = advanceRenderGeneration()
         applyNativeAppearance(theme)
+        localFileSchemeHandler.rootFolderURL = rootFolderURL
 
         let baseURL = currentFileURL.deletingLastPathComponent()
 

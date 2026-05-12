@@ -160,8 +160,12 @@
       }
       try {
         const resolved = new URL(src, baseURL);
-        if (resolved.protocol === "file:" && rootURL && !resolved.href.startsWith(rootURL)) {
-          image.removeAttribute("src");
+        if (resolved.protocol === "file:") {
+          if (rootURL && !resolved.href.startsWith(rootURL)) {
+            image.removeAttribute("src");
+          } else {
+            image.setAttribute("src", "skimdown-local://" + resolved.pathname);
+          }
         }
       } catch (_) {
         image.removeAttribute("src");

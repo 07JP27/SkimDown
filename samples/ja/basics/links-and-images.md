@@ -33,6 +33,10 @@ SkimDown では Markdown ファイル間を相対パスでリンクできます:
 
 ![Octocat](https://github.githubassets.com/images/icons/emoji/octocat.png)
 
+### ローカル画像（相対パス）
+
+![SkimDown アイコン](../../images/skimdown-icon.png)
+
 ### タイトル付き画像
 
 ![GitHub Logo](https://github.githubassets.com/favicons/favicon.svg "GitHub のロゴ")
