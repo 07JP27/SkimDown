@@ -1,7 +1,5 @@
 # Preview
 
-The preview is rendered with `WKWebView` and bundled Web assets. Normal Markdown rendering does not depend on a CDN.
-
 ## Supported syntax
 
 SkimDown targets GitHub-Flavored-Markdown-like reading. Below is the full list of supported syntax, grouped by category.
@@ -65,8 +63,8 @@ Fenced code blocks with the `mermaid` language identifier are rendered as intera
 |---|---|
 | Footnotes | `[^label]` references with `[^label]: definition` |
 | HTML elements | `<details>`, `<summary>`, `<sub>`, `<sup>`, `<mark>`, `<kbd>` |
-| Image size | `![alt](url =WxH)` via markdown-it-imsize |
-| Syntax highlighting | Language-specific code coloring via highlight.js |
+| Image size | `![alt](url =WxH)` syntax for specifying dimensions |
+| Syntax highlighting | Language-specific code coloring for fenced code blocks |
 
 ## Themes and zoom
 
