@@ -443,6 +443,7 @@ final class MarkdownWebView: NSView, WKScriptMessageHandler, WKNavigationDelegat
             "markdown": markdown,
             "baseURL": baseURL.absoluteString,
             "rootURL": directoryURLString(for: rootURL),
+            "localFileScheme": LocalFileSchemeHandler.scheme,
             "theme": theme.rawValue,
             "fontSize": fontSize,
             "renderID": generation,

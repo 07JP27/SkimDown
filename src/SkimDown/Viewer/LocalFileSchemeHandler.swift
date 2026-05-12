@@ -14,13 +14,12 @@ final class LocalFileSchemeHandler: NSObject, WKURLSchemeHandler {
     }
 
     func webView(_ webView: WKWebView, start urlSchemeTask: any WKURLSchemeTask) {
-        let request = urlSchemeTask.request
-        guard let url = request.url,
-              let filePath = url.path.removingPercentEncoding.map({ $0 }) ?? Optional(url.path) else {
+        guard let url = urlSchemeTask.request.url else {
             urlSchemeTask.didFailWithError(URLError(.badURL))
             return
         }
 
+        let filePath = url.path.removingPercentEncoding ?? url.path
         let fileURL = URL(fileURLWithPath: filePath)
 
         guard let root = rootFolderURL,

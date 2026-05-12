@@ -144,6 +144,7 @@
   function normalizeLinksAndImages(content, payload) {
     const baseURL = payload.baseURL || document.baseURI;
     const rootURL = payload.rootURL || "";
+    const localFileScheme = payload.localFileScheme || "skimdown-local";
 
     content.querySelectorAll("a[href]").forEach(function (link) {
       const href = link.getAttribute("href");
@@ -168,7 +169,7 @@
           if (rootURL && !resolved.href.startsWith(rootURL)) {
             image.removeAttribute("src");
           } else {
-            image.setAttribute("src", "skimdown-local://" + resolved.pathname);
+            image.setAttribute("src", localFileScheme + "://" + resolved.pathname);
           }
         }
       } catch (_) {
