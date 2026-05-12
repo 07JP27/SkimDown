@@ -50,7 +50,7 @@ SkimDown targets GitHub-Flavored-Markdown-like reading. Below is the full list o
 | `$$…$$` | Block (display) | `$$\int_0^\infty …$$` |
 | `\(…\)` | Inline | `\(\sqrt{x}\)` |
 | `\[…\]` | Block (display) | `\[\int …\]` |
-| ` ```math ` fenced block | Block (display) | Fenced code block with `math` language |
+| `` ```math `` fenced block | Block (display) | Fenced code block with `math` language |
 | `` $`…`$ `` | Inline | `` $`\binom{n}{k}`$ `` |
 
 ### Mermaid diagrams
