@@ -65,7 +65,7 @@
       });
 
       if (window.markdownitEmoji) {
-        markdownIt.use(window.markdownitEmoji);
+        markdownIt.use(window.markdownitEmoji, { shortcuts: {} });
       }
     }
     return markdownIt;
@@ -80,84 +80,6 @@
       .replace(/'/g, "&#39;");
   }
 
-  function preprocessMath(md) {
-    // Convert GitHub's $`…`$ backtick-math variant to standard \(…\) before
-    // markdown-it turns the backticks into <code> elements.
-    // Skip content inside fenced code blocks and inline code spans.
-    var lines = md.split("\n");
-    var result = [];
-    var inFence = false;
-    var fenceChar = "";
-    var fenceLen = 0;
-
-    for (var li = 0; li < lines.length; li++) {
-      var line = lines[li];
-
-      if (inFence) {
-        // Check for closing fence: 0-3 leading spaces, fence char repeated >= fenceLen, optional trailing spaces
-        var closeMatch = line.match(/^( {0,3})((`{3,})|(~{3,}))\s*$/);
-        if (closeMatch) {
-          var closeFence = closeMatch[3] || closeMatch[4];
-          if (closeFence[0] === fenceChar && closeFence.length >= fenceLen) {
-            inFence = false;
-          }
-        }
-        result.push(line);
-        continue;
-      }
-
-      // Check for opening fence: 0-3 leading spaces, ``` or ~~~, then optional info string
-      var openMatch = line.match(/^( {0,3})((`{3,})|(~{3,}))/);
-      if (openMatch) {
-        var openFence = openMatch[3] || openMatch[4];
-        fenceChar = openFence[0];
-        fenceLen = openFence.length;
-        inFence = true;
-        result.push(line);
-        continue;
-      }
-
-      // Process $`…`$ outside fenced blocks, skipping inline code spans
-      result.push(preprocessMathLine(line));
-    }
-    return result.join("\n");
-  }
-
-  function preprocessMathLine(line) {
-    var out = "";
-    var i = 0;
-    var len = line.length;
-    while (i < len) {
-      // Skip inline code spans
-      if (line[i] === "`") {
-        var tickStart = i;
-        var tickCount = 0;
-        while (i < len && line[i] === "`") { tickCount++; i++; }
-        var closeTickIdx = line.indexOf("`".repeat(tickCount), i);
-        if (closeTickIdx >= 0) {
-          out += line.slice(tickStart, closeTickIdx + tickCount);
-          i = closeTickIdx + tickCount;
-        } else {
-          out += line.slice(tickStart, i);
-        }
-        continue;
-      }
-      // Match $`…`$ pattern
-      if (line[i] === "$" && i + 1 < len && line[i + 1] === "`") {
-        var closeBacktick = line.indexOf("`$", i + 2);
-        if (closeBacktick >= 0) {
-          var inner = line.slice(i + 2, closeBacktick);
-          out += "\\(" + inner + "\\)";
-          i = closeBacktick + 2;
-          continue;
-        }
-      }
-      out += line[i];
-      i++;
-    }
-    return out;
-  }
-
   function render(payload) {
     const restoreScrollY = Number(payload.restoreScrollY) || 0;
     if (restoreScrollY > 0) {
@@ -167,8 +89,7 @@
     document.documentElement.style.setProperty("--skimdown-font-size", String(payload.fontSize || 16) + "px");
 
     const content = document.getElementById("content");
-    const markdown = preprocessMath(payload.markdown || "");
-    const dirtyHtml = renderer().render(markdown);
+    const dirtyHtml = renderer().render(payload.markdown || "");
     content.innerHTML = window.DOMPurify.sanitize(dirtyHtml, {
       FORBID_TAGS: ["script", "iframe", "object", "embed", "style"],
       ALLOW_DATA_ATTR: false
@@ -181,6 +102,7 @@
     initializeTableScrollCues(content);
     const mermaidTasks = renderMermaidBlocks(content, payload);
     convertMathBlocks(content);
+    convertBacktickMath(content);
     decorateCodeBlocks(content);
     renderMath(content);
     clearSearch();
@@ -766,6 +688,30 @@
       mathDiv.className = "skimdown-math-block";
       mathDiv.textContent = "$$" + code.textContent + "$$";
       pre.replaceWith(mathDiv);
+    });
+  }
+
+  // Convert GitHub's $`…`$ backtick-math to inline math in the DOM.
+  // markdown-it renders $`…`$ as: text"$" + <code>…</code> + text"$".
+  // We find <code> elements preceded by "$" and followed by "$" and replace
+  // the three-node sequence with a KaTeX-ready text node.
+  function convertBacktickMath(content) {
+    // Only process inline <code> (not inside <pre> which are code blocks)
+    content.querySelectorAll("code").forEach(function (code) {
+      if (code.closest("pre")) { return; }
+      var prev = code.previousSibling;
+      var next = code.nextSibling;
+      if (!prev || prev.nodeType !== Node.TEXT_NODE) { return; }
+      if (!next || next.nodeType !== Node.TEXT_NODE) { return; }
+      if (!prev.nodeValue.endsWith("$")) { return; }
+      if (!next.nodeValue.startsWith("$")) { return; }
+      // Replace: strip trailing $ from prev, strip leading $ from next,
+      // and replace <code> with \(…\) text node for KaTeX
+      var mathText = "\\(" + code.textContent + "\\)";
+      prev.nodeValue = prev.nodeValue.slice(0, -1);
+      next.nodeValue = next.nodeValue.slice(1);
+      var mathNode = document.createTextNode(mathText);
+      code.replaceWith(mathNode);
     });
   }
 
