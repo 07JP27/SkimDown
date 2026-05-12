@@ -26,7 +26,7 @@ The samples cover:
 
 - **Basics** — headings, text formatting, links and images, lists
 - **Block elements** — blockquotes, code blocks, tables, horizontal rules
-- **Extended** — footnotes, math (KaTeX), diagrams (Mermaid), HTML elements
+- **Extended** — footnotes, math (KaTeX), diagrams (Mermaid), GitHub alerts, emoji shortcodes, HTML elements
 - **Miscellaneous** — deeply nested folders, an all-in-one file, and `.markdown` extension support
 
 To try them:

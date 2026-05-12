@@ -2,21 +2,71 @@
 
 The preview is rendered with `WKWebView` and bundled Web assets. Normal Markdown rendering does not depend on a CDN.
 
-## Supported Markdown
+## Supported syntax
 
-SkimDown targets GitHub-Flavored-Markdown-like reading:
+SkimDown targets GitHub-Flavored-Markdown-like reading. Below is the full list of supported syntax, grouped by category.
 
-- headings, paragraphs, emphasis, strikethrough
-- unordered, ordered, and task lists
-- code blocks and inline code
-- tables
-- blockquotes and horizontal rules
-- links and autolinks
-- local and external images
-- footnotes
-- KaTeX math
-- Mermaid diagrams
-- safe embedded HTML after sanitization
+### Basic Markdown (CommonMark)
+
+| Syntax | Example |
+|---|---|
+| Headings | `# H1` … `###### H6`, setext (`===` / `---`) |
+| Paragraphs | Blank line between paragraphs |
+| Bold | `**text**` or `__text__` |
+| Italic | `*text*` or `_text_` |
+| Bold + Italic | `***text***` |
+| Inline code | `` `code` `` |
+| Code blocks | Fenced (` ``` `) or indented (4 spaces) |
+| Links | `[text](url)`, `[text][ref]` |
+| Images | `![alt](url)` |
+| Unordered lists | `- item`, `* item`, `+ item` |
+| Ordered lists | `1. item` |
+| Blockquotes | `> text` |
+| Horizontal rules | `---`, `***`, `___` |
+| Hard line breaks | Two trailing spaces or `\` |
+| Backslash escapes | `\*`, `\[`, etc. |
+| HTML entities | `&amp;`, `&#x1F600;`, etc. |
+
+### GFM extensions
+
+| Syntax | Example |
+|---|---|
+| Tables | Pipe-separated with header row and alignment (`:---`, `:---:`, `---:`) |
+| Task lists | `- [x] Done`, `- [ ] Todo` |
+| Strikethrough | `~~text~~` |
+| Autolinks | Bare URLs, `www.` links, and email addresses |
+
+### GitHub-specific syntax
+
+| Syntax | Example |
+|---|---|
+| Alerts | `> [!NOTE]`, `> [!TIP]`, `> [!IMPORTANT]`, `> [!WARNING]`, `> [!CAUTION]` |
+| Emoji shortcodes | `:smile:`, `:+1:`, `:rocket:` |
+| Single-tilde strikethrough | `~text~` |
+
+### Math (KaTeX)
+
+| Form | Scope | Example |
+|---|---|---|
+| `$…$` | Inline | `$E = mc^2$` |
+| `$$…$$` | Block (display) | `$$\int_0^\infty …$$` |
+| `\(…\)` | Inline | `\(\sqrt{x}\)` |
+| `\[…\]` | Block (display) | `\[\int …\]` |
+| ` ```math ` | Block (display) | Fenced code block with `math` language |
+| `` $`…`$ `` | Inline | `` $`\binom{n}{k}`$ `` |
+
+### Mermaid diagrams
+
+Fenced code blocks with the `mermaid` language identifier are rendered as interactive diagrams. Supports flowcharts, sequence diagrams, class diagrams, Gantt charts, and more. Theme follows the app's light/dark setting. See [Mermaid diagrams](#mermaid-diagrams) below for zoom/pan details.
+
+### Other extensions
+
+| Feature | Description |
+|---|---|
+| Footnotes | `[^label]` references with `[^label]: definition` |
+| HTML elements | `<details>`, `<summary>`, `<sub>`, `<sup>`, `<mark>`, `<kbd>` |
+| Image size | `![alt](url =WxH)` via markdown-it-imsize |
+| Syntax highlighting | Language-specific code coloring via highlight.js |
 
 ## Themes and zoom
 
