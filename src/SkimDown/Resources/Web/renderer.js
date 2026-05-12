@@ -32,6 +32,10 @@
       if (window.markdownitFootnote) {
         markdownIt.use(window.markdownitFootnote);
       }
+
+      if (window.markdownitImsize || window["markdown-it-imsize.js"]) {
+        markdownIt.use(window.markdownitImsize || window["markdown-it-imsize.js"]);
+      }
     }
     return markdownIt;
   }
