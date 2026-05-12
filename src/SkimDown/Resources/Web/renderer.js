@@ -15,6 +15,9 @@
         linkify: true,
         typographer: false,
         highlight: function (code, language) {
+          if (language && language.toLowerCase() === "math") {
+            return escapeHtml(code);
+          }
           if (language && window.hljs && window.hljs.getLanguage(language)) {
             try {
               return window.hljs.highlight(code, { language: language }).value;
@@ -41,13 +44,21 @@
       markdownIt.inline.ruler.after("strikethrough", "single_tilde_strikethrough", function (state, silent) {
         var src = state.src;
         var pos = state.pos;
+        var max = state.posMax;
         if (src.charCodeAt(pos) !== 0x7E) { return false; }
         // Must be single ~, not ~~
-        if (pos + 1 < src.length && src.charCodeAt(pos + 1) === 0x7E) { return false; }
-        var end = src.indexOf("~", pos + 1);
-        if (end < 0) { return false; }
+        if (pos + 1 <= max && src.charCodeAt(pos + 1) === 0x7E) { return false; }
+        // Find closing ~ within the inline boundary
+        var end = pos + 1;
+        while (end <= max) {
+          var idx = src.indexOf("~", end);
+          if (idx < 0 || idx > max) { return false; }
+          end = idx;
+          break;
+        }
+        if (end <= pos + 1) { return false; }
         // Closing ~ must also be single (not adjacent to another ~)
-        if (end + 1 < src.length && src.charCodeAt(end + 1) === 0x7E) { return false; }
+        if (end + 1 <= max && src.charCodeAt(end + 1) === 0x7E) { return false; }
         if (end > 0 && src.charCodeAt(end - 1) === 0x7E) { return false; }
         // No empty content, no newlines
         var inner = src.slice(pos + 1, end);
