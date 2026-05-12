@@ -18,5 +18,5 @@ Use the Case checkbox in the search bar to toggle case-sensitive search. The set
 
 ## Scope
 
-Search is intentionally limited to the current Markdown file. File-name search and cross-file search are future extensions, not MVP features.
+Search is limited to the current Markdown file.
 

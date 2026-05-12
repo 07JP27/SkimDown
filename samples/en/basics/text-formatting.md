@@ -24,6 +24,12 @@ ___This is also bold and italic___ text.
 
 ~~Old information~~ → Updated with new information.
 
+## Single Tilde Strikethrough
+
+~Single tilde strikethrough~ also works, just like on GitHub.
+
+~Old text~ → New text. This is a GitHub-specific extension.
+
 ## Inline Code
 
 Wrap with a single backtick like `console.log("Hello")`.

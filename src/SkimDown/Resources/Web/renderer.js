@@ -15,6 +15,9 @@
         linkify: true,
         typographer: false,
         highlight: function (code, language) {
+          if (language && language.toLowerCase() === "math") {
+            return escapeHtml(code);
+          }
           if (language && window.hljs && window.hljs.getLanguage(language)) {
             try {
               return window.hljs.highlight(code, { language: language }).value;
@@ -35,6 +38,45 @@
 
       if (window.markdownitImsize || window["markdown-it-imsize.js"]) {
         markdownIt.use(window.markdownitImsize || window["markdown-it-imsize.js"]);
+      }
+
+      // Single-tilde strikethrough (~text~) — GitHub extension not in GFM spec.
+      markdownIt.inline.ruler.after("strikethrough", "single_tilde_strikethrough", function (state, silent) {
+        var src = state.src;
+        var pos = state.pos;
+        var max = state.posMax;
+        if (src.charCodeAt(pos) !== 0x7E) { return false; }
+        // Must be single ~, not ~~
+        if (pos + 1 <= max && src.charCodeAt(pos + 1) === 0x7E) { return false; }
+        // Find closing ~ within the inline boundary
+        var end = pos + 1;
+        while (end <= max) {
+          var idx = src.indexOf("~", end);
+          if (idx < 0 || idx > max) { return false; }
+          end = idx;
+          break;
+        }
+        if (end <= pos + 1) { return false; }
+        // Closing ~ must also be single (not adjacent to another ~)
+        if (end + 1 <= max && src.charCodeAt(end + 1) === 0x7E) { return false; }
+        if (end > 0 && src.charCodeAt(end - 1) === 0x7E) { return false; }
+        // No empty content, no newlines
+        var inner = src.slice(pos + 1, end);
+        if (!inner.trim() || inner.indexOf("\n") >= 0) { return false; }
+        if (!silent) {
+          var token = state.push("s_open", "s", 1);
+          token.markup = "~";
+          var tokenInner = state.push("text", "", 0);
+          tokenInner.content = inner;
+          var tokenClose = state.push("s_close", "s", -1);
+          tokenClose.markup = "~";
+        }
+        state.pos = end + 1;
+        return true;
+      });
+
+      if (window.markdownitEmoji) {
+        markdownIt.use(window.markdownitEmoji, { shortcuts: {} });
       }
     }
     return markdownIt;
@@ -64,11 +106,14 @@
       ALLOW_DATA_ATTR: false
     });
 
+    convertAlerts(content);
     normalizeTaskLists(content);
     normalizeLinksAndImages(content, payload);
     wrapTables(content);
     initializeTableScrollCues(content);
     const mermaidTasks = renderMermaidBlocks(content, payload);
+    convertMathBlocks(content);
+    convertBacktickMath(content);
     decorateCodeBlocks(content);
     renderMath(content);
     clearSearch();
@@ -117,6 +162,57 @@
     window.addEventListener("touchstart", onInteract, { capture: true, once: true, passive: true });
     window.addEventListener("keydown", onInteract, { capture: true, once: true });
     window.addEventListener("mousedown", onInteract, { capture: true, once: true });
+  }
+
+  var ALERT_TYPES = {
+    NOTE:      { icon: "ℹ", label: "Note" },
+    TIP:       { icon: "💡", label: "Tip" },
+    IMPORTANT: { icon: "❗", label: "Important" },
+    WARNING:   { icon: "⚠️", label: "Warning" },
+    CAUTION:   { icon: "🔴", label: "Caution" }
+  };
+
+  function convertAlerts(content) {
+    content.querySelectorAll("blockquote").forEach(function (bq) {
+      var firstP = bq.firstElementChild;
+      if (!firstP || firstP.tagName !== "P") {
+        return;
+      }
+      var firstNode = firstP.firstChild;
+      if (!firstNode || firstNode.nodeType !== Node.TEXT_NODE) {
+        return;
+      }
+      var text = firstNode.nodeValue;
+
+      var match = text.match(/^\[!(\w+)\]\s*/);
+      if (!match) {
+        return;
+      }
+      var typeKey = match[1].toUpperCase();
+      var alertDef = ALERT_TYPES[typeKey];
+      if (!alertDef) {
+        return;
+      }
+
+      // Remove the marker text from the first text node
+      firstNode.nodeValue = text.slice(match[0].length);
+      // If the text node is now empty, remove it
+      if (firstNode.nodeValue === "") {
+        firstP.removeChild(firstNode);
+      }
+      // If the <p> is now empty, remove it entirely
+      if (firstP.childNodes.length === 0) {
+        bq.removeChild(firstP);
+      }
+
+      // Build the alert title element
+      var title = document.createElement("p");
+      title.className = "skimdown-alert-title";
+      title.textContent = alertDef.icon + " " + alertDef.label;
+      bq.insertBefore(title, bq.firstChild);
+
+      bq.classList.add("skimdown-alert", "skimdown-alert-" + typeKey.toLowerCase());
+    });
   }
 
   function normalizeTaskLists(content) {
@@ -585,6 +681,50 @@
     });
     toolbar.appendChild(button);
     pre.appendChild(toolbar);
+  }
+
+  function convertMathBlocks(content) {
+    content.querySelectorAll("pre > code.language-math").forEach(function (code) {
+      var pre = code.parentElement;
+      var mathDiv = document.createElement("div");
+      mathDiv.className = "skimdown-math-block";
+      mathDiv.textContent = "$$" + code.textContent + "$$";
+      pre.replaceWith(mathDiv);
+    });
+  }
+
+  // Convert GitHub's $`…`$ backtick-math to inline math in the DOM.
+  // markdown-it renders $`…`$ as: text"$" + <code>…</code> + text"$".
+  // We find <code> elements preceded by "$" and followed by "$" and
+  // directly render them as KaTeX inline math.
+  function convertBacktickMath(content) {
+    if (!window.katex) { return; }
+    // Collect matches first to avoid mutating during iteration
+    var matches = [];
+    content.querySelectorAll("code").forEach(function (code) {
+      if (code.closest("pre")) { return; }
+      var prev = code.previousSibling;
+      var next = code.nextSibling;
+      if (!prev || prev.nodeType !== Node.TEXT_NODE) { return; }
+      if (!next || next.nodeType !== Node.TEXT_NODE) { return; }
+      if (!prev.nodeValue.endsWith("$")) { return; }
+      if (!next.nodeValue.startsWith("$")) { return; }
+      matches.push({ code: code, prev: prev, next: next });
+    });
+    matches.forEach(function (m) {
+      var latex = m.code.textContent;
+      try {
+        var span = document.createElement("span");
+        window.katex.render(latex, span, { throwOnError: false, displayMode: false });
+        m.prev.nodeValue = m.prev.nodeValue.slice(0, -1);
+        m.next.nodeValue = m.next.nodeValue.slice(1);
+        if (m.prev.nodeValue === "") { m.prev.remove(); }
+        if (m.next.nodeValue === "") { m.next.remove(); }
+        m.code.replaceWith(span);
+      } catch (_) {
+        // On failure, leave the DOM unchanged
+      }
+    });
   }
 
   function renderMath(content) {
