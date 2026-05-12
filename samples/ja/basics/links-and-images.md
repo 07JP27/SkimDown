@@ -35,7 +35,7 @@ SkimDown では Markdown ファイル間を相対パスでリンクできます:
 
 ### ローカル画像（相対パス）
 
-![SkimDown アイコン](../../images/skimdown-icon.png)
+<img src="../../images/skimdown-icon.png" alt="SkimDown アイコン" width="627" height="627">
 
 ### タイトル付き画像
 

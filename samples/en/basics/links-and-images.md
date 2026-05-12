@@ -35,7 +35,7 @@ Auto-link: https://github.com/07JP27/SkimDown
 
 ### Local Image (Relative Path)
 
-![SkimDown Icon](../../images/skimdown-icon.png)
+<img src="../../images/skimdown-icon.png" alt="SkimDown Icon" width="627" height="627">
 
 ### Image with Title
 
