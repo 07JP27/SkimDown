@@ -168,19 +168,10 @@
         return;
       }
       var firstNode = firstP.firstChild;
-      if (!firstNode) {
+      if (!firstNode || firstNode.nodeType !== Node.TEXT_NODE) {
         return;
       }
-      // The alert marker may be in the first text node: "[!TYPE]" or "[!TYPE]\n..."
-      var text = "";
-      if (firstNode.nodeType === Node.TEXT_NODE) {
-        text = firstNode.nodeValue;
-      } else if (firstNode.nodeType === Node.ELEMENT_NODE && firstNode.tagName === "BR") {
-        // markdown-it may render the line break as <br>, check previous sibling or combined text
-        return;
-      } else {
-        return;
-      }
+      var text = firstNode.nodeValue;
 
       var match = text.match(/^\[!(\w+)\]\s*/);
       if (!match) {
@@ -713,6 +704,8 @@
       var latex = m.code.textContent;
       m.prev.nodeValue = m.prev.nodeValue.slice(0, -1);
       m.next.nodeValue = m.next.nodeValue.slice(1);
+      if (m.prev.nodeValue === "") { m.prev.remove(); }
+      if (m.next.nodeValue === "") { m.next.remove(); }
       try {
         var span = document.createElement("span");
         window.katex.render(latex, span, { throwOnError: false, displayMode: false });
