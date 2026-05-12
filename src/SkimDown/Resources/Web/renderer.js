@@ -693,10 +693,12 @@
 
   // Convert GitHub's $`…`$ backtick-math to inline math in the DOM.
   // markdown-it renders $`…`$ as: text"$" + <code>…</code> + text"$".
-  // We find <code> elements preceded by "$" and followed by "$" and replace
-  // the three-node sequence with a KaTeX-ready text node.
+  // We find <code> elements preceded by "$" and followed by "$" and
+  // directly render them as KaTeX inline math.
   function convertBacktickMath(content) {
-    // Only process inline <code> (not inside <pre> which are code blocks)
+    if (!window.katex) { return; }
+    // Collect matches first to avoid mutating during iteration
+    var matches = [];
     content.querySelectorAll("code").forEach(function (code) {
       if (code.closest("pre")) { return; }
       var prev = code.previousSibling;
@@ -705,13 +707,19 @@
       if (!next || next.nodeType !== Node.TEXT_NODE) { return; }
       if (!prev.nodeValue.endsWith("$")) { return; }
       if (!next.nodeValue.startsWith("$")) { return; }
-      // Replace: strip trailing $ from prev, strip leading $ from next,
-      // and replace <code> with \(…\) text node for KaTeX
-      var mathText = "\\(" + code.textContent + "\\)";
-      prev.nodeValue = prev.nodeValue.slice(0, -1);
-      next.nodeValue = next.nodeValue.slice(1);
-      var mathNode = document.createTextNode(mathText);
-      code.replaceWith(mathNode);
+      matches.push({ code: code, prev: prev, next: next });
+    });
+    matches.forEach(function (m) {
+      var latex = m.code.textContent;
+      m.prev.nodeValue = m.prev.nodeValue.slice(0, -1);
+      m.next.nodeValue = m.next.nodeValue.slice(1);
+      try {
+        var span = document.createElement("span");
+        window.katex.render(latex, span, { throwOnError: false, displayMode: false });
+        m.code.replaceWith(span);
+      } catch (_) {
+        // On failure, leave the original <code> content as-is
+      }
     });
   }
 
