@@ -84,62 +84,78 @@
     // Convert GitHub's $`…`$ backtick-math variant to standard \(…\) before
     // markdown-it turns the backticks into <code> elements.
     // Skip content inside fenced code blocks and inline code spans.
-    var result = "";
-    var i = 0;
-    var len = md.length;
-    while (i < len) {
-      // Skip fenced code blocks (``` or ~~~)
-      if ((md[i] === "`" || md[i] === "~") && (i === 0 || md[i - 1] === "\n")) {
-        var fence = md[i];
-        var fenceStart = i;
-        var fenceLen = 0;
-        while (i < len && md[i] === fence) { fenceLen++; i++; }
-        if (fenceLen >= 3) {
-          result += md.slice(fenceStart, i);
-          // Skip to closing fence
-          var closePattern = "\n" + fence.repeat(fenceLen);
-          var closeIdx = md.indexOf(closePattern, i);
-          if (closeIdx >= 0) {
-            var endOfClose = closeIdx + closePattern.length;
-            while (endOfClose < len && md[endOfClose] === fence) { endOfClose++; }
-            result += md.slice(i, endOfClose);
-            i = endOfClose;
-          } else {
-            result += md.slice(i);
-            i = len;
+    var lines = md.split("\n");
+    var result = [];
+    var inFence = false;
+    var fenceChar = "";
+    var fenceLen = 0;
+
+    for (var li = 0; li < lines.length; li++) {
+      var line = lines[li];
+
+      if (inFence) {
+        // Check for closing fence: 0-3 leading spaces, fence char repeated >= fenceLen, optional trailing spaces
+        var closeMatch = line.match(/^( {0,3})((`{3,})|(~{3,}))\s*$/);
+        if (closeMatch) {
+          var closeFence = closeMatch[3] || closeMatch[4];
+          if (closeFence[0] === fenceChar && closeFence.length >= fenceLen) {
+            inFence = false;
           }
-          continue;
         }
-        i = fenceStart;
+        result.push(line);
+        continue;
       }
+
+      // Check for opening fence: 0-3 leading spaces, ``` or ~~~, then optional info string
+      var openMatch = line.match(/^( {0,3})((`{3,})|(~{3,}))/);
+      if (openMatch) {
+        var openFence = openMatch[3] || openMatch[4];
+        fenceChar = openFence[0];
+        fenceLen = openFence.length;
+        inFence = true;
+        result.push(line);
+        continue;
+      }
+
+      // Process $`…`$ outside fenced blocks, skipping inline code spans
+      result.push(preprocessMathLine(line));
+    }
+    return result.join("\n");
+  }
+
+  function preprocessMathLine(line) {
+    var out = "";
+    var i = 0;
+    var len = line.length;
+    while (i < len) {
       // Skip inline code spans
-      if (md[i] === "`") {
+      if (line[i] === "`") {
         var tickStart = i;
         var tickCount = 0;
-        while (i < len && md[i] === "`") { tickCount++; i++; }
-        var closeTickIdx = md.indexOf("`".repeat(tickCount), i);
+        while (i < len && line[i] === "`") { tickCount++; i++; }
+        var closeTickIdx = line.indexOf("`".repeat(tickCount), i);
         if (closeTickIdx >= 0) {
-          result += md.slice(tickStart, closeTickIdx + tickCount);
+          out += line.slice(tickStart, closeTickIdx + tickCount);
           i = closeTickIdx + tickCount;
         } else {
-          result += md.slice(tickStart, i);
+          out += line.slice(tickStart, i);
         }
         continue;
       }
       // Match $`…`$ pattern
-      if (md[i] === "$" && i + 1 < len && md[i + 1] === "`") {
-        var closeBacktick = md.indexOf("`$", i + 2);
-        if (closeBacktick >= 0 && md.slice(i + 2, closeBacktick).indexOf("\n") < 0) {
-          var inner = md.slice(i + 2, closeBacktick);
-          result += "\\(" + inner + "\\)";
+      if (line[i] === "$" && i + 1 < len && line[i + 1] === "`") {
+        var closeBacktick = line.indexOf("`$", i + 2);
+        if (closeBacktick >= 0) {
+          var inner = line.slice(i + 2, closeBacktick);
+          out += "\\(" + inner + "\\)";
           i = closeBacktick + 2;
           continue;
         }
       }
-      result += md[i];
+      out += line[i];
       i++;
     }
-    return result;
+    return out;
   }
 
   function render(payload) {
@@ -164,8 +180,8 @@
     wrapTables(content);
     initializeTableScrollCues(content);
     const mermaidTasks = renderMermaidBlocks(content, payload);
-    decorateCodeBlocks(content);
     convertMathBlocks(content);
+    decorateCodeBlocks(content);
     renderMath(content);
     clearSearch();
 
