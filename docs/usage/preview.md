@@ -14,7 +14,7 @@ SkimDown targets GitHub-Flavored-Markdown-like reading. Below is the full list o
 | Italic | `*text*` or `_text_` |
 | Bold + Italic | `***text***` |
 | Inline code | `` `code` `` |
-| Code blocks | Fenced (` ``` `) or indented (4 spaces) |
+| Code blocks | Fenced (triple backticks) or indented (4 spaces) |
 | Links | `[text](url)`, `[text][ref]` |
 | Images | `![alt](url)` |
 | Unordered lists | `- item`, `* item`, `+ item` |
@@ -50,7 +50,7 @@ SkimDown targets GitHub-Flavored-Markdown-like reading. Below is the full list o
 | `$$…$$` | Block (display) | `$$\int_0^\infty …$$` |
 | `\(…\)` | Inline | `\(\sqrt{x}\)` |
 | `\[…\]` | Block (display) | `\[\int …\]` |
-| ` ```math ` | Block (display) | Fenced code block with `math` language |
+| ` ```math ` fenced block | Block (display) | Fenced code block with `math` language |
 | `` $`…`$ `` | Inline | `` $`\binom{n}{k}`$ `` |
 
 ### Mermaid diagrams

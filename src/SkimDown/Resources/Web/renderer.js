@@ -713,16 +713,16 @@
     });
     matches.forEach(function (m) {
       var latex = m.code.textContent;
-      m.prev.nodeValue = m.prev.nodeValue.slice(0, -1);
-      m.next.nodeValue = m.next.nodeValue.slice(1);
-      if (m.prev.nodeValue === "") { m.prev.remove(); }
-      if (m.next.nodeValue === "") { m.next.remove(); }
       try {
         var span = document.createElement("span");
         window.katex.render(latex, span, { throwOnError: false, displayMode: false });
+        m.prev.nodeValue = m.prev.nodeValue.slice(0, -1);
+        m.next.nodeValue = m.next.nodeValue.slice(1);
+        if (m.prev.nodeValue === "") { m.prev.remove(); }
+        if (m.next.nodeValue === "") { m.next.remove(); }
         m.code.replaceWith(span);
       } catch (_) {
-        // On failure, leave the original <code> content as-is
+        // On failure, leave the DOM unchanged
       }
     });
   }
