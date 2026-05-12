@@ -74,3 +74,21 @@ $$
 - 無限大: $\infty$, 偏微分: $\partial$, ナブラ: $\nabla$
 - 集合: $\mathbb{R}$, $\mathbb{Z}$, $\mathbb{N}$, $\mathbb{C}$
 - 論理: $\forall$, $\exists$, $\Rightarrow$, $\Leftrightarrow$
+
+## 数式コードブロック
+
+`math` 言語指定のフェンスドコードブロックはディスプレイ数式として描画されます：
+
+```math
+\sum_{i=1}^{n} i = \frac{n(n+1)}{2}
+```
+
+```math
+\oint_C \mathbf{F} \cdot d\mathbf{r} = \iint_S (\nabla \times \mathbf{F}) \cdot d\mathbf{S}
+```
+
+## バッククォート数式バリアント
+
+GitHub ではバッククォート数式バリアント $`E = mc^2`$ もインライン数式として使えます。Markdown の書式との衝突を避けられます。
+
+二項係数は $`\binom{n}{k} = \frac{n!}{k!(n-k)!}`$ です。

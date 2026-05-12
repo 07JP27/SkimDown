@@ -74,3 +74,21 @@ $$
 - Infinity: $\infty$, Partial derivative: $\partial$, Nabla: $\nabla$
 - Sets: $\mathbb{R}$, $\mathbb{Z}$, $\mathbb{N}$, $\mathbb{C}$
 - Logic: $\forall$, $\exists$, $\Rightarrow$, $\Leftrightarrow$
+
+## Math Code Blocks
+
+A fenced code block with the `math` language identifier renders as display math:
+
+```math
+\sum_{i=1}^{n} i = \frac{n(n+1)}{2}
+```
+
+```math
+\oint_C \mathbf{F} \cdot d\mathbf{r} = \iint_S (\nabla \times \mathbf{F}) \cdot d\mathbf{S}
+```
+
+## Backtick Math Variant
+
+GitHub also supports the backtick math variant $`E = mc^2`$ for inline math that avoids conflicts with Markdown formatting.
+
+The binomial coefficient is $`\binom{n}{k} = \frac{n!}{k!(n-k)!}`$.
