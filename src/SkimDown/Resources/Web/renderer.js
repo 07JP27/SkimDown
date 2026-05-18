@@ -240,7 +240,8 @@
 
   function assignHeadingAnchorIDs(content) {
     const usedIDs = new Set();
-    content.querySelectorAll("[id]").forEach(function (element) {
+    const idScope = content.ownerDocument || document;
+    idScope.querySelectorAll("[id]").forEach(function (element) {
       const id = element.getAttribute("id");
       if (id) {
         usedIDs.add(id);

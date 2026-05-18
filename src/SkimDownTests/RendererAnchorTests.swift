@@ -1,5 +1,6 @@
 import WebKit
 import XCTest
+@testable import SkimDown
 
 final class RendererAnchorTests: XCTestCase {
     @MainActor
@@ -8,6 +9,7 @@ final class RendererAnchorTests: XCTestCase {
             """
             <h2 id="custom-id">Custom Heading</h2>
 
+            ## Content
             ## テスト
             ## External Links
             ## External Links
@@ -20,7 +22,7 @@ final class RendererAnchorTests: XCTestCase {
         )
         let ids = try JSONDecoder().decode([String].self, from: Data(idsJSON.utf8))
 
-        XCTAssertEqual(ids, ["custom-id", "テスト", "external-links", "external-links-1"])
+        XCTAssertEqual(ids, ["custom-id", "content-1", "テスト", "external-links", "external-links-1"])
     }
 
     @MainActor
@@ -91,7 +93,7 @@ final class RendererAnchorTests: XCTestCase {
             "markdown": markdown,
             "baseURL": Bundle.main.bundleURL.absoluteString,
             "rootURL": Bundle.main.bundleURL.absoluteString,
-            "localFileScheme": "skimdown-local",
+            "localFileScheme": LocalFileSchemeHandler.scheme,
             "theme": "system",
             "fontSize": 16,
             "renderID": 1,
