@@ -106,6 +106,7 @@
       ALLOW_DATA_ATTR: false
     });
 
+    assignHeadingAnchorIDs(content);
     convertAlerts(content);
     normalizeTaskLists(content);
     normalizeLinksAndImages(content, payload);
@@ -235,6 +236,48 @@
       item.classList.add("task-list-item");
       item.insertBefore(checkbox, item.firstChild);
     });
+  }
+
+  function assignHeadingAnchorIDs(content) {
+    const usedIDs = new Set();
+    const idScope = content.ownerDocument || document;
+    idScope.querySelectorAll("[id]").forEach(function (element) {
+      const id = element.getAttribute("id");
+      if (id) {
+        usedIDs.add(id);
+      }
+    });
+
+    content.querySelectorAll("h1, h2, h3, h4, h5, h6").forEach(function (heading) {
+      if (heading.getAttribute("id")) {
+        return;
+      }
+
+      const baseID = slugifyHeadingText(heading.textContent || "") || "section";
+      const id = uniqueHeadingID(baseID, usedIDs);
+      heading.setAttribute("id", id);
+      usedIDs.add(id);
+    });
+  }
+
+  function slugifyHeadingText(text) {
+    return String(text)
+      .trim()
+      .toLowerCase()
+      .replace(/[^\p{Letter}\p{Mark}\p{Number}\s_-]+/gu, "")
+      .replace(/\s+/g, "-")
+      .replace(/-+/g, "-")
+      .replace(/^-+|-+$/g, "");
+  }
+
+  function uniqueHeadingID(baseID, usedIDs) {
+    let id = baseID;
+    let suffix = 1;
+    while (usedIDs.has(id)) {
+      id = baseID + "-" + suffix;
+      suffix += 1;
+    }
+    return id;
   }
 
   function normalizeLinksAndImages(content, payload) {
@@ -884,11 +927,29 @@
       return;
     }
 
-    const decoded = decodeURIComponent(anchor);
-    const target = document.getElementById(decoded) || document.querySelector("[name='" + CSS.escape(decoded) + "']");
+    const decoded = decodeAnchor(anchor);
+    const slug = slugifyHeadingText(decoded);
+    const target = document.getElementById(decoded) ||
+      (slug && slug !== decoded ? document.getElementById(slug) : null) ||
+      namedAnchorTarget(decoded);
     if (target) {
       target.scrollIntoView({ block: "start", behavior: "smooth" });
     }
+  }
+
+  function decodeAnchor(anchor) {
+    try {
+      return decodeURIComponent(anchor);
+    } catch (_) {
+      return anchor;
+    }
+  }
+
+  function namedAnchorTarget(anchor) {
+    if (!window.CSS || !CSS.escape) {
+      return null;
+    }
+    return document.querySelector("[name='" + CSS.escape(anchor) + "']");
   }
 
   function waitForImages(content) {
