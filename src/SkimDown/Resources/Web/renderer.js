@@ -868,7 +868,7 @@
     const content = document.getElementById("content");
     const flags = caseSensitive ? "g" : "gi";
     const pattern = new RegExp(escapeRegExp(query), flags);
-    const segments = searchableTextSegments(content);
+    const segments = collectSearchableSegments(content);
     const searchableText = segments.map(function (segment) { return segment.text; }).join("");
     const replacements = new Map();
     let segmentIndex = 0;
@@ -891,7 +891,9 @@
         replacements.get(segment.node).push({ start: start, end: end, group: group });
         overlapIndex++;
       }
-      searchMatches.push(group);
+      if (group.length > 0) {
+        searchMatches.push(group);
+      }
     }
 
     segments.forEach(function (segment) {
@@ -914,7 +916,6 @@
       segment.node.replaceWith(fragment);
     });
 
-    searchMatches = searchMatches.filter(function (matchGroup) { return matchGroup.length > 0; });
     if (searchMatches.length > 0) {
       if (scrollToMatch === false) {
         currentSearchIndex = nearestSearchIndexToViewport();
@@ -926,7 +927,7 @@
     return searchState();
   }
 
-  function searchableTextSegments(content) {
+  function collectSearchableSegments(content) {
     const walker = document.createTreeWalker(content, NodeFilter.SHOW_TEXT, {
       acceptNode: function (node) {
         if (!node.nodeValue) {
@@ -959,8 +960,7 @@
     let bestIndex = 0;
     let bestDistance = Infinity;
     for (let i = 0; i < searchMatches.length; i++) {
-      const target = firstSearchMatchElement(searchMatches[i]);
-      if (!target) { continue; }
+      const target = searchMatches[i][0];
       const rect = target.getBoundingClientRect();
       const center = window.scrollY + rect.top + rect.height / 2;
       const distance = Math.abs(center - anchor);
@@ -1006,16 +1006,9 @@
         match.classList.add("skimdown-search-current");
       });
       if (scrollToMatch) {
-        const target = firstSearchMatchElement(current);
-        if (target) {
-          target.scrollIntoView({ block: "center" });
-        }
+        current[0].scrollIntoView({ block: "center" });
       }
     }
-  }
-
-  function firstSearchMatchElement(matchGroup) {
-    return matchGroup && matchGroup.length > 0 ? matchGroup[0] : null;
   }
 
   function searchState() {
