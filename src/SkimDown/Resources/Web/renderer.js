@@ -117,6 +117,7 @@
     convertBacktickMath(content);
     decorateCodeBlocks(content);
     renderMath(content);
+    decorateColorCodes(content);
     clearSearch();
 
     notifyWhenRenderSettled(content, payload.renderID, mermaidTasks, restoreScrollY);
@@ -724,6 +725,62 @@
     });
     toolbar.appendChild(button);
     pre.appendChild(toolbar);
+  }
+
+  function decorateColorCodes(content) {
+    const pattern = /(^|[^\w-])(#(?:[0-9A-Fa-f]{8}|[0-9A-Fa-f]{6}|[0-9A-Fa-f]{4}|[0-9A-Fa-f]{3}))(?![\w-])/g;
+    const walker = document.createTreeWalker(content, NodeFilter.SHOW_TEXT, {
+      acceptNode: function (node) {
+        if (!node.nodeValue || !pattern.test(node.nodeValue)) {
+          pattern.lastIndex = 0;
+          return NodeFilter.FILTER_REJECT;
+        }
+        pattern.lastIndex = 0;
+        const parent = node.parentElement;
+        if (!parent || parent.closest("a, code, kbd, pre, script, style, .katex, .skimdown-color-code")) {
+          return NodeFilter.FILTER_REJECT;
+        }
+        return NodeFilter.FILTER_ACCEPT;
+      }
+    });
+
+    const nodes = [];
+    while (walker.nextNode()) {
+      nodes.push(walker.currentNode);
+    }
+
+    nodes.forEach(function (node) {
+      const fragment = document.createDocumentFragment();
+      const value = node.nodeValue;
+      let lastIndex = 0;
+      pattern.lastIndex = 0;
+      let match;
+      while ((match = pattern.exec(value)) !== null) {
+        const color = match[2];
+        const colorIndex = match.index + match[1].length;
+        fragment.appendChild(document.createTextNode(value.slice(lastIndex, colorIndex)));
+        fragment.appendChild(colorCodePreview(color));
+        lastIndex = colorIndex + color.length;
+      }
+      fragment.appendChild(document.createTextNode(value.slice(lastIndex)));
+      node.replaceWith(fragment);
+    });
+  }
+
+  function colorCodePreview(color) {
+    const wrapper = document.createElement("span");
+    wrapper.className = "skimdown-color-code";
+    wrapper.textContent = color;
+
+    const swatch = document.createElement("span");
+    swatch.className = "skimdown-color-swatch";
+    swatch.style.backgroundColor = color;
+    swatch.title = color;
+    swatch.setAttribute("role", "img");
+    swatch.setAttribute("aria-label", "Color preview " + color);
+    wrapper.appendChild(swatch);
+
+    return wrapper;
   }
 
   function convertMathBlocks(content) {

@@ -48,6 +48,7 @@ SkimDown supports the following syntax. Click each link to see a sample.
 | Math (KaTeX) | [math.md](en/extended/math.md) |
 | Diagrams (Mermaid) | [mermaid.md](en/extended/mermaid.md) |
 | HTML elements | [html-elements.md](en/extended/html-elements.md) |
+| Color code previews | [color-codes.md](en/extended/color-codes.md) |
 
 ### Miscellaneous
 

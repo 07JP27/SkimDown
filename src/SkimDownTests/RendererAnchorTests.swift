@@ -4,6 +4,35 @@ import XCTest
 
 final class RendererAnchorTests: XCTestCase {
     @MainActor
+    func testRendererDecoratesInlineColorCodes() async throws {
+        let webView = try await renderMarkdown(
+            """
+            Inline #0a66d6, short #f80, alpha #8250dfcc, and code `#cf222e`.
+            """
+        )
+
+        let resultJSON = try await evaluateStringJavaScript(
+            """
+            JSON.stringify({
+              colors: Array.from(document.querySelectorAll('.skimdown-color-code')).map(function (node) {
+                return node.childNodes[0].nodeValue;
+              }),
+              swatchTitles: Array.from(document.querySelectorAll('.skimdown-color-swatch')).map(function (node) {
+                return node.title;
+              }),
+              codeSwatches: document.querySelectorAll('code .skimdown-color-swatch').length
+            })
+            """,
+            in: webView
+        )
+        let result = try JSONDecoder().decode(ColorCodePreviewResult.self, from: Data(resultJSON.utf8))
+
+        XCTAssertEqual(result.colors, ["#0a66d6", "#f80", "#8250dfcc"])
+        XCTAssertEqual(result.swatchTitles, ["#0a66d6", "#f80", "#8250dfcc"])
+        XCTAssertEqual(result.codeSwatches, 0)
+    }
+
+    @MainActor
     func testRendererAssignsHeadingIDsForSectionLinks() async throws {
         let webView = try await renderMarkdown(
             """
@@ -156,6 +185,12 @@ private enum RendererAnchorTestError: Error {
     case invalidJSON
     case invalidScriptResult
     case scriptEvaluationFailed(String)
+}
+
+private struct ColorCodePreviewResult: Decodable {
+    let colors: [String]
+    let swatchTitles: [String]
+    let codeSwatches: Int
 }
 
 @MainActor
