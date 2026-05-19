@@ -871,20 +871,11 @@
     const segments = collectSearchTextSegments(content);
     const searchableText = segments.map(function (segment) { return segment.text; }).join("");
     const replacements = new Map();
-    let segmentIndex = 0;
-    let match;
-    while ((match = pattern.exec(searchableText)) !== null) {
-      if (match[0].length === 0) {
-        pattern.lastIndex++;
-        continue;
-      }
+    Array.from(searchableText.matchAll(pattern)).forEach(function (match) {
       const group = [];
       const matchStart = match.index;
       const matchEnd = matchStart + match[0].length;
-      while (segmentIndex < segments.length && segments[segmentIndex].end <= matchStart) {
-        segmentIndex++;
-      }
-      let overlapIndex = segmentIndex;
+      let overlapIndex = firstOverlappingSegmentIndex(segments, matchStart);
       let hasOverlap = false;
       while (overlapIndex < segments.length && segments[overlapIndex].start < matchEnd) {
         const segment = segments[overlapIndex];
@@ -900,26 +891,14 @@
       if (hasOverlap) {
         searchMatches.push(group);
       }
-    }
+    });
 
     segments.forEach(function (segment) {
       const ranges = replacements.get(segment.node);
       if (!ranges || ranges.length === 0) {
         return;
       }
-      const fragment = document.createDocumentFragment();
-      let lastIndex = 0;
-      ranges.forEach(function (range) {
-        fragment.appendChild(document.createTextNode(segment.text.slice(lastIndex, range.start)));
-        const mark = document.createElement("mark");
-        mark.className = "skimdown-search-match";
-        mark.textContent = segment.text.slice(range.start, range.end);
-        fragment.appendChild(mark);
-        range.group.push(mark);
-        lastIndex = range.end;
-      });
-      fragment.appendChild(document.createTextNode(segment.text.slice(lastIndex)));
-      segment.node.replaceWith(fragment);
+      applySearchReplacements(segment, ranges);
     });
 
     if (searchMatches.length > 0) {
@@ -931,6 +910,36 @@
       updateCurrentSearchMatch(scrollToMatch !== false);
     }
     return searchState();
+  }
+
+  function firstOverlappingSegmentIndex(segments, offset) {
+    let low = 0;
+    let high = segments.length;
+    while (low < high) {
+      const mid = Math.floor((low + high) / 2);
+      if (segments[mid].end <= offset) {
+        low = mid + 1;
+      } else {
+        high = mid;
+      }
+    }
+    return low;
+  }
+
+  function applySearchReplacements(segment, ranges) {
+    const fragment = document.createDocumentFragment();
+    let lastIndex = 0;
+    ranges.forEach(function (range) {
+      fragment.appendChild(document.createTextNode(segment.text.slice(lastIndex, range.start)));
+      const mark = document.createElement("mark");
+      mark.className = "skimdown-search-match";
+      mark.textContent = segment.text.slice(range.start, range.end);
+      fragment.appendChild(mark);
+      range.group.push(mark);
+      lastIndex = range.end;
+    });
+    fragment.appendChild(document.createTextNode(segment.text.slice(lastIndex)));
+    segment.node.replaceWith(fragment);
   }
 
   function collectSearchTextSegments(content) {
