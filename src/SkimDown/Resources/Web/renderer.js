@@ -871,22 +871,26 @@
     const segments = searchableTextSegments(content);
     const searchableText = segments.map(function (segment) { return segment.text; }).join("");
     const replacements = new Map();
+    let segmentIndex = 0;
     let match;
     while ((match = pattern.exec(searchableText)) !== null) {
       const group = [];
       const matchStart = match.index;
       const matchEnd = matchStart + match[0].length;
-      segments.forEach(function (segment) {
-        if (segment.end <= matchStart || segment.start >= matchEnd) {
-          return;
-        }
+      while (segmentIndex < segments.length && segments[segmentIndex].end <= matchStart) {
+        segmentIndex++;
+      }
+      let overlapIndex = segmentIndex;
+      while (overlapIndex < segments.length && segments[overlapIndex].start < matchEnd) {
+        const segment = segments[overlapIndex];
         const start = Math.max(matchStart, segment.start) - segment.start;
         const end = Math.min(matchEnd, segment.end) - segment.start;
         if (!replacements.has(segment.node)) {
           replacements.set(segment.node, []);
         }
         replacements.get(segment.node).push({ start: start, end: end, group: group });
-      });
+        overlapIndex++;
+      }
       searchMatches.push(group);
     }
 
@@ -1002,7 +1006,10 @@
         match.classList.add("skimdown-search-current");
       });
       if (scrollToMatch) {
-        firstSearchMatchElement(current).scrollIntoView({ block: "center" });
+        const target = firstSearchMatchElement(current);
+        if (target) {
+          target.scrollIntoView({ block: "center" });
+        }
       }
     }
   }
