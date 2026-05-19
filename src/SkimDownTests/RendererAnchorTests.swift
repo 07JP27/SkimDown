@@ -68,6 +68,35 @@ final class RendererAnchorTests: XCTestCase {
     }
 
     @MainActor
+    func testColorCodeDecorationSkipsMermaidSource() async throws {
+        let webView = try await renderMarkdown(
+            """
+            ```mermaid
+            graph TD
+                A[Start] -->|Yes| B[End]
+                style A fill:#f80,stroke:#333
+            ```
+
+            Paragraph with #0a66d6 color.
+            """
+        )
+
+        let resultJSON = try await evaluateStringJavaScript(
+            """
+            JSON.stringify({
+              mermaidSwatches: document.querySelectorAll('.mermaid .skimdown-color-swatch, .mermaid-container .skimdown-color-swatch').length,
+              paragraphSwatches: document.querySelectorAll('p .skimdown-color-swatch').length
+            })
+            """,
+            in: webView
+        )
+        let result = try JSONDecoder().decode(MermaidColorExclusionResult.self, from: Data(resultJSON.utf8))
+
+        XCTAssertEqual(result.mermaidSwatches, 0, "Color decoration must not inject swatches into Mermaid source")
+        XCTAssertEqual(result.paragraphSwatches, 1, "Color decoration should still apply outside Mermaid blocks")
+    }
+
+    @MainActor
     func testRendererAssignsHeadingIDsForSectionLinks() async throws {
         let webView = try await renderMarkdown(
             """
@@ -233,6 +262,11 @@ private struct SearchAcrossColorCodeResult: Decodable {
     let firstSegments: [String]
     let secondCount: Int
     let secondSegments: [String]
+}
+
+private struct MermaidColorExclusionResult: Decodable {
+    let mermaidSwatches: Int
+    let paragraphSwatches: Int
 }
 
 @MainActor

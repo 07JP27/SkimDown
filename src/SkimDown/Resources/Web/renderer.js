@@ -737,7 +737,7 @@
           return NodeFilter.FILTER_REJECT;
         }
         const parent = node.parentElement;
-        if (!parent || parent.closest("a, code, kbd, pre, script, style, .katex, .skimdown-color-code")) {
+        if (!parent || parent.closest("a, code, kbd, pre, script, style, .katex, .skimdown-color-code, .mermaid, .mermaid-container")) {
           return NodeFilter.FILTER_REJECT;
         }
         return NodeFilter.FILTER_ACCEPT;
