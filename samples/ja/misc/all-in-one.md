@@ -124,6 +124,10 @@ flowchart LR
 
 <mark>ハイライトされたテキスト</mark>
 
+## カラーコード
+
+SkimDown は #0a66d6、#1a7f37、#f80 のようなカラーコードの後ろに色見本を表示します。
+
 ---
 
 以上が SkimDown でサポートされる全ての Markdown 記法です。

@@ -7,6 +7,9 @@
   let mermaidResizeObserver = null;
   let mermaidResizeHandler = null;
   const IMAGE_READY_TIMEOUT_MS = 3000;
+  // Matches standalone #RGB, #RGBA, #RRGGBB, and #RRGGBBAA color codes.
+  const COLOR_CODE_PATTERN_SOURCE = "(^|[^\\w-])(#(?:[0-9A-Fa-f]{8}|[0-9A-Fa-f]{6}|[0-9A-Fa-f]{4}|[0-9A-Fa-f]{3}))(?![\\w-])";
+  const COLOR_CODE_DETECTION_PATTERN = new RegExp(COLOR_CODE_PATTERN_SOURCE);
 
   function renderer() {
     if (!markdownIt) {
@@ -117,6 +120,7 @@
     convertBacktickMath(content);
     decorateCodeBlocks(content);
     renderMath(content);
+    decorateColorCodes(content);
     clearSearch();
 
     notifyWhenRenderSettled(content, payload.renderID, mermaidTasks, restoreScrollY);
@@ -726,6 +730,60 @@
     pre.appendChild(toolbar);
   }
 
+  function decorateColorCodes(content) {
+    const walker = document.createTreeWalker(content, NodeFilter.SHOW_TEXT, {
+      acceptNode: function (node) {
+        if (!node.nodeValue || !COLOR_CODE_DETECTION_PATTERN.test(node.nodeValue)) {
+          return NodeFilter.FILTER_REJECT;
+        }
+        const parent = node.parentElement;
+        if (!parent || parent.closest("a, code, kbd, pre, script, style, .katex, .skimdown-color-code, .mermaid, .mermaid-container")) {
+          return NodeFilter.FILTER_REJECT;
+        }
+        return NodeFilter.FILTER_ACCEPT;
+      }
+    });
+
+    const nodes = [];
+    while (walker.nextNode()) {
+      nodes.push(walker.currentNode);
+    }
+
+    const replacementPattern = new RegExp(COLOR_CODE_PATTERN_SOURCE, "g");
+    nodes.forEach(function (node) {
+      const fragment = document.createDocumentFragment();
+      const value = node.nodeValue;
+      let lastIndex = 0;
+      let match;
+      replacementPattern.lastIndex = 0;
+      while ((match = replacementPattern.exec(value)) !== null) {
+        const color = match[2];
+        const colorIndex = match.index + match[1].length;
+        fragment.appendChild(document.createTextNode(value.slice(lastIndex, colorIndex)));
+        fragment.appendChild(colorCodePreview(color));
+        lastIndex = colorIndex + color.length;
+      }
+      fragment.appendChild(document.createTextNode(value.slice(lastIndex)));
+      node.replaceWith(fragment);
+    });
+  }
+
+  function colorCodePreview(color) {
+    const wrapper = document.createElement("span");
+    wrapper.className = "skimdown-color-code";
+    wrapper.textContent = color;
+
+    const swatch = document.createElement("span");
+    swatch.className = "skimdown-color-swatch";
+    swatch.style.backgroundColor = color;
+    swatch.title = color;
+    swatch.setAttribute("role", "img");
+    swatch.setAttribute("aria-label", "Color preview " + color);
+    wrapper.appendChild(swatch);
+
+    return wrapper;
+  }
+
   function convertMathBlocks(content) {
     content.querySelectorAll("pre > code.language-math").forEach(function (code) {
       var pre = code.parentElement;
@@ -810,42 +868,38 @@
     const content = document.getElementById("content");
     const flags = caseSensitive ? "g" : "gi";
     const pattern = new RegExp(escapeRegExp(query), flags);
-    const walker = document.createTreeWalker(content, NodeFilter.SHOW_TEXT, {
-      acceptNode: function (node) {
-        if (!node.nodeValue || !pattern.test(node.nodeValue)) {
-          return NodeFilter.FILTER_REJECT;
+    const segments = collectSearchTextSegments(content);
+    const searchableText = segments.map(function (segment) { return segment.text; }).join("");
+    const replacements = new Map();
+    Array.from(searchableText.matchAll(pattern)).forEach(function (match) {
+      const group = [];
+      const matchStart = match.index;
+      const matchEnd = matchStart + match[0].length;
+      let overlapIndex = firstOverlappingSegmentIndex(segments, matchStart);
+      let hasOverlap = false;
+      while (overlapIndex < segments.length && segments[overlapIndex].start < matchEnd) {
+        const segment = segments[overlapIndex];
+        if (!segment.node) { overlapIndex++; continue; }
+        const start = Math.max(matchStart, segment.start) - segment.start;
+        const end = Math.min(matchEnd, segment.end) - segment.start;
+        if (!replacements.has(segment.node)) {
+          replacements.set(segment.node, []);
         }
-        pattern.lastIndex = 0;
-        const parent = node.parentElement;
-        if (!parent || ["SCRIPT", "STYLE"].includes(parent.tagName)) {
-          return NodeFilter.FILTER_REJECT;
-        }
-        return NodeFilter.FILTER_ACCEPT;
+        replacements.get(segment.node).push({ start: start, end: end, group: group });
+        hasOverlap = true;
+        overlapIndex++;
+      }
+      if (hasOverlap) {
+        searchMatches.push(group);
       }
     });
 
-    const nodes = [];
-    while (walker.nextNode()) {
-      nodes.push(walker.currentNode);
-    }
-
-    nodes.forEach(function (node) {
-      const fragment = document.createDocumentFragment();
-      const value = node.nodeValue;
-      let lastIndex = 0;
-      pattern.lastIndex = 0;
-      let match;
-      while ((match = pattern.exec(value)) !== null) {
-        fragment.appendChild(document.createTextNode(value.slice(lastIndex, match.index)));
-        const mark = document.createElement("mark");
-        mark.className = "skimdown-search-match";
-        mark.textContent = match[0];
-        fragment.appendChild(mark);
-        searchMatches.push(mark);
-        lastIndex = match.index + match[0].length;
+    segments.forEach(function (segment) {
+      const ranges = replacements.get(segment.node);
+      if (!ranges || ranges.length === 0) {
+        return;
       }
-      fragment.appendChild(document.createTextNode(value.slice(lastIndex)));
-      node.replaceWith(fragment);
+      applySearchReplacements(segment, ranges);
     });
 
     if (searchMatches.length > 0) {
@@ -859,6 +913,85 @@
     return searchState();
   }
 
+  function firstOverlappingSegmentIndex(segments, offset) {
+    let low = 0;
+    let high = segments.length;
+    while (low < high) {
+      const mid = Math.floor((low + high) / 2);
+      if (segments[mid].end <= offset) {
+        low = mid + 1;
+      } else {
+        high = mid;
+      }
+    }
+    return low;
+  }
+
+  function applySearchReplacements(segment, ranges) {
+    const fragment = document.createDocumentFragment();
+    let lastIndex = 0;
+    ranges.forEach(function (range) {
+      fragment.appendChild(document.createTextNode(segment.text.slice(lastIndex, range.start)));
+      const mark = document.createElement("mark");
+      mark.className = "skimdown-search-match";
+      mark.textContent = segment.text.slice(range.start, range.end);
+      fragment.appendChild(mark);
+      range.group.push(mark);
+      lastIndex = range.end;
+    });
+    fragment.appendChild(document.createTextNode(segment.text.slice(lastIndex)));
+    segment.node.replaceWith(fragment);
+  }
+
+  var SEARCH_BLOCK_TAGS = new Set([
+    "ADDRESS", "ARTICLE", "ASIDE", "BLOCKQUOTE", "DD", "DETAILS", "DIALOG",
+    "DIV", "DL", "DT", "FIELDSET", "FIGCAPTION", "FIGURE", "FOOTER",
+    "FORM", "H1", "H2", "H3", "H4", "H5", "H6", "HEADER", "HGROUP", "HR",
+    "LI", "MAIN", "NAV", "OL", "P", "PRE", "SECTION", "SUMMARY", "TABLE",
+    "TBODY", "TD", "TFOOT", "TH", "THEAD", "TR", "UL"
+  ]);
+
+  function closestBlockAncestor(node, root) {
+    var el = node.parentElement;
+    while (el && el !== root) {
+      if (SEARCH_BLOCK_TAGS.has(el.tagName)) { return el; }
+      el = el.parentElement;
+    }
+    return root;
+  }
+
+  function collectSearchTextSegments(content) {
+    const walker = document.createTreeWalker(content, NodeFilter.SHOW_TEXT, {
+      acceptNode: function (node) {
+        if (!node.nodeValue) {
+          return NodeFilter.FILTER_REJECT;
+        }
+        const parent = node.parentElement;
+        if (!parent || ["SCRIPT", "STYLE"].includes(parent.tagName)) {
+          return NodeFilter.FILTER_REJECT;
+        }
+        return NodeFilter.FILTER_ACCEPT;
+      }
+    });
+
+    const segments = [];
+    let offset = 0;
+    let prevBlock = null;
+    while (walker.nextNode()) {
+      const node = walker.currentNode;
+      const text = node.nodeValue;
+      const block = closestBlockAncestor(node, content);
+      if (prevBlock !== null && block !== prevBlock) {
+        segments.push({ node: null, text: "\n", start: offset, end: offset + 1 });
+        offset += 1;
+      }
+      segments.push({ node: node, text: text, start: offset, end: offset + text.length });
+      offset += text.length;
+      prevBlock = block;
+    }
+    return segments;
+  }
+
   function nearestSearchIndexToViewport() {
     if (searchMatches.length === 0) {
       return -1;
@@ -867,7 +1000,8 @@
     let bestIndex = 0;
     let bestDistance = Infinity;
     for (let i = 0; i < searchMatches.length; i++) {
-      const rect = searchMatches[i].getBoundingClientRect();
+      const target = searchMatches[i][0];
+      const rect = target.getBoundingClientRect();
       const center = window.scrollY + rect.top + rect.height / 2;
       const distance = Math.abs(center - anchor);
       if (distance < bestDistance) {
@@ -901,14 +1035,18 @@
   }
 
   function updateCurrentSearchMatch(scrollToMatch) {
-    searchMatches.forEach(function (match) {
-      match.classList.remove("skimdown-search-current");
+    searchMatches.forEach(function (matchGroup) {
+      matchGroup.forEach(function (match) {
+        match.classList.remove("skimdown-search-current");
+      });
     });
     const current = searchMatches[currentSearchIndex];
     if (current) {
-      current.classList.add("skimdown-search-current");
+      current.forEach(function (match) {
+        match.classList.add("skimdown-search-current");
+      });
       if (scrollToMatch) {
-        current.scrollIntoView({ block: "center" });
+        current[0].scrollIntoView({ block: "center" });
       }
     }
   }
