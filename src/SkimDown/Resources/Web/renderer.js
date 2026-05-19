@@ -9,6 +9,7 @@
   const IMAGE_READY_TIMEOUT_MS = 3000;
   // Matches standalone #RGB, #RGBA, #RRGGBB, and #RRGGBBAA color codes.
   const COLOR_CODE_PATTERN_SOURCE = "(^|[^\\w-])(#(?:[0-9A-Fa-f]{8}|[0-9A-Fa-f]{6}|[0-9A-Fa-f]{4}|[0-9A-Fa-f]{3}))(?![\\w-])";
+  const COLOR_CODE_DETECTION_PATTERN = new RegExp(COLOR_CODE_PATTERN_SOURCE);
 
   function renderer() {
     if (!markdownIt) {
@@ -732,8 +733,7 @@
   function decorateColorCodes(content) {
     const walker = document.createTreeWalker(content, NodeFilter.SHOW_TEXT, {
       acceptNode: function (node) {
-        const pattern = colorCodePattern();
-        if (!node.nodeValue || !pattern.test(node.nodeValue)) {
+        if (!node.nodeValue || !COLOR_CODE_DETECTION_PATTERN.test(node.nodeValue)) {
           return NodeFilter.FILTER_REJECT;
         }
         const parent = node.parentElement;
@@ -749,13 +749,14 @@
       nodes.push(walker.currentNode);
     }
 
+    const replacementPattern = new RegExp(COLOR_CODE_PATTERN_SOURCE, "g");
     nodes.forEach(function (node) {
       const fragment = document.createDocumentFragment();
       const value = node.nodeValue;
-      const pattern = colorCodePattern();
       let lastIndex = 0;
       let match;
-      while ((match = pattern.exec(value)) !== null) {
+      replacementPattern.lastIndex = 0;
+      while ((match = replacementPattern.exec(value)) !== null) {
         const color = match[2];
         const colorIndex = match.index + match[1].length;
         fragment.appendChild(document.createTextNode(value.slice(lastIndex, colorIndex)));
@@ -765,10 +766,6 @@
       fragment.appendChild(document.createTextNode(value.slice(lastIndex)));
       node.replaceWith(fragment);
     });
-  }
-
-  function colorCodePattern() {
-    return new RegExp(COLOR_CODE_PATTERN_SOURCE, "g");
   }
 
   function colorCodePreview(color) {
