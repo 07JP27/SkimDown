@@ -4,6 +4,123 @@ import XCTest
 
 final class RendererAnchorTests: XCTestCase {
     @MainActor
+    func testRendererDecoratesInlineColorCodes() async throws {
+        let webView = try await renderMarkdown(
+            """
+            Inline #0a66d6, short #f80, alpha #8250dfcc, and code `#cf222e`.
+            """
+        )
+
+        let resultJSON = try await evaluateStringJavaScript(
+            """
+            JSON.stringify({
+              colors: Array.from(document.querySelectorAll('.skimdown-color-code')).map(function (node) {
+                return node.childNodes[0].nodeValue;
+              }),
+              swatchTitles: Array.from(document.querySelectorAll('.skimdown-color-swatch')).map(function (node) {
+                return node.title;
+              }),
+              codeSwatches: document.querySelectorAll('code .skimdown-color-swatch').length
+            })
+            """,
+            in: webView
+        )
+        let result = try JSONDecoder().decode(ColorCodePreviewResult.self, from: Data(resultJSON.utf8))
+
+        XCTAssertEqual(result.colors, ["#0a66d6", "#f80", "#8250dfcc"])
+        XCTAssertEqual(result.swatchTitles, ["#0a66d6", "#f80", "#8250dfcc"])
+        XCTAssertEqual(result.codeSwatches, 0)
+    }
+
+    @MainActor
+    func testSearchMatchesAcrossColorCodePreviewMarkup() async throws {
+        let webView = try await renderMarkdown(
+            """
+            Inline #0a66d6, short #f80, alpha #8250dfcc.
+            """
+        )
+
+        let resultJSON = try await evaluateStringJavaScript(
+            """
+            var firstState = window.skimdown.performSearch('Inline #0a66d6', false, false);
+            var firstSegments = Array.from(document.querySelectorAll('.skimdown-search-match')).map(function (node) {
+              return node.textContent;
+            });
+            var secondState = window.skimdown.performSearch('#0a66d6, short', false, false);
+            var secondSegments = Array.from(document.querySelectorAll('.skimdown-search-match')).map(function (node) {
+              return node.textContent;
+            });
+            JSON.stringify({
+              firstCount: firstState.count,
+              firstSegments: firstSegments,
+              secondCount: secondState.count,
+              secondSegments: secondSegments
+            })
+            """,
+            in: webView
+        )
+        let result = try JSONDecoder().decode(SearchAcrossColorCodeResult.self, from: Data(resultJSON.utf8))
+
+        XCTAssertEqual(result.firstCount, 1)
+        XCTAssertEqual(result.firstSegments.joined(), "Inline #0a66d6")
+        XCTAssertEqual(result.secondCount, 1)
+        XCTAssertEqual(result.secondSegments.joined(), "#0a66d6, short")
+    }
+
+    @MainActor
+    func testColorCodeDecorationSkipsMermaidSource() async throws {
+        let webView = try await renderMarkdown(
+            """
+            ```mermaid
+            graph TD
+                A[Start] -->|Yes| B[End]
+                style A fill:#f80,stroke:#333
+            ```
+
+            Paragraph with #0a66d6 color.
+            """
+        )
+
+        let resultJSON = try await evaluateStringJavaScript(
+            """
+            JSON.stringify({
+              mermaidSwatches: document.querySelectorAll('.mermaid .skimdown-color-swatch, .mermaid-container .skimdown-color-swatch').length,
+              paragraphSwatches: document.querySelectorAll('p .skimdown-color-swatch').length
+            })
+            """,
+            in: webView
+        )
+        let result = try JSONDecoder().decode(MermaidColorExclusionResult.self, from: Data(resultJSON.utf8))
+
+        XCTAssertEqual(result.mermaidSwatches, 0, "Color decoration must not inject swatches into Mermaid source")
+        XCTAssertEqual(result.paragraphSwatches, 1, "Color decoration should still apply outside Mermaid blocks")
+    }
+
+    @MainActor
+    func testSearchDoesNotMatchAcrossBlockBoundaries() async throws {
+        let webView = try await renderMarkdown(
+            """
+            First paragraph ends with foo.
+
+            Second paragraph starts with bar here.
+
+            This paragraph has foobar together.
+            """
+        )
+
+        let resultJSON = try await evaluateStringJavaScript(
+            """
+            var state = window.skimdown.performSearch('foobar', false, false);
+            JSON.stringify({ count: state.count })
+            """,
+            in: webView
+        )
+        let result = try JSONDecoder().decode(SearchBlockBoundaryResult.self, from: Data(resultJSON.utf8))
+
+        XCTAssertEqual(result.count, 1, "Search must not match across block boundaries; only the literal occurrence should match")
+    }
+
+    @MainActor
     func testRendererAssignsHeadingIDsForSectionLinks() async throws {
         let webView = try await renderMarkdown(
             """
@@ -156,6 +273,28 @@ private enum RendererAnchorTestError: Error {
     case invalidJSON
     case invalidScriptResult
     case scriptEvaluationFailed(String)
+}
+
+private struct ColorCodePreviewResult: Decodable {
+    let colors: [String]
+    let swatchTitles: [String]
+    let codeSwatches: Int
+}
+
+private struct SearchAcrossColorCodeResult: Decodable {
+    let firstCount: Int
+    let firstSegments: [String]
+    let secondCount: Int
+    let secondSegments: [String]
+}
+
+private struct MermaidColorExclusionResult: Decodable {
+    let mermaidSwatches: Int
+    let paragraphSwatches: Int
+}
+
+private struct SearchBlockBoundaryResult: Decodable {
+    let count: Int
 }
 
 @MainActor

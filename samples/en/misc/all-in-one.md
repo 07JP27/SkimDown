@@ -124,6 +124,10 @@ Collapsed content is displayed here.
 
 <mark>Highlighted text</mark>
 
+## Color Codes
+
+SkimDown shows swatches after color codes such as #0a66d6, #1a7f37, and #f80.
+
 ---
 
 The above covers all Markdown syntax supported by SkimDown.

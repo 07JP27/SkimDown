@@ -65,6 +65,7 @@ Fenced code blocks with the `mermaid` language identifier are rendered as intera
 | HTML elements | `<details>`, `<summary>`, `<sub>`, `<sup>`, `<mark>`, `<kbd>` |
 | Image size | `![alt](url =WxH)` syntax for specifying dimensions |
 | Syntax highlighting | Language-specific code coloring for fenced code blocks |
+| Color code previews | Hex colors such as `#0a66d6`, `#f80`, and `#8250dfcc` show an inline swatch |
 
 ## Themes and zoom
 
@@ -88,4 +89,3 @@ Page anchors scroll within the current preview. Relative links to Markdown files
 ## Local images
 
 Local images are displayed only when they are inside the opened folder. Image files are not shown as standalone sidebar items.
-
