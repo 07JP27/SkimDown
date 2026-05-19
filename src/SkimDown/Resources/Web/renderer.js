@@ -881,6 +881,7 @@
         segmentIndex++;
       }
       let overlapIndex = segmentIndex;
+      let hasOverlap = false;
       while (overlapIndex < segments.length && segments[overlapIndex].start < matchEnd) {
         const segment = segments[overlapIndex];
         const start = Math.max(matchStart, segment.start) - segment.start;
@@ -889,9 +890,10 @@
           replacements.set(segment.node, []);
         }
         replacements.get(segment.node).push({ start: start, end: end, group: group });
+        hasOverlap = true;
         overlapIndex++;
       }
-      if (group.length > 0) {
+      if (hasOverlap) {
         searchMatches.push(group);
       }
     }
