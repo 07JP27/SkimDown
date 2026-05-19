@@ -33,6 +33,41 @@ final class RendererAnchorTests: XCTestCase {
     }
 
     @MainActor
+    func testSearchMatchesAcrossColorCodePreviewMarkup() async throws {
+        let webView = try await renderMarkdown(
+            """
+            Inline #0a66d6, short #f80, alpha #8250dfcc.
+            """
+        )
+
+        let resultJSON = try await evaluateStringJavaScript(
+            """
+            var firstState = window.skimdown.performSearch('Inline #0a66d6', false, false);
+            var firstSegments = Array.from(document.querySelectorAll('.skimdown-search-match')).map(function (node) {
+              return node.textContent;
+            });
+            var secondState = window.skimdown.performSearch('#0a66d6, short', false, false);
+            var secondSegments = Array.from(document.querySelectorAll('.skimdown-search-match')).map(function (node) {
+              return node.textContent;
+            });
+            JSON.stringify({
+              firstCount: firstState.count,
+              firstSegments: firstSegments,
+              secondCount: secondState.count,
+              secondSegments: secondSegments
+            })
+            """,
+            in: webView
+        )
+        let result = try JSONDecoder().decode(SearchAcrossColorCodeResult.self, from: Data(resultJSON.utf8))
+
+        XCTAssertEqual(result.firstCount, 1)
+        XCTAssertEqual(result.firstSegments.joined(), "Inline #0a66d6")
+        XCTAssertEqual(result.secondCount, 1)
+        XCTAssertEqual(result.secondSegments.joined(), "#0a66d6, short")
+    }
+
+    @MainActor
     func testRendererAssignsHeadingIDsForSectionLinks() async throws {
         let webView = try await renderMarkdown(
             """
@@ -191,6 +226,13 @@ private struct ColorCodePreviewResult: Decodable {
     let colors: [String]
     let swatchTitles: [String]
     let codeSwatches: Int
+}
+
+private struct SearchAcrossColorCodeResult: Decodable {
+    let firstCount: Int
+    let firstSegments: [String]
+    let secondCount: Int
+    let secondSegments: [String]
 }
 
 @MainActor
