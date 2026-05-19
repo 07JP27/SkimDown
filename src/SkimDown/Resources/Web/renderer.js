@@ -879,6 +879,7 @@
       let hasOverlap = false;
       while (overlapIndex < segments.length && segments[overlapIndex].start < matchEnd) {
         const segment = segments[overlapIndex];
+        if (!segment.node) { overlapIndex++; continue; }
         const start = Math.max(matchStart, segment.start) - segment.start;
         const end = Math.min(matchEnd, segment.end) - segment.start;
         if (!replacements.has(segment.node)) {
@@ -942,6 +943,23 @@
     segment.node.replaceWith(fragment);
   }
 
+  var SEARCH_BLOCK_TAGS = new Set([
+    "ADDRESS", "ARTICLE", "ASIDE", "BLOCKQUOTE", "DD", "DETAILS", "DIALOG",
+    "DIV", "DL", "DT", "FIELDSET", "FIGCAPTION", "FIGURE", "FOOTER",
+    "FORM", "H1", "H2", "H3", "H4", "H5", "H6", "HEADER", "HGROUP", "HR",
+    "LI", "MAIN", "NAV", "OL", "P", "PRE", "SECTION", "SUMMARY", "TABLE",
+    "TBODY", "TD", "TFOOT", "TH", "THEAD", "TR", "UL"
+  ]);
+
+  function closestBlockAncestor(node, root) {
+    var el = node.parentElement;
+    while (el && el !== root) {
+      if (SEARCH_BLOCK_TAGS.has(el.tagName)) { return el; }
+      el = el.parentElement;
+    }
+    return root;
+  }
+
   function collectSearchTextSegments(content) {
     const walker = document.createTreeWalker(content, NodeFilter.SHOW_TEXT, {
       acceptNode: function (node) {
@@ -958,11 +976,18 @@
 
     const segments = [];
     let offset = 0;
+    let prevBlock = null;
     while (walker.nextNode()) {
       const node = walker.currentNode;
       const text = node.nodeValue;
+      const block = closestBlockAncestor(node, content);
+      if (prevBlock !== null && block !== prevBlock) {
+        segments.push({ node: null, text: "\n", start: offset, end: offset + 1 });
+        offset += 1;
+      }
       segments.push({ node: node, text: text, start: offset, end: offset + text.length });
       offset += text.length;
+      prevBlock = block;
     }
     return segments;
   }

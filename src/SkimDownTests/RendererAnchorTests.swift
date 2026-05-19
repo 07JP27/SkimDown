@@ -97,6 +97,30 @@ final class RendererAnchorTests: XCTestCase {
     }
 
     @MainActor
+    func testSearchDoesNotMatchAcrossBlockBoundaries() async throws {
+        let webView = try await renderMarkdown(
+            """
+            First paragraph ends with foo.
+
+            Second paragraph starts with bar here.
+
+            This paragraph has foobar together.
+            """
+        )
+
+        let resultJSON = try await evaluateStringJavaScript(
+            """
+            var state = window.skimdown.performSearch('foobar', false, false);
+            JSON.stringify({ count: state.count })
+            """,
+            in: webView
+        )
+        let result = try JSONDecoder().decode(SearchBlockBoundaryResult.self, from: Data(resultJSON.utf8))
+
+        XCTAssertEqual(result.count, 1, "Search must not match across block boundaries; only the literal occurrence should match")
+    }
+
+    @MainActor
     func testRendererAssignsHeadingIDsForSectionLinks() async throws {
         let webView = try await renderMarkdown(
             """
@@ -267,6 +291,10 @@ private struct SearchAcrossColorCodeResult: Decodable {
 private struct MermaidColorExclusionResult: Decodable {
     let mermaidSwatches: Int
     let paragraphSwatches: Int
+}
+
+private struct SearchBlockBoundaryResult: Decodable {
+    let count: Int
 }
 
 @MainActor
