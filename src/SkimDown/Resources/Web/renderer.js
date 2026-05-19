@@ -868,12 +868,16 @@
     const content = document.getElementById("content");
     const flags = caseSensitive ? "g" : "gi";
     const pattern = new RegExp(escapeRegExp(query), flags);
-    const segments = collectSearchableSegments(content);
+    const segments = collectSearchTextSegments(content);
     const searchableText = segments.map(function (segment) { return segment.text; }).join("");
     const replacements = new Map();
     let segmentIndex = 0;
     let match;
     while ((match = pattern.exec(searchableText)) !== null) {
+      if (match[0].length === 0) {
+        pattern.lastIndex++;
+        continue;
+      }
       const group = [];
       const matchStart = match.index;
       const matchEnd = matchStart + match[0].length;
@@ -929,7 +933,7 @@
     return searchState();
   }
 
-  function collectSearchableSegments(content) {
+  function collectSearchTextSegments(content) {
     const walker = document.createTreeWalker(content, NodeFilter.SHOW_TEXT, {
       acceptNode: function (node) {
         if (!node.nodeValue) {
