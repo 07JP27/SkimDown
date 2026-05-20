@@ -194,6 +194,34 @@ final class RendererAnchorTests: XCTestCase {
     }
 
     @MainActor
+    func testRendererUpdatesRenderTokenAcrossRenders() async throws {
+        let webView = try await renderMarkdown("![Image](assets/photo.png)")
+        let resultJSON = try await evaluateStringJavaScript(
+            """
+            var first = new URL(document.querySelector('img').getAttribute('src')).searchParams.get('__skimdown_render');
+            window.skimdown.render({
+              markdown: '![Image](assets/photo.png)',
+              baseURL: document.baseURI,
+              rootURL: document.baseURI,
+              localFileScheme: '\(LocalFileSchemeHandler.scheme)',
+              theme: 'system',
+              fontSize: 16,
+              renderID: 2,
+              restoreScrollY: 0
+            });
+            var second = new URL(document.querySelector('img').getAttribute('src')).searchParams.get('__skimdown_render');
+            JSON.stringify({ first: first, second: second });
+            """,
+            in: webView
+        )
+        let result = try JSONDecoder().decode(RenderTokenResult.self, from: Data(resultJSON.utf8))
+
+        XCTAssertEqual(result.first, "1")
+        XCTAssertEqual(result.second, "2")
+        XCTAssertNotEqual(result.first, result.second)
+    }
+
+    @MainActor
     private func renderMarkdown(_ markdown: String) async throws -> WKWebView {
         let configuration = WKWebViewConfiguration()
         let webView = WKWebView(frame: NSRect(x: 0, y: 0, width: 800, height: 1000), configuration: configuration)
@@ -311,6 +339,11 @@ private struct MermaidColorExclusionResult: Decodable {
 
 private struct SearchBlockBoundaryResult: Decodable {
     let count: Int
+}
+
+private struct RenderTokenResult: Decodable {
+    let first: String?
+    let second: String?
 }
 
 @MainActor
