@@ -178,6 +178,22 @@ final class RendererAnchorTests: XCTestCase {
     }
 
     @MainActor
+    func testRendererAddsRenderTokenToLocalImageSources() async throws {
+        let webView = try await renderMarkdown("![Image](assets/photo.png?size=large)")
+        let src = try await evaluateStringJavaScript(
+            "document.querySelector('img').getAttribute('src')",
+            in: webView
+        )
+
+        XCTAssertTrue(src.hasPrefix("\(LocalFileSchemeHandler.scheme)://"))
+
+        let components = URLComponents(string: src)
+        let queryItems = components?.queryItems ?? []
+        XCTAssertEqual(queryItems.first(where: { $0.name == "size" })?.value, "large")
+        XCTAssertEqual(queryItems.first(where: { $0.name == "__skimdown_render" })?.value, "1")
+    }
+
+    @MainActor
     private func renderMarkdown(_ markdown: String) async throws -> WKWebView {
         let configuration = WKWebViewConfiguration()
         let webView = WKWebView(frame: NSRect(x: 0, y: 0, width: 800, height: 1000), configuration: configuration)
