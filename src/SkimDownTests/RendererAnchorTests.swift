@@ -218,7 +218,6 @@ final class RendererAnchorTests: XCTestCase {
 
         XCTAssertEqual(result.first, "1")
         XCTAssertEqual(result.second, "2")
-        XCTAssertNotEqual(result.first, result.second)
     }
 
     @MainActor
