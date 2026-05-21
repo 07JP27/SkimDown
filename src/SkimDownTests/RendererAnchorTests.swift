@@ -178,6 +178,85 @@ final class RendererAnchorTests: XCTestCase {
     }
 
     @MainActor
+    func testRendererHandlesEmptyQueryStringInImageSource() async throws {
+        let webView = try await renderMarkdown("![Image](assets/photo.png?)")
+        let src = try await evaluateStringJavaScript(
+            "document.querySelector('img').getAttribute('src')",
+            in: webView
+        )
+
+        print("🔍 [STEP1] input: ![Image](assets/photo.png?)")
+        print("🔍 [STEP1] img src = \(src)")
+        print("🔍 [STEP1] contains '?&' = \(src.contains("?&"))")
+
+        XCTAssertTrue(src.hasPrefix("\(LocalFileSchemeHandler.scheme)://"),
+                       "Rewritten URL must use the local file scheme")
+        XCTAssertFalse(src.contains("?&"),
+                        "URL must not contain malformed '?&' sequence")
+
+        let components = URLComponents(string: src)
+        let queryItems = components?.queryItems ?? []
+        XCTAssertEqual(queryItems.first(where: { $0.name == "__skimdown_render" })?.value, "1",
+                        "Cache-busting render token must be present")
+    }
+
+    @MainActor
+    func testRendererAddsRenderTokenToLocalImageSources() async throws {
+        let webView = try await renderMarkdown("![Image](assets/photo.png?size=large)")
+        let src = try await evaluateStringJavaScript(
+            "document.querySelector('img').getAttribute('src')",
+            in: webView
+        )
+
+        print("🔍 [STEP2] input: ![Image](assets/photo.png?size=large)")
+        print("🔍 [STEP2] img src = \(src)")
+
+        XCTAssertTrue(src.hasPrefix("\(LocalFileSchemeHandler.scheme)://"))
+
+        let components = URLComponents(string: src)
+        let queryItems = components?.queryItems ?? []
+        let sizeVal = queryItems.first(where: { $0.name == "size" })?.value ?? "MISSING"
+        let renderVal = queryItems.first(where: { $0.name == "__skimdown_render" })?.value ?? "MISSING"
+        print("🔍 [STEP2] size param = \(sizeVal)")
+        print("🔍 [STEP2] __skimdown_render = \(renderVal)")
+
+        XCTAssertEqual(sizeVal, "large")
+        XCTAssertEqual(renderVal, "1")
+    }
+
+    @MainActor
+    func testRendererUpdatesRenderTokenAcrossRenders() async throws {
+        let webView = try await renderMarkdown("![Image](assets/photo.png)")
+        let resultJSON = try await evaluateStringJavaScript(
+            """
+            var first = new URL(document.querySelector('img').getAttribute('src')).searchParams.get('__skimdown_render');
+            window.skimdown.render({
+              markdown: '![Image](assets/photo.png)',
+              baseURL: document.baseURI,
+              rootURL: document.baseURI,
+              localFileScheme: '\(LocalFileSchemeHandler.scheme)',
+              theme: 'system',
+              fontSize: 16,
+              renderID: 2,
+              restoreScrollY: 0
+            });
+            var second = new URL(document.querySelector('img').getAttribute('src')).searchParams.get('__skimdown_render');
+            JSON.stringify({ first: first, second: second });
+            """,
+            in: webView
+        )
+        let result = try JSONDecoder().decode(RenderTokenResult.self, from: Data(resultJSON.utf8))
+
+        print("🔍 [STEP3] input: ![Image](assets/photo.png) rendered twice")
+        print("🔍 [STEP3] 1st render token = \(result.first ?? "nil")")
+        print("🔍 [STEP3] 2nd render token = \(result.second ?? "nil")")
+        print("🔍 [STEP3] token changed = \(result.first != result.second)")
+
+        XCTAssertEqual(result.first, "1")
+        XCTAssertEqual(result.second, "2")
+    }
+
+    @MainActor
     private func renderMarkdown(_ markdown: String) async throws -> WKWebView {
         let configuration = WKWebViewConfiguration()
         let webView = WKWebView(frame: NSRect(x: 0, y: 0, width: 800, height: 1000), configuration: configuration)
@@ -295,6 +374,11 @@ private struct MermaidColorExclusionResult: Decodable {
 
 private struct SearchBlockBoundaryResult: Decodable {
     let count: Int
+}
+
+private struct RenderTokenResult: Decodable {
+    let first: String?
+    let second: String?
 }
 
 @MainActor
