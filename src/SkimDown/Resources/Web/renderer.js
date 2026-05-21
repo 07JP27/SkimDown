@@ -312,9 +312,9 @@
           if (rootURL && !resolved.href.startsWith(rootURL)) {
             image.removeAttribute("src");
           } else {
-            const separator = resolved.search ? "&" : "?";
-            const rewrittenSrc = localFileScheme + "://" + resolved.pathname + resolved.search +
-              separator + "__skimdown_render=" + encodeURIComponent(String(payload.renderID || 0));
+            const rewrittenURL = new URL(localFileScheme + "://" + resolved.pathname + resolved.search);
+            rewrittenURL.searchParams.set("__skimdown_render", String(payload.renderID || 0));
+            const rewrittenSrc = rewrittenURL.href;
             image.setAttribute("src", rewrittenSrc);
           }
         }
