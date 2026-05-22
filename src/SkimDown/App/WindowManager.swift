@@ -15,7 +15,13 @@ final class WindowManager {
     }
 
     var activeController: DocumentWindowController? {
-        NSApp.keyWindow?.windowController as? DocumentWindowController
+        if let controller = NSApp.keyWindow?.windowController as? DocumentWindowController {
+            return controller
+        }
+        if let controller = NSApp.mainWindow?.windowController as? DocumentWindowController {
+            return controller
+        }
+        return controllers.last { $0.window?.isVisible == true }
     }
 
     func restoreOrCreateInitialWindow() {
@@ -160,8 +166,10 @@ final class WindowManager {
     /// 既存のすべてのウィンドウに同じテーマを設定して再描画する。
     /// (例: 選択中のカスタムテーマが削除された場合のフォールバック)。
     func applyThemeToAllWindows(_ theme: AppTheme) {
+        let effectiveTheme = colorSchemeStore.normalizedTheme(theme)
+        settingsStore.theme = effectiveTheme
         for controller in controllers {
-            controller.setTheme(theme)
+            controller.setTheme(effectiveTheme)
         }
     }
 

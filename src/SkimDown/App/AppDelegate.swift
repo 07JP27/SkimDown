@@ -260,15 +260,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
     }
 
     @objc func themeSystem(_ sender: Any?) {
-        windowManager.activeController?.setTheme(.system)
+        windowManager.applyThemeToAllWindows(.system)
     }
 
     @objc func themeLight(_ sender: Any?) {
-        windowManager.activeController?.setTheme(.light)
+        windowManager.applyThemeToAllWindows(.light)
     }
 
     @objc func themeDark(_ sender: Any?) {
-        windowManager.activeController?.setTheme(.dark)
+        windowManager.applyThemeToAllWindows(.dark)
     }
 
     @objc func themeCustom(_ sender: Any?) {
@@ -281,7 +281,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
             NSSound.beep()
             return
         }
-        windowManager.activeController?.setTheme(.custom(id: id))
+        windowManager.applyThemeToAllWindows(.custom(id: id))
     }
 
     @objc func openThemesFolder(_ sender: Any?) {
