@@ -110,8 +110,11 @@ final class SettingsStore {
     }
 
     var theme: AppTheme {
-        get { AppTheme(rawValue: defaults.string(forKey: Key.theme) ?? "") ?? .system }
-        set { defaults.set(newValue.rawValue, forKey: Key.theme) }
+        get {
+            let stored = defaults.string(forKey: Key.theme) ?? ""
+            return AppTheme(storageValue: stored) ?? .system
+        }
+        set { defaults.set(newValue.storageValue, forKey: Key.theme) }
     }
 
     var fontSize: Double {

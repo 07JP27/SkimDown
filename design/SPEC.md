@@ -195,6 +195,9 @@ GitHub Flavored Markdown寄りの表示を基本にする。
 - `Theme > System`
 - `Theme > Light`
 - `Theme > Dark`
+- `Theme > ユーザー登録のカスタムテーマ` (区切り線の下に動的に列挙)
+- `Theme > Open Themes Folder` (`~/Library/Application Support/SkimDown/Themes/` を Finder で開く)
+- `Theme > Reload Themes` (Themes フォルダを再走査して一覧を更新)
 
 ### Window
 
@@ -203,7 +206,16 @@ GitHub Flavored Markdown寄りの表示を基本にする。
 - `Bring All to Front`
 - 開いているSkimDownウィンドウ一覧
 
-## 保存する状態
+## カラースキーム
+
+- 組み込みテーマは `System / Light / Dark` の3種類。
+- ユーザーは VS Code 互換のカラーテーマ JSON を `~/Library/Application Support/SkimDown/Themes/` に置いて追加できる。
+- JSON は VS Code の `colors` 辞書のみ参照する。`tokenColors` (シンタックスハイライト) は MVP では対象外で、コードブロックは `type` (light/dark) に応じて GitHub 風ハイライトの light / dark を選択する。
+- 解決済みのテーマ色は CSS 変数 (`--skimdown-bg` 等) として `WKWebView` の HTML に注入する。
+- 一覧の更新は手動 (`Reload Themes`)。ファイル変更の自動監視は行わない。
+- 選択中のカスタムテーマが消えた場合は次回起動または Reload 時に `System` にフォールバックする。
+
+
 
 - 前回開いたフォルダ
 - 最近開いたフォルダ
@@ -212,7 +224,7 @@ GitHub Flavored Markdown寄りの表示を基本にする。
 - サイドバー位置
 - サイドバー表示/非表示
 - サイドバー幅
-- テーマ
+- テーマ (組み込み3種類 + カスタムテーマ ID)
 - フォントサイズ
 - 本文検索の大文字小文字設定
 

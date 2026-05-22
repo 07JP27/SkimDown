@@ -4,6 +4,7 @@ import AppKit
 final class DocumentWindowController: NSWindowController, NSWindowDelegate, SidebarViewControllerDelegate, EmptyStateViewDelegate, MarkdownWebViewDelegate, SearchBarViewDelegate {
     private let settingsStore: SettingsStore
     private let bookmarkStore: FolderBookmarkStore
+    private let colorSchemeStore: ColorSchemeStore
     private weak var windowManager: WindowManager?
 
     private let splitViewController = NSSplitViewController()
@@ -63,9 +64,10 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Side
         settings.sidebarWidth = max(180, min(width, 520))
     }
 
-    init(settingsStore: SettingsStore, bookmarkStore: FolderBookmarkStore, windowManager: WindowManager) {
+    init(settingsStore: SettingsStore, bookmarkStore: FolderBookmarkStore, colorSchemeStore: ColorSchemeStore, windowManager: WindowManager) {
         self.settingsStore = settingsStore
         self.bookmarkStore = bookmarkStore
+        self.colorSchemeStore = colorSchemeStore
         self.windowManager = windowManager
         self.settings = settingsStore.settings
 
@@ -340,9 +342,16 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Side
     }
 
     func setTheme(_ theme: AppTheme) {
-        settings.theme = theme
-        settingsStore.theme = theme
-        applyWindowAppearance(theme)
+        // 不正なカスタムテーマ ID が渡された場合は system にフォールバック。
+        let effectiveTheme: AppTheme
+        if case .custom(let id) = theme, colorSchemeStore.scheme(id: id) == nil {
+            effectiveTheme = .system
+        } else {
+            effectiveTheme = theme
+        }
+        settings.theme = effectiveTheme
+        settingsStore.theme = effectiveTheme
+        applyWindowAppearance(effectiveTheme)
         reloadSelectedMarkdown(preserveScrollPosition: true)
     }
 
@@ -650,6 +659,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Side
                 currentFileURL: fileURL,
                 rootFolderURL: session.folderURL,
                 theme: settings.theme,
+                resolvedTheme: colorSchemeStore.resolvedTheme(for: settings.theme),
                 fontSize: settings.fontSize,
                 preserveScrollPosition: shouldPreserveScrollPosition,
                 restoreScrollY: restoreScrollY
@@ -661,7 +671,12 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Side
             sidebarViewController.selectFile(fileURL)
             emptyStateView.isHidden = true
             markdownWebView.isHidden = false
-            markdownWebView.showError(error.localizedDescription, theme: settings.theme, fontSize: settings.fontSize)
+            markdownWebView.showError(
+                error.localizedDescription,
+                theme: settings.theme,
+                resolvedTheme: colorSchemeStore.resolvedTheme(for: settings.theme),
+                fontSize: settings.fontSize
+            )
         }
     }
 
@@ -745,6 +760,12 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Side
             window?.appearance = NSAppearance(named: .aqua)
         case .dark:
             window?.appearance = NSAppearance(named: .darkAqua)
+        case .custom:
+            if let resolved = colorSchemeStore.resolvedTheme(for: theme) {
+                window?.appearance = NSAppearance(named: resolved.isDark ? .darkAqua : .aqua)
+            } else {
+                window?.appearance = nil
+            }
         }
     }
 

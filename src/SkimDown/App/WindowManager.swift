@@ -4,12 +4,14 @@ import AppKit
 final class WindowManager {
     private let settingsStore: SettingsStore
     private let bookmarkStore: FolderBookmarkStore
+    private let colorSchemeStore: ColorSchemeStore
     private var controllers: [DocumentWindowController] = []
     private var isTerminating = false
 
-    init(settingsStore: SettingsStore, bookmarkStore: FolderBookmarkStore) {
+    init(settingsStore: SettingsStore, bookmarkStore: FolderBookmarkStore, colorSchemeStore: ColorSchemeStore) {
         self.settingsStore = settingsStore
         self.bookmarkStore = bookmarkStore
+        self.colorSchemeStore = colorSchemeStore
     }
 
     var activeController: DocumentWindowController? {
@@ -58,7 +60,12 @@ final class WindowManager {
 
     @discardableResult
     func createWindow(initialFrame: CGRect? = nil) -> DocumentWindowController {
-        let controller = DocumentWindowController(settingsStore: settingsStore, bookmarkStore: bookmarkStore, windowManager: self)
+        let controller = DocumentWindowController(
+            settingsStore: settingsStore,
+            bookmarkStore: bookmarkStore,
+            colorSchemeStore: colorSchemeStore,
+            windowManager: self
+        )
         controllers.append(controller)
         if let initialFrame, let window = controller.window {
             // Apply the persisted frame before the window is shown so that
@@ -148,6 +155,23 @@ final class WindowManager {
         alert.informativeText = message
         alert.alertStyle = .warning
         alert.runModal()
+    }
+
+    /// 既存のすべてのウィンドウに同じテーマを設定して再描画する。
+    /// (例: 選択中のカスタムテーマが削除された場合のフォールバック)。
+    func applyThemeToAllWindows(_ theme: AppTheme) {
+        for controller in controllers {
+            controller.setTheme(theme)
+        }
+    }
+
+    /// 現在の `SettingsStore.theme` を全ウィンドウに改めて適用する。
+    /// (例: Reload Themes 後にカスタムテーマの色定義が更新された場合)。
+    func reapplyCurrentThemeToAllWindows() {
+        let theme = settingsStore.theme
+        for controller in controllers {
+            controller.setTheme(theme)
+        }
     }
 
     private func present(_ controller: DocumentWindowController, preserveOnScreenFrame: Bool = false) {

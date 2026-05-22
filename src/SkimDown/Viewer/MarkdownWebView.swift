@@ -113,13 +113,14 @@ final class MarkdownWebView: NSView, WKScriptMessageHandler, WKNavigationDelegat
         currentFileURL: URL,
         rootFolderURL: URL,
         theme: AppTheme,
+        resolvedTheme: ResolvedTheme?,
         fontSize: Double,
         preserveScrollPosition: Bool = false,
         restoreScrollY: Double? = nil,
         completion: (() -> Void)? = nil
     ) {
         let generation = advanceRenderGeneration()
-        applyNativeAppearance(theme)
+        applyNativeAppearance(theme, resolvedTheme: resolvedTheme)
         localFileSchemeHandler.rootFolderURL = rootFolderURL
 
         let baseURL = currentFileURL.deletingLastPathComponent()
@@ -132,17 +133,19 @@ final class MarkdownWebView: NSView, WKScriptMessageHandler, WKNavigationDelegat
                 baseURL: baseURL,
                 rootURL: rootFolderURL,
                 theme: theme,
+                resolvedTheme: resolvedTheme,
                 fontSize: fontSize,
                 generation: generation,
                 restoreScrollY: effectiveScrollY
             )
             do {
-                let html = try Self.buildHTML(payload: payload, theme: theme, katexFontsURL: self.katexFontsURLString())
+                let html = try Self.buildHTML(payload: payload, theme: theme, resolvedTheme: resolvedTheme, katexFontsURL: self.katexFontsURLString())
                 self.loadHTML(html, baseURL: baseURL, generation: generation, scrollY: effectiveScrollY > 0 ? effectiveScrollY : nil, completion: completion)
             } catch {
                 self.loadFallbackErrorHTML(
                     message: "Preview resources could not be loaded.\n\(error.localizedDescription)",
                     theme: theme,
+                    resolvedTheme: resolvedTheme,
                     fontSize: fontSize,
                     baseURL: baseURL,
                     generation: generation,
@@ -174,21 +177,22 @@ final class MarkdownWebView: NSView, WKScriptMessageHandler, WKNavigationDelegat
         observedScrollY
     }
 
-    func showError(_ message: String, theme: AppTheme, fontSize: Double, completion: (() -> Void)? = nil) {
+    func showError(_ message: String, theme: AppTheme, resolvedTheme: ResolvedTheme?, fontSize: Double, completion: (() -> Void)? = nil) {
         let generation = advanceRenderGeneration()
-        applyNativeAppearance(theme)
+        applyNativeAppearance(theme, resolvedTheme: resolvedTheme)
         let payload = Self.renderPayload(
             markdown: "> **Error**\\n>\\n> \(message)",
             baseURL: Bundle.main.bundleURL,
             rootURL: Bundle.main.bundleURL,
             theme: theme,
+            resolvedTheme: resolvedTheme,
             fontSize: fontSize,
             generation: generation,
             restoreScrollY: 0
         )
         do {
             loadHTML(
-                try Self.buildHTML(payload: payload, theme: theme, katexFontsURL: katexFontsURLString()),
+                try Self.buildHTML(payload: payload, theme: theme, resolvedTheme: resolvedTheme, katexFontsURL: katexFontsURLString()),
                 baseURL: Bundle.main.bundleURL,
                 generation: generation,
                 scrollY: nil,
@@ -198,6 +202,7 @@ final class MarkdownWebView: NSView, WKScriptMessageHandler, WKNavigationDelegat
             loadFallbackErrorHTML(
                 message: "\(message)\n\n\(error.localizedDescription)",
                 theme: theme,
+                resolvedTheme: resolvedTheme,
                 fontSize: fontSize,
                 baseURL: Bundle.main.bundleURL,
                 generation: generation,
@@ -323,7 +328,7 @@ final class MarkdownWebView: NSView, WKScriptMessageHandler, WKNavigationDelegat
         }
     }
 
-    private func applyNativeAppearance(_ theme: AppTheme) {
+    private func applyNativeAppearance(_ theme: AppTheme, resolvedTheme: ResolvedTheme?) {
         switch theme {
         case .system:
             webView.appearance = nil
@@ -331,6 +336,13 @@ final class MarkdownWebView: NSView, WKScriptMessageHandler, WKNavigationDelegat
             webView.appearance = NSAppearance(named: .aqua)
         case .dark:
             webView.appearance = NSAppearance(named: .darkAqua)
+        case .custom:
+            // 解決済みテーマが見つからない場合 (登録解除中など) は system 扱い。
+            if let resolvedTheme {
+                webView.appearance = NSAppearance(named: resolvedTheme.isDark ? .darkAqua : .aqua)
+            } else {
+                webView.appearance = nil
+            }
         }
     }
 
@@ -393,7 +405,7 @@ final class MarkdownWebView: NSView, WKScriptMessageHandler, WKNavigationDelegat
         completion?()
     }
 
-    private static func buildHTML(payload: [String: Any], theme: AppTheme, katexFontsURL: String) throws -> String {
+    private static func buildHTML(payload: [String: Any], theme: AppTheme, resolvedTheme: ResolvedTheme?, katexFontsURL: String) throws -> String {
         let css = [
             try readWebResource("vendor/katex/katex.min.css").replacingOccurrences(of: "url(fonts/", with: "url(\(katexFontsURL)/"),
             try readWebResource("vendor/highlight.js/github.min.css"),
@@ -414,13 +426,18 @@ final class MarkdownWebView: NSView, WKScriptMessageHandler, WKNavigationDelegat
             try readWebResource("renderer.js")
         ].joined(separator: "\n")
 
+        let dataTheme = Self.dataThemeAttribute(for: theme)
+        let dataThemeType = Self.dataThemeTypeAttribute(for: theme, resolvedTheme: resolvedTheme)
+        let customStyle = Self.customThemeStyleBlock(resolvedTheme: resolvedTheme)
+
         return """
         <!doctype html>
-        <html data-theme="\(theme.rawValue)">
+        <html data-theme="\(dataTheme)" data-theme-type="\(dataThemeType)">
           <head>
             <meta charset="utf-8">
             <meta name="viewport" content="width=device-width, initial-scale=1">
             <style>\(css)</style>
+            \(customStyle)
           </head>
           <body>
             <main id="content"></main>
@@ -431,21 +448,77 @@ final class MarkdownWebView: NSView, WKScriptMessageHandler, WKNavigationDelegat
         """
     }
 
+    /// `<html data-theme="...">` に入れる値。
+    /// 組み込みテーマはそのまま、カスタムテーマは "custom" を返す。
+    private static func dataThemeAttribute(for theme: AppTheme) -> String {
+        switch theme {
+        case .system: return "system"
+        case .light: return "light"
+        case .dark: return "dark"
+        case .custom: return "custom"
+        }
+    }
+
+    /// `<html data-theme-type="...">` に入れる値 ("light" / "dark")。
+    /// カスタムテーマの暗色判定に使い、`skimdown.css` 側の暗色アラート色などを切り替える。
+    /// 組み込みテーマでは現状の挙動を変えないよう、Light=light / Dark=dark /
+    /// System=system OS appearance に従う。
+    private static func dataThemeTypeAttribute(for theme: AppTheme, resolvedTheme: ResolvedTheme?) -> String {
+        switch theme {
+        case .system:
+            return NSApp.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua ? "dark" : "light"
+        case .light:
+            return "light"
+        case .dark:
+            return "dark"
+        case .custom:
+            return (resolvedTheme?.isDark ?? false) ? "dark" : "light"
+        }
+    }
+
+    /// カスタムテーマの CSS 変数オーバーライドを返す。組み込み時は空文字。
+    private static func customThemeStyleBlock(resolvedTheme: ResolvedTheme?) -> String {
+        guard let resolvedTheme else { return "" }
+        let declarations = resolvedTheme.cssVariables
+            .map { "  \($0.name): \($0.value);" }
+            .joined(separator: "\n")
+        return """
+        <style>
+        :root[data-theme="custom"] {
+        \(declarations)
+        }
+        </style>
+        """
+    }
+
     private static func renderPayload(
         markdown: String,
         baseURL: URL,
         rootURL: URL,
         theme: AppTheme,
+        resolvedTheme: ResolvedTheme?,
         fontSize: Double,
         generation: Int,
         restoreScrollY: Double
     ) -> [String: Any] {
-        [
+        let themeIsDark: Bool
+        switch theme {
+        case .system:
+            themeIsDark = NSApp.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+        case .light:
+            themeIsDark = false
+        case .dark:
+            themeIsDark = true
+        case .custom:
+            themeIsDark = resolvedTheme?.isDark ?? false
+        }
+        return [
             "markdown": markdown,
             "baseURL": baseURL.absoluteString,
             "rootURL": directoryURLString(for: rootURL),
             "localFileScheme": LocalFileSchemeHandler.scheme,
-            "theme": theme.rawValue,
+            "theme": dataThemeAttribute(for: theme),
+            "themeIsDark": themeIsDark,
             "fontSize": fontSize,
             "renderID": generation,
             "restoreScrollY": restoreScrollY
@@ -478,18 +551,21 @@ final class MarkdownWebView: NSView, WKScriptMessageHandler, WKNavigationDelegat
     private func loadFallbackErrorHTML(
         message: String,
         theme: AppTheme,
+        resolvedTheme: ResolvedTheme?,
         fontSize: Double,
         baseURL: URL,
         generation: Int,
         completion: (() -> Void)?
     ) {
-        applyNativeAppearance(theme)
+        applyNativeAppearance(theme, resolvedTheme: resolvedTheme)
 
         let escapedMessage = Self.htmlEscaped(message)
             .replacingOccurrences(of: "\n", with: "<br>")
+        let dataTheme = Self.dataThemeAttribute(for: theme)
+        let dataThemeType = Self.dataThemeTypeAttribute(for: theme, resolvedTheme: resolvedTheme)
         let html = """
         <!doctype html>
-        <html data-theme="\(theme.rawValue)">
+        <html data-theme="\(dataTheme)" data-theme-type="\(dataThemeType)">
             <head>
                 <meta charset="utf-8">
                 <meta name="viewport" content="width=device-width, initial-scale=1">

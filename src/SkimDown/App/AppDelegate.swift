@@ -5,11 +5,15 @@ import UniformTypeIdentifiers
 final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenuItemValidation {
     let settingsStore = SettingsStore()
     let bookmarkStore = FolderBookmarkStore()
-    lazy var windowManager = WindowManager(settingsStore: settingsStore, bookmarkStore: bookmarkStore)
+    let colorSchemeStore = ColorSchemeStore()
+    lazy var windowManager = WindowManager(settingsStore: settingsStore, bookmarkStore: bookmarkStore, colorSchemeStore: colorSchemeStore)
     weak var recentMenu: NSMenu?
+    weak var themeMenu: NSMenu?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.regular)
+        // テーマを最初にロードしておく (起動時にカスタムテーマが選択中の可能性)。
+        colorSchemeStore.reload()
         NSApp.mainMenu = MainMenuBuilder.build(target: self)
 
         if let fileURL = Self.fileURLFromArguments() {
@@ -102,6 +106,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
     }
 
     func menuNeedsUpdate(_ menu: NSMenu) {
+        if menu === themeMenu {
+            MainMenuBuilder.populateThemeMenu(
+                menu,
+                target: self,
+                customThemes: colorSchemeStore.schemes,
+                currentTheme: settingsStore.theme
+            )
+            return
+        }
+
         guard menu === recentMenu else {
             return
         }
@@ -136,8 +150,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         case #selector(swapSidebarPosition(_:)):
             menuItem.title = controller?.sidebarPosition == .right ? "Move Sidebar to Left" : "Move Sidebar to Right"
             return controller != nil && !controller!.isSingleFile
-        case #selector(zoomIn(_:)), #selector(zoomOut(_:)), #selector(actualSize(_:)), #selector(themeSystem(_:)), #selector(themeLight(_:)), #selector(themeDark(_:)):
+        case #selector(zoomIn(_:)), #selector(zoomOut(_:)), #selector(actualSize(_:)), #selector(themeSystem(_:)), #selector(themeLight(_:)), #selector(themeDark(_:)), #selector(themeCustom(_:)):
             return controller != nil
+        case #selector(openThemesFolder(_:)), #selector(reloadThemes(_:)):
+            return true
         default:
             return true
         }
@@ -252,5 +268,34 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
 
     @objc func themeDark(_ sender: Any?) {
         windowManager.activeController?.setTheme(.dark)
+    }
+
+    @objc func themeCustom(_ sender: Any?) {
+        guard let menuItem = sender as? NSMenuItem,
+              let id = menuItem.representedObject as? String else {
+            return
+        }
+        // ストアから消えたテーマを選ばれないよう存在チェック。
+        guard colorSchemeStore.scheme(id: id) != nil else {
+            NSSound.beep()
+            return
+        }
+        windowManager.activeController?.setTheme(.custom(id: id))
+    }
+
+    @objc func openThemesFolder(_ sender: Any?) {
+        colorSchemeStore.ensureDirectoryExists()
+        NSWorkspace.shared.open(colorSchemeStore.directoryURL)
+    }
+
+    @objc func reloadThemes(_ sender: Any?) {
+        colorSchemeStore.reload()
+        // 選択中テーマが消えていれば system にフォールバックして全ウィンドウを更新する。
+        let currentTheme = settingsStore.theme
+        if case .custom(let id) = currentTheme, colorSchemeStore.scheme(id: id) == nil {
+            windowManager.applyThemeToAllWindows(.system)
+        } else {
+            windowManager.reapplyCurrentThemeToAllWindows()
+        }
     }
 }

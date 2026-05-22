@@ -72,9 +72,9 @@ enum MainMenuBuilder {
 
         let themeItem = NSMenuItem(title: "Theme", action: nil, keyEquivalent: "")
         let themeMenu = NSMenu(title: "Theme")
-        themeMenu.addItem(menuItem("System", action: #selector(AppDelegate.themeSystem(_:)), key: "", target: target))
-        themeMenu.addItem(menuItem("Light", action: #selector(AppDelegate.themeLight(_:)), key: "", target: target))
-        themeMenu.addItem(menuItem("Dark", action: #selector(AppDelegate.themeDark(_:)), key: "", target: target))
+        themeMenu.delegate = target
+        target.themeMenu = themeMenu
+        themeMenu.autoenablesItems = false
         themeItem.submenu = themeMenu
         viewMenu.addItem(themeItem)
 
@@ -95,6 +95,64 @@ enum MainMenuBuilder {
         let item = NSMenuItem(title: title, action: action, keyEquivalent: key)
         item.target = target
         return item
+    }
+}
+
+extension MainMenuBuilder {
+    /// View > Theme サブメニューを現在の登録テーマで再構築する。
+    /// `AppDelegate.menuNeedsUpdate(_:)` から呼ばれる。
+    @MainActor
+    static func populateThemeMenu(
+        _ menu: NSMenu,
+        target: AppDelegate,
+        customThemes: [ColorScheme],
+        currentTheme: AppTheme
+    ) {
+        menu.removeAllItems()
+
+        let builtIns: [(title: String, theme: AppTheme, selector: Selector)] = [
+            ("System", .system, #selector(AppDelegate.themeSystem(_:))),
+            ("Light", .light, #selector(AppDelegate.themeLight(_:))),
+            ("Dark", .dark, #selector(AppDelegate.themeDark(_:)))
+        ]
+        for builtIn in builtIns {
+            let item = NSMenuItem(title: builtIn.title, action: builtIn.selector, keyEquivalent: "")
+            item.target = target
+            item.state = (currentTheme == builtIn.theme) ? .on : .off
+            menu.addItem(item)
+        }
+
+        if !customThemes.isEmpty {
+            menu.addItem(.separator())
+            for scheme in customThemes {
+                let item = NSMenuItem(
+                    title: scheme.displayName,
+                    action: #selector(AppDelegate.themeCustom(_:)),
+                    keyEquivalent: ""
+                )
+                item.target = target
+                item.representedObject = scheme.id
+                item.state = (currentTheme == .custom(id: scheme.id)) ? .on : .off
+                menu.addItem(item)
+            }
+        }
+
+        menu.addItem(.separator())
+        let openFolder = NSMenuItem(
+            title: "Open Themes Folder",
+            action: #selector(AppDelegate.openThemesFolder(_:)),
+            keyEquivalent: ""
+        )
+        openFolder.target = target
+        menu.addItem(openFolder)
+
+        let reload = NSMenuItem(
+            title: "Reload Themes",
+            action: #selector(AppDelegate.reloadThemes(_:)),
+            keyEquivalent: ""
+        )
+        reload.target = target
+        menu.addItem(reload)
     }
 }
 

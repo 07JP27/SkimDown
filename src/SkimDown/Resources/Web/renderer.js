@@ -448,19 +448,43 @@
       return [];
     }
 
-    const isDark = payload.theme === "dark" || (payload.theme === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches);
+    const isDark = typeof payload.themeIsDark === "boolean"
+      ? payload.themeIsDark
+      : (payload.theme === "dark" || (payload.theme === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches));
     // Match Mermaid's font-family and font-size to the body so diagram labels appear
     // the same size as the surrounding prose.
     const bodyStyle = window.getComputedStyle(document.body);
+    const rootStyle = window.getComputedStyle(document.documentElement);
+    const cssVar = function (name) {
+      const value = rootStyle.getPropertyValue(name);
+      return value ? value.trim() : "";
+    };
+    const mermaidVars = {
+      fontFamily: bodyStyle.fontFamily,
+      fontSize: bodyStyle.fontSize
+    };
+    // Feed the theme's CSS variables into Mermaid so its diagram colors match
+    // the surrounding page. Empty values fall back to Mermaid's built-in palette.
+    const bg = cssVar("--skimdown-bg");
+    const fg = cssVar("--skimdown-fg");
+    const subtle = cssVar("--skimdown-subtle");
+    const accent = cssVar("--skimdown-accent");
+    const border = cssVar("--skimdown-border");
+    if (bg) { mermaidVars.background = bg; }
+    if (subtle) { mermaidVars.primaryColor = subtle; }
+    if (fg) {
+      mermaidVars.primaryTextColor = fg;
+      mermaidVars.secondaryTextColor = fg;
+      mermaidVars.tertiaryTextColor = fg;
+    }
+    if (border) { mermaidVars.primaryBorderColor = border; }
+    if (accent) { mermaidVars.lineColor = accent; }
     window.mermaid.initialize({
       startOnLoad: false,
       theme: isDark ? "dark" : "default",
       securityLevel: "strict",
       fontFamily: bodyStyle.fontFamily,
-      themeVariables: {
-        fontFamily: bodyStyle.fontFamily,
-        fontSize: bodyStyle.fontSize
-      }
+      themeVariables: mermaidVars
     });
 
     const entries = [];
