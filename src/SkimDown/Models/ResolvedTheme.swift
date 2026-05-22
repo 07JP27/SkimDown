@@ -52,14 +52,50 @@ extension ResolvedTheme {
         )
     }
 
-    /// VS Code は `#rrggbbaa` のように先頭シャープ + 8桁アルファを使う。
-    /// CSS でも有効な形に整える (基本そのまま通すが、空文字や明らかな
-    /// 不正値は弾く)。
+    /// CSS に安全に埋め込める色値だけを許可する。
+    ///
+    /// VS Code テーマは通常 `#rrggbb` / `#rrggbbaa` を使うが、既存資産との
+    /// 互換性のため `rgb[a]()` / `hsl[a]()` / `transparent` も受け付ける。
     private static func normalizeColor(_ raw: String) -> String? {
         let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return nil }
-        return trimmed
+        let lowercased = trimmed.lowercased()
+        if lowercased == "transparent" {
+            return lowercased
+        }
+        if isHexColor(lowercased) {
+            return trimmed
+        }
+        if isColorFunction(lowercased, name: "rgb", allowedCharacters: rgbFunctionCharacters)
+            || isColorFunction(lowercased, name: "rgba", allowedCharacters: rgbFunctionCharacters)
+            || isColorFunction(lowercased, name: "hsl", allowedCharacters: hslFunctionCharacters)
+            || isColorFunction(lowercased, name: "hsla", allowedCharacters: hslFunctionCharacters) {
+            return trimmed
+        }
+        return nil
     }
+
+    private static func isHexColor(_ value: String) -> Bool {
+        guard value.first == "#" else { return false }
+        let hex = value.dropFirst()
+        guard [3, 4, 6, 8].contains(hex.count) else { return false }
+        return hex.allSatisfy { character in
+            character.isHexDigit
+        }
+    }
+
+    private static func isColorFunction(_ value: String, name: String, allowedCharacters: CharacterSet) -> Bool {
+        let prefix = "\(name)("
+        guard value.hasPrefix(prefix), value.hasSuffix(")") else {
+            return false
+        }
+        let inner = value.dropFirst(prefix.count).dropLast()
+        guard !inner.isEmpty else { return false }
+        return inner.unicodeScalars.allSatisfy { allowedCharacters.contains($0) }
+    }
+
+    private static let rgbFunctionCharacters = CharacterSet(charactersIn: "0123456789.,% /+-")
+    private static let hslFunctionCharacters = CharacterSet(charactersIn: "0123456789.,% /+-abcdefghijklmnopqrstuvwxyz")
 }
 
 /// VS Code のキー → SkimDown CSS 変数のマッピングテーブル。

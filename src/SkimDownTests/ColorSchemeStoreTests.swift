@@ -58,6 +58,29 @@ final class ColorSchemeStoreTests: XCTestCase {
         XCTAssertNil(store.resolvedTheme(for: .custom(id: "missing")))
     }
 
+    func testNormalizedThemeFallsBackToSystemForMissingCustomTheme() throws {
+        let folder = try TemporaryFolder()
+        let store = ColorSchemeStore(themesDirectoryURL: folder.url)
+        store.reload()
+
+        XCTAssertEqual(store.normalizedTheme(.custom(id: "missing")), .system)
+        XCTAssertEqual(store.normalizedTheme(.dark), .dark)
+    }
+
+    func testNormalizedThemePreservesExistingCustomTheme() throws {
+        let folder = try TemporaryFolder()
+        try write(
+            name: "monokai.json",
+            json: "{\"name\":\"Monokai\",\"type\":\"dark\",\"colors\":{\"editor.background\":\"#272822\"}}",
+            in: folder.url
+        )
+
+        let store = ColorSchemeStore(themesDirectoryURL: folder.url)
+        store.reload()
+
+        XCTAssertEqual(store.normalizedTheme(.custom(id: "monokai")), .custom(id: "monokai"))
+    }
+
     func testEnsureDirectoryExistsCreatesFolder() throws {
         let parent = try TemporaryFolder()
         let target = parent.url.appendingPathComponent("Themes", isDirectory: true)

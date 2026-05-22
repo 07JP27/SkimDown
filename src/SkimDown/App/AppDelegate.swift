@@ -14,6 +14,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         NSApp.setActivationPolicy(.regular)
         // テーマを最初にロードしておく (起動時にカスタムテーマが選択中の可能性)。
         colorSchemeStore.reload()
+        settingsStore.theme = colorSchemeStore.normalizedTheme(settingsStore.theme)
         NSApp.mainMenu = MainMenuBuilder.build(target: self)
 
         if let fileURL = Self.fileURLFromArguments() {
@@ -291,9 +292,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
     @objc func reloadThemes(_ sender: Any?) {
         colorSchemeStore.reload()
         // 選択中テーマが消えていれば system にフォールバックして全ウィンドウを更新する。
-        let currentTheme = settingsStore.theme
-        if case .custom(let id) = currentTheme, colorSchemeStore.scheme(id: id) == nil {
-            windowManager.applyThemeToAllWindows(.system)
+        let normalizedTheme = colorSchemeStore.normalizedTheme(settingsStore.theme)
+        if normalizedTheme != settingsStore.theme {
+            windowManager.applyThemeToAllWindows(normalizedTheme)
         } else {
             windowManager.reapplyCurrentThemeToAllWindows()
         }

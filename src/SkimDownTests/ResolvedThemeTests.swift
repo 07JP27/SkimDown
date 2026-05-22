@@ -66,4 +66,40 @@ final class ResolvedThemeTests: XCTestCase {
         // panel.border has the highest priority for --skimdown-border.
         XCTAssertEqual(values["--skimdown-border"], "#aaaaaa")
     }
+
+    func testResolveRejectsUnsafeColorValuesAndFallsBack() {
+        let scheme = ColorScheme(
+            id: "test",
+            displayName: "Test",
+            type: .light,
+            colors: [
+                "editor.background": "#ffffff; } body { background: red",
+                "editor.foreground": "url(https://example.com/tracker)",
+                "textLink.foreground": "rgb(10, 20, 30)"
+            ]
+        )
+
+        let resolved = ResolvedTheme.resolve(from: scheme)
+        let values = Dictionary(uniqueKeysWithValues: resolved.cssVariables.map { ($0.name, $0.value) })
+
+        XCTAssertEqual(values["--skimdown-bg"], "#fbfbfd")
+        XCTAssertEqual(values["--skimdown-fg"], "#20242c")
+        XCTAssertEqual(values["--skimdown-accent"], "rgb(10, 20, 30)")
+    }
+
+    func testResolveAcceptsVSCodeHexAlphaColor() {
+        let scheme = ColorScheme(
+            id: "test",
+            displayName: "Test",
+            type: .dark,
+            colors: [
+                "editor.findMatchBackground": "#515c6aaa"
+            ]
+        )
+
+        let resolved = ResolvedTheme.resolve(from: scheme)
+        let values = Dictionary(uniqueKeysWithValues: resolved.cssVariables.map { ($0.name, $0.value) })
+
+        XCTAssertEqual(values["--skimdown-current-mark"], "#515c6aaa")
+    }
 }

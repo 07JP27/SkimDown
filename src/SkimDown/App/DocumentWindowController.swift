@@ -342,13 +342,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Side
     }
 
     func setTheme(_ theme: AppTheme) {
-        // 不正なカスタムテーマ ID が渡された場合は system にフォールバック。
-        let effectiveTheme: AppTheme
-        if case .custom(let id) = theme, colorSchemeStore.scheme(id: id) == nil {
-            effectiveTheme = .system
-        } else {
-            effectiveTheme = theme
-        }
+        let effectiveTheme = colorSchemeStore.normalizedTheme(theme)
         settings.theme = effectiveTheme
         settingsStore.theme = effectiveTheme
         applyWindowAppearance(effectiveTheme)
