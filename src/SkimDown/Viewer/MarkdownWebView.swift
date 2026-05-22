@@ -462,7 +462,12 @@ final class MarkdownWebView: NSView, WKScriptMessageHandler, WKNavigationDelegat
             return cached
         }
 
-        guard let url = Bundle.main.resourceURL?.appendingPathComponent("Web").appendingPathComponent(relativePath) else {
+        // Use Bundle(for:) rather than Bundle.main so that the correct app
+        // bundle is found even when the binary is invoked via a symlink from
+        // outside the .app bundle structure (e.g. /usr/local/bin/skimdown).
+        // Bundle.main resolves from the process executable path which may be
+        // the symlink, while Bundle(for:) uses the loaded Mach-O image path.
+        guard let url = Bundle(for: MarkdownWebView.self).resourceURL?.appendingPathComponent("Web").appendingPathComponent(relativePath) else {
             throw WebResourceError.missing(relativePath)
         }
 
@@ -527,7 +532,7 @@ final class MarkdownWebView: NSView, WKScriptMessageHandler, WKNavigationDelegat
     }
 
     private func katexFontsURLString() -> String {
-        guard let url = Bundle.main.resourceURL?.appendingPathComponent("Web/vendor/katex/fonts") else {
+        guard let url = Bundle(for: MarkdownWebView.self).resourceURL?.appendingPathComponent("Web/vendor/katex/fonts") else {
             return ""
         }
         return url.absoluteString.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
