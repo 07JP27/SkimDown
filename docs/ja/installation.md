@@ -11,6 +11,15 @@
 2. `.dmg` を開き、**SkimDown.app** を **Applications** フォルダにドラッグ
 3. Applications から SkimDown を起動
 
+## コミュニティ提供の Windows 版
+
+macOS 版とは別に、コミュニティ提供の Windows 版が公開されています：
+
+- [Microsoft Store からインストール](https://apps.microsoft.com/detail/9nhtzmm0xmmf?hl=en-US&gl=JP)
+- [ソースリポジトリを見る](https://github.com/runceel/SkimDownForWindows)
+
+Windows 版のリリースとサポートは Windows 版リポジトリで扱われます。
+
 ## 検疫属性の解除
 
 「Appleは、"SkimDown"にMacに損害を与えたり、プライバシーを侵害する可能性のあるマルウェアが含まれていないことを検証できませんでした。」という警告が表示された場合は、**ターミナル**で以下のコマンドを実行して検疫属性を解除してください：
