@@ -23,6 +23,9 @@ Open a folder, and SkimDown shows only the Markdown files in a sidebar tree and 
 
 > **Looking for installation, usage, or keyboard shortcuts?**
 > See the user-facing docs in [`docs/`](docs/index.md) ([日本語](docs/ja/index.md)).
+>
+> **On Windows?**
+> A community-provided Windows version is available from the [Microsoft Store](https://apps.microsoft.com/detail/9nhtzmm0xmmf?hl=en-US&gl=JP), with source in [`runceel/SkimDownForWindows`](https://github.com/runceel/SkimDownForWindows).
 
 ## Highlights
 

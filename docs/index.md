@@ -14,8 +14,9 @@ layout: home
 </div>
 <div class="sd-actions">
 <a class="sd-button sd-button-primary" href="/installation">Start reading</a>
+<a class="sd-button sd-button-secondary" href="https://apps.microsoft.com/detail/9nhtzmm0xmmf?hl=en-US&amp;gl=JP">Windows version</a>
 </div>
-<p class="sd-trust-line"><span>macOS 26+</span></p>
+<p class="sd-trust-line"><span>macOS 26+</span><span>Community Windows version</span></p>
 </div>
 <div class="sd-visual">
 <figure class="sd-screenshot-frame">
@@ -46,6 +47,7 @@ layout: home
 <section class="sd-final">
 <div class="sd-actions">
 <a class="sd-button sd-button-primary" href="/installation">Start reading</a>
+<a class="sd-button sd-button-secondary" href="https://apps.microsoft.com/detail/9nhtzmm0xmmf?hl=en-US&amp;gl=JP">Windows version</a>
 </div>
 </section>
 </section>

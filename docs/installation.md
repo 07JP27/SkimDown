@@ -11,6 +11,15 @@
 2. Open the `.dmg` file and drag **SkimDown.app** to the **Applications** folder
 3. Open SkimDown from Applications
 
+## Community Windows Version
+
+A community-provided Windows version is available separately from this macOS app:
+
+- [Install from the Microsoft Store](https://apps.microsoft.com/detail/9nhtzmm0xmmf?hl=en-US&gl=JP)
+- [View the source repository](https://github.com/runceel/SkimDownForWindows)
+
+Windows releases and support are handled in the Windows repository.
+
 ## Removing the Quarantine Attribute
 
 If you see the warning *"Apple could not verify 'SkimDown' is free of malware that may harm your Mac or compromise your privacy"*, run the following command in **Terminal** to remove the quarantine attribute:
