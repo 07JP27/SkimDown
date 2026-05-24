@@ -29,7 +29,6 @@ export default defineConfig({
       themeConfig: {
         nav: [
           { text: 'Installation', link: '/installation' },
-          { text: 'Windows', link: 'https://apps.microsoft.com/detail/9nhtzmm0xmmf?hl=en-US&gl=JP' },
           { text: 'Usage', link: '/usage' },
           { text: 'Privacy', link: '/security' },
         ],
@@ -62,7 +61,6 @@ export default defineConfig({
       themeConfig: {
         nav: [
           { text: 'インストール', link: '/ja/installation' },
-          { text: 'Windows 版', link: 'https://apps.microsoft.com/detail/9nhtzmm0xmmf?hl=en-US&gl=JP' },
           { text: '使い方', link: '/ja/usage' },
           { text: 'プライバシー', link: '/ja/security' },
         ],
