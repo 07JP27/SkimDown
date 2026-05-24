@@ -12,6 +12,7 @@
 </p>
 
 <p align="center"><a href="README.md">English</a> | 日本語</p>
+<p align="center"><a href="https://skimdown.07jp27.net">https://skimdown.07jp27.net</a></p>
 
 ---
 
