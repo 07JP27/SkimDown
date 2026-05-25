@@ -173,7 +173,7 @@ extension ColorScheme {
                 while lookahead < text.endIndex, text[lookahead].isWhitespace {
                     lookahead = text.index(after: lookahead)
                 }
-                if lookahead < text.endIndex, text[lookahead] == "}" || text[lookahead] == "]" {
+                if lookahead < text.endIndex, (text[lookahead] == "}" || text[lookahead] == "]") {
                     index = text.index(after: index)
                     continue
                 }

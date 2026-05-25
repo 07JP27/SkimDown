@@ -47,6 +47,13 @@ final class ColorSchemeTests: XCTestCase {
         XCTAssertNil(ColorScheme.load(from: url))
     }
 
+    func testLoadReturnsNilForJSONCEndingWithComma() throws {
+        let folder = try TemporaryFolder()
+        let url = folder.url.appendingPathComponent("trailing-comma-end.json")
+        try Data("{\"colors\": {\"editor.background\": \"#ffffff\",   ".utf8).write(to: url)
+        XCTAssertNil(ColorScheme.load(from: url))
+    }
+
     func testLoadDefaultsTypeToDarkWhenMissing() throws {
         let folder = try TemporaryFolder()
         let url = folder.url.appendingPathComponent("notype.json")
@@ -55,85 +62,85 @@ final class ColorSchemeTests: XCTestCase {
         XCTAssertEqual(scheme.type, .dark)
     }
 
-        func testLoadParsesVSCodeJSONCLineComments() throws {
-                let folder = try TemporaryFolder()
-                let json = """
-                {
-                    // Theme Color reference.
-                    "$schema": "vscode://schemas/color-theme",
-                    "name": "Shades of Purple", // Display name
-                    "type": "dark",
-                    "colors": {
-                        // Editor colors.
-                        "editor.background": "#2D2B55", // Editor background color.
-                        "editor.foreground": "#FFFFFF"
-                    }
-                }
-                """
-                let url = folder.url.appendingPathComponent("shades-of-purple-color-theme.json")
-                try Data(json.utf8).write(to: url)
-
-                let scheme = try XCTUnwrap(ColorScheme.load(from: url))
-                XCTAssertEqual(scheme.displayName, "Shades of Purple")
-                XCTAssertEqual(scheme.type, .dark)
-                XCTAssertEqual(scheme.colors["editor.background"], "#2D2B55")
-                XCTAssertEqual(scheme.colors["editor.foreground"], "#FFFFFF")
+    func testLoadParsesVSCodeJSONCLineComments() throws {
+        let folder = try TemporaryFolder()
+        let json = """
+        {
+          // Theme Color reference.
+          "$schema": "vscode://schemas/color-theme",
+          "name": "Shades of Purple", // Display name
+          "type": "dark",
+          "colors": {
+            // Editor colors.
+            "editor.background": "#2D2B55", // Editor background color.
+            "editor.foreground": "#FFFFFF"
+          }
         }
+        """
+        let url = folder.url.appendingPathComponent("shades-of-purple-color-theme.json")
+        try Data(json.utf8).write(to: url)
 
-        func testLoadParsesVSCodeJSONCBlockCommentsAndTrailingCommas() throws {
-                let folder = try TemporaryFolder()
-                let json = """
-                {
-                    /* VS Code theme metadata. */
-                    "name": "Commented Theme",
-                    "type": "light",
-                    "colors": {
-                        "editor.background": "#ffffff",
-                        "editor.foreground": "#111111",
-                    },
-                    "tokenColors": [
-                        {
-                            "scope": "comment",
-                            "settings": {
-                                "foreground": "#888888",
-                            },
-                        },
-                    ],
-                }
-                """
-                let url = folder.url.appendingPathComponent("commented.json")
-                try Data(json.utf8).write(to: url)
+        let scheme = try XCTUnwrap(ColorScheme.load(from: url))
+        XCTAssertEqual(scheme.displayName, "Shades of Purple")
+        XCTAssertEqual(scheme.type, .dark)
+        XCTAssertEqual(scheme.colors["editor.background"], "#2D2B55")
+        XCTAssertEqual(scheme.colors["editor.foreground"], "#FFFFFF")
+    }
 
-                let scheme = try XCTUnwrap(ColorScheme.load(from: url))
-                XCTAssertEqual(scheme.displayName, "Commented Theme")
-                XCTAssertEqual(scheme.type, .light)
-                XCTAssertEqual(scheme.colors["editor.background"], "#ffffff")
-                XCTAssertEqual(scheme.colors["editor.foreground"], "#111111")
+    func testLoadParsesVSCodeJSONCBlockCommentsAndTrailingCommas() throws {
+        let folder = try TemporaryFolder()
+        let json = """
+        {
+          /* VS Code theme metadata. */
+          "name": "Commented Theme",
+          "type": "light",
+          "colors": {
+            "editor.background": "#ffffff",
+            "editor.foreground": "#111111",
+          },
+          "tokenColors": [
+            {
+              "scope": "comment",
+              "settings": {
+                "foreground": "#888888",
+              },
+            },
+          ],
         }
+        """
+        let url = folder.url.appendingPathComponent("commented.json")
+        try Data(json.utf8).write(to: url)
 
-        func testLoadPreservesCommentLikeTextInsideStrings() throws {
-                let folder = try TemporaryFolder()
-                let json = """
-                {
-                    "name": "String Theme",
-                    "type": "dark",
-                    "colors": {
-                        "editor.background": "#111111",
-                        "textLink.foreground": "rgb(10, 20, 30)"
-                    },
-                    "metadata": {
-                        "homepage": "https://example.com/theme//not-a-comment",
-                        "escaped": "quote \\\" // still in string"
-                    }
-                }
-                """
-                let url = folder.url.appendingPathComponent("string-theme.json")
-                try Data(json.utf8).write(to: url)
+        let scheme = try XCTUnwrap(ColorScheme.load(from: url))
+        XCTAssertEqual(scheme.displayName, "Commented Theme")
+        XCTAssertEqual(scheme.type, .light)
+        XCTAssertEqual(scheme.colors["editor.background"], "#ffffff")
+        XCTAssertEqual(scheme.colors["editor.foreground"], "#111111")
+    }
 
-                let scheme = try XCTUnwrap(ColorScheme.load(from: url))
-                XCTAssertEqual(scheme.displayName, "String Theme")
-                XCTAssertEqual(scheme.colors["textLink.foreground"], "rgb(10, 20, 30)")
+    func testLoadPreservesCommentLikeTextInsideStrings() throws {
+        let folder = try TemporaryFolder()
+        let json = """
+        {
+          "name": "String Theme",
+          "type": "dark",
+          "colors": {
+            "editor.background": "#111111",
+            "textLink.foreground": "rgb(10, 20, 30)"
+          },
+          "metadata": {
+            "homepage": "https://example.com/theme//not-a-comment",
+            "escaped": "quote \\\" // still in string"
+          }
         }
+        """
+        let url = folder.url.appendingPathComponent("string-theme.json")
+        try Data(json.utf8).write(to: url)
+
+        let scheme = try XCTUnwrap(ColorScheme.load(from: url))
+        XCTAssertEqual(scheme.displayName, "String Theme")
+        XCTAssertEqual(scheme.colors["textLink.foreground"], "rgb(10, 20, 30)")
+    }
 
     @MainActor
     func testHighlightCSSResourcePathUsesBuiltInThemeType() {
