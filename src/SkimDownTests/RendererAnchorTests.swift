@@ -33,6 +33,113 @@ final class RendererAnchorTests: XCTestCase {
     }
 
     @MainActor
+    func testCodeCopyButtonShowsFeedbackAndResetsTimer() async throws {
+        let copyMessageExpectation = expectation(description: "copyCode messages")
+        copyMessageExpectation.expectedFulfillmentCount = 2
+        let copyRecorder = ScriptMessageRecorder {
+            copyMessageExpectation.fulfill()
+        }
+        let webView = try await renderMarkdown(
+            """
+            ```swift
+            let answer = 42
+            ```
+            """,
+            copyCodeMessageHandler: copyRecorder
+        )
+
+        let resultJSON = try await evaluateStringJavaScript(
+            """
+            (function () {
+              var nativeSetTimeout = window.setTimeout;
+              var nativeClearTimeout = window.clearTimeout;
+              var timers = [];
+              window.setTimeout = function (callback, delay) {
+                var id = timers.length + 1;
+                timers.push({ id: id, callback: callback, delay: delay, cleared: false });
+                return id;
+              };
+              window.clearTimeout = function (id) {
+                var timer = timers.find(function (timer) { return timer.id === id; });
+                if (timer) { timer.cleared = true; }
+              };
+
+              var button = document.querySelector(".code-copy");
+              function buttonState() {
+                return {
+                  text: button.textContent,
+                  ariaLabel: button.getAttribute("aria-label"),
+                  hasCopiedClass: button.classList.contains("code-copy-copied")
+                };
+              }
+              function fireTimer(timer) {
+                if (timer && !timer.cleared) {
+                  timer.cleared = true;
+                  timer.callback();
+                }
+              }
+
+              var initial = buttonState();
+              button.click();
+              var firstClick = buttonState();
+              var firstTimer = timers[0];
+              button.click();
+              var secondClick = buttonState();
+              var secondTimer = timers[1];
+              var firstTimerCleared = firstTimer ? firstTimer.cleared : false;
+              fireTimer(firstTimer);
+              var afterFirstTimer = buttonState();
+              fireTimer(secondTimer);
+              var afterSecondTimer = buttonState();
+
+              window.setTimeout = nativeSetTimeout;
+              window.clearTimeout = nativeClearTimeout;
+
+              return JSON.stringify({
+                initial: initial,
+                firstClick: firstClick,
+                secondClick: secondClick,
+                afterFirstTimer: afterFirstTimer,
+                afterSecondTimer: afterSecondTimer,
+                timerCount: timers.length,
+                firstTimerDelay: firstTimer ? firstTimer.delay : -1,
+                secondTimerDelay: secondTimer ? secondTimer.delay : -1,
+                firstTimerCleared: firstTimerCleared
+              });
+            })();
+            """,
+            in: webView
+        )
+        await fulfillment(of: [copyMessageExpectation], timeout: 2)
+        let result = try JSONDecoder().decode(CodeCopyFeedbackResult.self, from: Data(resultJSON.utf8))
+
+        XCTAssertEqual(result.initial.text, "Copy")
+        XCTAssertEqual(result.initial.ariaLabel, "Copy code")
+        XCTAssertFalse(result.initial.hasCopiedClass)
+
+        XCTAssertEqual(result.firstClick.text, "Copied")
+        XCTAssertEqual(result.firstClick.ariaLabel, "Copied code")
+        XCTAssertTrue(result.firstClick.hasCopiedClass)
+        XCTAssertGreaterThan(result.firstTimerDelay, 0)
+
+        XCTAssertEqual(result.secondClick.text, "Copied")
+        XCTAssertEqual(result.secondClick.ariaLabel, "Copied code")
+        XCTAssertTrue(result.secondClick.hasCopiedClass)
+        XCTAssertEqual(result.timerCount, 2)
+        XCTAssertGreaterThan(result.secondTimerDelay, 0)
+        XCTAssertTrue(result.firstTimerCleared)
+
+        XCTAssertEqual(result.afterFirstTimer.text, "Copied")
+        XCTAssertEqual(result.afterFirstTimer.ariaLabel, "Copied code")
+        XCTAssertTrue(result.afterFirstTimer.hasCopiedClass)
+
+        XCTAssertEqual(result.afterSecondTimer.text, "Copy")
+        XCTAssertEqual(result.afterSecondTimer.ariaLabel, "Copy code")
+        XCTAssertFalse(result.afterSecondTimer.hasCopiedClass)
+        XCTAssertEqual(copyRecorder.messages, ["let answer = 42\n", "let answer = 42\n"])
+    }
+
+    @MainActor
     func testSearchMatchesAcrossColorCodePreviewMarkup() async throws {
         let webView = try await renderMarkdown(
             """
@@ -257,8 +364,14 @@ final class RendererAnchorTests: XCTestCase {
     }
 
     @MainActor
-    private func renderMarkdown(_ markdown: String) async throws -> WKWebView {
+    private func renderMarkdown(
+        _ markdown: String,
+        copyCodeMessageHandler: WKScriptMessageHandler? = nil
+    ) async throws -> WKWebView {
         let configuration = WKWebViewConfiguration()
+        if let copyCodeMessageHandler {
+            configuration.userContentController.add(copyCodeMessageHandler, name: "copyCode")
+        }
         let webView = WKWebView(frame: NSRect(x: 0, y: 0, width: 800, height: 1000), configuration: configuration)
         let navigationDelegate = NavigationFinishedDelegate()
         let navigationFinished = expectation(description: "renderer HTML loads")
@@ -381,6 +494,24 @@ private struct RenderTokenResult: Decodable {
     let second: String?
 }
 
+private struct CodeCopyFeedbackResult: Decodable {
+    let initial: CodeCopyButtonState
+    let firstClick: CodeCopyButtonState
+    let secondClick: CodeCopyButtonState
+    let afterFirstTimer: CodeCopyButtonState
+    let afterSecondTimer: CodeCopyButtonState
+    let timerCount: Int
+    let firstTimerDelay: Int
+    let secondTimerDelay: Int
+    let firstTimerCleared: Bool
+}
+
+private struct CodeCopyButtonState: Decodable {
+    let text: String
+    let ariaLabel: String?
+    let hasCopiedClass: Bool
+}
+
 @MainActor
 private final class NavigationFinishedDelegate: NSObject, WKNavigationDelegate {
     var onDidFinish: (() -> Void)?
@@ -396,5 +527,21 @@ private final class NavigationFinishedDelegate: NSObject, WKNavigationDelegate {
 
     func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
         onDidFail?(error)
+    }
+}
+
+private final class ScriptMessageRecorder: NSObject, WKScriptMessageHandler {
+    private(set) var messages: [String] = []
+    private let onMessage: () -> Void
+
+    init(onMessage: @escaping () -> Void) {
+        self.onMessage = onMessage
+    }
+
+    func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
+        if let body = message.body as? String {
+            messages.append(body)
+        }
+        onMessage()
     }
 }
