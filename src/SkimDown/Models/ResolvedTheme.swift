@@ -2,7 +2,7 @@ import Foundation
 
 /// VS Code カラーテーマ JSON を SkimDown の CSS 変数へ解決した中間表現。
 ///
-/// `MarkdownWebView` はこの構造体を受け取り、`<style>:root[data-theme="custom"]{...}`
+/// `MarkdownWebView` はこの構造体を受け取り、`<style>:root[data-theme="custom"][data-theme-type]{...}`
 /// を生成して HTML に注入する。値が無い項目は `type` (light/dark) に応じた
 /// フォールバックを適用済み。
 struct ResolvedTheme: Equatable {

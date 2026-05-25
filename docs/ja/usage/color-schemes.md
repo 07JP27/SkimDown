@@ -1,10 +1,10 @@
 # カスタムカラーテーマ
 
-SkimDown では、プレビュー領域のカラーテーマを JSON ファイルで定義して切り替えられます。テーマは [VS Code のカラーテーマ形式](https://code.visualstudio.com/api/references/theme-color) に合わせているため、既存の VS Code テーマ資産を再利用できます。
+SkimDown では、プレビュー領域のカラーテーマを JSON / JSONC ファイルで定義して切り替えられます。テーマは [VS Code のカラーテーマ形式](https://code.visualstudio.com/api/references/theme-color) に合わせているため、既存の VS Code テーマ資産を再利用できます。
 
 ## テーマの配置場所
 
-JSON ファイルを次のフォルダに置きます。
+JSON または JSONC ファイルを次のフォルダに置きます。
 
 ```text
 ~/Library/Application Support/SkimDown/Themes/
@@ -14,7 +14,7 @@ JSON ファイルを次のフォルダに置きます。
 
 ## JSON 形式
 
-各ファイルは単独の VS Code カラーテーマとして書きます。たとえば、次の内容を `solarized-light.json` として保存します。
+各ファイルは単独の VS Code カラーテーマとして書きます。VS Code テーマファイルで使われるコメントや末尾のカンマも読み込めます。たとえば、次の内容を `solarized-light.json` として保存します。
 
 ```json
 {
@@ -43,22 +43,24 @@ JSON ファイルを次のフォルダに置きます。
 
 ## カラーキーの対応
 
-| SkimDown の CSS 変数 | VS Code キー（優先順） |
-| -------------------- | ---------------------- |
-| `--skimdown-bg` | `editor.background` |
-| `--skimdown-fg` | `editor.foreground`, `foreground` |
-| `--skimdown-muted` | `descriptionForeground`, `disabledForeground` |
-| `--skimdown-border` | `panel.border`, `editorGroup.border`, `editorWidget.border`, `contrastBorder` |
-| `--skimdown-subtle` | `editorGroupHeader.tabsBackground`, `editor.lineHighlightBackground`, `sideBar.background` |
-| `--skimdown-surface` | `editorWidget.background`, `editor.background` |
-| `--skimdown-accent` | `textLink.foreground`, `editorLink.activeForeground`, `focusBorder` |
-| `--skimdown-mark` | `editor.findMatchHighlightBackground` |
-| `--skimdown-current-mark` | `editor.findMatchBackground` |
+複数のキーがある場合は、先頭から順に最初に見つかった値を使います。
+
+| プレビュー要素 | VS Code カラーキー |
+| -------------- | ------------------ |
+| 背景 | `editor.background` |
+| テキスト | `editor.foreground`, `foreground` |
+| 補足テキスト | `descriptionForeground`, `disabledForeground` |
+| ボーダー | `panel.border`, `editorGroup.border`, `editorWidget.border`, `contrastBorder` |
+| 薄い背景 | `editorGroupHeader.tabsBackground`, `editor.lineHighlightBackground`, `sideBar.background` |
+| パネル背景 | `editorWidget.background`, `editor.background` |
+| リンクとアクセント | `textLink.foreground`, `editorLink.activeForeground`, `focusBorder` |
+| 検索ハイライト | `editor.findMatchHighlightBackground` |
+| 現在の検索一致 | `editor.findMatchBackground` |
 
 キーが不足している場合は、テーマの `type` に応じて SkimDown 組み込みの light / dark パレットで補完します。
 
 ## テーマの再読み込み
 
-Themes フォルダは自動監視されません。JSON ファイルを追加または編集した後は、**View → Theme → Reload Themes** を選んで一覧を更新してください。
+Themes フォルダは自動監視されません。JSON または JSONC ファイルを追加または編集した後は、**View → Theme → Reload Themes** を選んで一覧を更新してください。
 
 使用中のテーマファイルが削除された場合、次回の再読み込みまたは起動時に System テーマへ戻ります。

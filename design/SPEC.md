@@ -209,7 +209,7 @@ GitHub Flavored Markdown寄りの表示を基本にする。
 ## カラーテーマ
 
 - 組み込みテーマは `System / Light / Dark` の3種類。
-- ユーザーは VS Code 互換のカラーテーマ JSON を `~/Library/Application Support/SkimDown/Themes/` に置いて追加できる。
+- ユーザーは VS Code 互換のカラーテーマ JSON / JSONC を `~/Library/Application Support/SkimDown/Themes/` に置いて追加できる。
 - JSON は VS Code の `colors` 辞書のみ参照する。`tokenColors` (シンタックスハイライト) は MVP では対象外で、コードブロックは `type` (light/dark) に応じて GitHub 風ハイライトの light / dark を選択する。
 - 解決済みのテーマ色は CSS 変数 (`--skimdown-bg` 等) として `WKWebView` の HTML に注入する。
 - 一覧の更新は手動 (`Reload Themes`)。ファイル変更の自動監視は行わない。

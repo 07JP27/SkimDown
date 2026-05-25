@@ -486,6 +486,8 @@ final class MarkdownWebView: NSView, WKScriptMessageHandler, WKNavigationDelegat
         }
     }
 
+    nonisolated static let customThemeCSSSelector = #":root[data-theme="custom"][data-theme-type]"#
+
     /// カスタムテーマの CSS 変数オーバーライドを返す。組み込み時は空文字。
     private static func customThemeStyleBlock(resolvedTheme: ResolvedTheme?) -> String {
         guard let resolvedTheme else { return "" }
@@ -494,7 +496,7 @@ final class MarkdownWebView: NSView, WKScriptMessageHandler, WKNavigationDelegat
             .joined(separator: "\n")
         return """
         <style>
-        :root[data-theme="custom"] {
+        \(customThemeCSSSelector) {
         \(declarations)
         }
         </style>
