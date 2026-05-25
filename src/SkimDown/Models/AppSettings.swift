@@ -5,18 +5,18 @@ enum SidebarPosition: String, CaseIterable {
     case right
 }
 
-/// アプリのテーマ。組み込み3種類に加え、ユーザーが登録したカスタムカラースキーム
-/// (`Models/ColorScheme.swift` を参照) を `.custom(id:)` として保持する。
+/// Application theme. In addition to the three built-ins, custom themes are
+/// stored as `.custom(id:)` values loaded from `ColorScheme` files.
 enum AppTheme: Equatable {
     case system
     case light
     case dark
     case custom(id: String)
 
-    /// 組み込みテーマ（メニューの固定3項目に対応）。
+    /// Built-in themes used by the fixed menu entries.
     static let builtInCases: [AppTheme] = [.system, .light, .dark]
 
-    /// `UserDefaults` 用の文字列表現。`custom:<id>` 形式でカスタムテーマを表す。
+    /// `UserDefaults` representation. Custom themes are stored as `custom:<id>`.
     var storageValue: String {
         switch self {
         case .system: return "system"
@@ -26,7 +26,7 @@ enum AppTheme: Equatable {
         }
     }
 
-    /// `UserDefaults` から復元する。不正値は `nil`。
+    /// Restores a theme from `UserDefaults`. Invalid values return nil.
     init?(storageValue: String) {
         switch storageValue {
         case "system": self = .system

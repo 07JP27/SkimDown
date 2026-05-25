@@ -1,11 +1,11 @@
 import Foundation
 
-/// VS Code 互換のカラーテーマ JSON / JSONC 表現。
+/// VS Code-compatible color theme JSON / JSONC representation.
 ///
-/// SkimDown は `name`, `type`, `colors` のみを使用する。`tokenColors`
-/// などその他のキーは無視する (将来拡張)。
+/// SkimDown uses only `name`, `type`, and `colors`. Other keys such as
+/// `tokenColors` are ignored for now.
 ///
-/// 参考: https://code.visualstudio.com/api/references/theme-color
+/// Reference: https://code.visualstudio.com/api/references/theme-color
 struct ColorScheme: Equatable {
     enum ThemeType: String, Equatable {
         case light
@@ -13,7 +13,7 @@ struct ColorScheme: Equatable {
         case highContrastLight = "hc-light"
         case highContrastDark = "hc-black"
 
-        /// 暗色寄りかどうか (UI フォールバック値や Mermaid テーマ選択に使う)。
+        /// Whether the theme is dark-leaning, used for UI fallback values and Mermaid theme selection.
         var isDark: Bool {
             switch self {
             case .dark, .highContrastDark: return true
@@ -22,18 +22,18 @@ struct ColorScheme: Equatable {
         }
     }
 
-    /// ファイル名由来の一意な識別子 (例: `monokai-dimmed`)。
+    /// Unique identifier derived from the file name, such as `monokai-dimmed`.
     let id: String
-    /// JSON 内の `name`。なければ id を流用。
+    /// JSON `name`, falling back to `id` when omitted.
     let displayName: String
     let type: ThemeType
-    /// VS Code の `colors` 辞書 (例: `editor.background` → `#1e1e1e`)。
+    /// VS Code `colors` dictionary, such as `editor.background` -> `#1e1e1e`.
     let colors: [String: String]
 }
 
 extension ColorScheme {
-    /// 指定 URL の JSON / JSONC を `ColorScheme` にデコードする。
-    /// パース不能・必須フィールド欠落は `nil`。
+    /// Decodes a JSON / JSONC file into a `ColorScheme`.
+    /// Returns nil when parsing fails or required data is missing.
     static func load(from fileURL: URL) -> ColorScheme? {
         guard let data = try? Data(contentsOf: fileURL),
               let parsed = parseThemeObject(from: data) else {
@@ -44,7 +44,7 @@ extension ColorScheme {
         let displayName = (parsed["name"] as? String).flatMap { $0.isEmpty ? nil : $0 } ?? id
         let rawType = (parsed["type"] as? String) ?? "dark"
         let type = ThemeType(rawValue: rawType.lowercased()) ?? .dark
-        // VS Code 形式の colors は { String: String }。型不一致のエントリは捨てる。
+        // VS Code colors are expected to be { String: String }; drop non-string entries.
         let rawColors = parsed["colors"] as? [String: Any] ?? [:]
         var colors: [String: String] = [:]
         colors.reserveCapacity(rawColors.count)

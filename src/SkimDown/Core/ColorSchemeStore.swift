@@ -1,11 +1,11 @@
 import Foundation
 import os.log
 
-/// `~/Library/Application Support/SkimDown/Themes/` にあるユーザー登録の
-/// カラースキーム JSON を発見・パース・キャッシュする。
+/// Discovers, parses, and caches user-registered color theme JSON files from
+/// `~/Library/Application Support/SkimDown/Themes/`.
 ///
-/// 自動監視は行わない (Issue #39 の方針)。`Reload Themes` メニューから
-/// `reload()` を呼ぶ。
+/// The directory is not watched automatically. `reload()` is called from the
+/// Reload Themes menu item.
 @MainActor
 final class ColorSchemeStore {
     private static let log = Logger(subsystem: "dev.jp27.SkimDown", category: "ColorSchemeStore")
@@ -15,7 +15,7 @@ final class ColorSchemeStore {
     private(set) var schemes: [ColorScheme] = []
     private var resolvedCache: [String: ResolvedTheme] = [:]
 
-    /// テスト用に themes ディレクトリを差し替え可能にする。
+    /// Allows tests to provide a custom themes directory.
     init(themesDirectoryURL: URL? = nil, fileManager: FileManager = .default) {
         self.fileManager = fileManager
         self.themesDirectoryURL = themesDirectoryURL ?? Self.defaultThemesDirectoryURL(fileManager: fileManager)
@@ -23,8 +23,8 @@ final class ColorSchemeStore {
 
     var directoryURL: URL { themesDirectoryURL }
 
-    /// 既定の保存先 `~/Library/Application Support/SkimDown/Themes`。
-    /// Application Support を取得できないときは一時ディレクトリを返す。
+    /// Default storage location: `~/Library/Application Support/SkimDown/Themes`.
+    /// Falls back to the temporary directory if Application Support is unavailable.
     static func defaultThemesDirectoryURL(fileManager: FileManager = .default) -> URL {
         let base: URL
         if let appSupport = try? fileManager.url(
@@ -41,7 +41,7 @@ final class ColorSchemeStore {
             .appendingPathComponent("Themes", isDirectory: true)
     }
 
-    /// 保存ディレクトリを作成し直近の JSON 一覧を再読込する。
+            /// Ensures the storage directory exists and reloads the latest JSON list.
     @discardableResult
     func reload() -> [ColorScheme] {
         ensureDirectoryExists()
@@ -54,7 +54,7 @@ final class ColorSchemeStore {
                 Self.log.warning("Skipping invalid theme JSON: \(url.lastPathComponent, privacy: .public)")
                 continue
             }
-            // id (ファイル名) はユニークになる前提だが、念のため重複は無視する。
+            // Theme IDs come from file names and should be unique, but ignore duplicates defensively.
             guard seenIds.insert(scheme.id).inserted else { continue }
             loaded.append(scheme)
         }
@@ -69,7 +69,8 @@ final class ColorSchemeStore {
         schemes.first(where: { $0.id == id })
     }
 
-    /// `AppTheme` から表示用に解決済みのテーマを返す。組み込み (system/light/dark) は `nil`。
+    /// Returns the resolved display theme for a custom `AppTheme`.
+    /// Built-in themes (system/light/dark) return nil.
     func resolvedTheme(for theme: AppTheme) -> ResolvedTheme? {
         guard case .custom(let id) = theme else { return nil }
         if let cached = resolvedCache[id] { return cached }
@@ -79,16 +80,14 @@ final class ColorSchemeStore {
         return resolved
     }
 
-    /// 保存済みテーマが現在の登録状態で有効かを確認する。
-    ///
-    /// ユーザーが Themes フォルダから JSON を削除した場合など、存在しない
-    /// カスタムテーマは `System` に戻す。
+    /// Normalizes a persisted theme against the currently registered themes.
+    /// Missing custom themes fall back to System.
     func normalizedTheme(_ theme: AppTheme) -> AppTheme {
         guard case .custom(let id) = theme else { return theme }
         return scheme(id: id) == nil ? .system : theme
     }
 
-    /// 保存先フォルダが無ければ作成する。失敗は黙ってログに残すだけ。
+    /// Creates the storage directory when it is missing. Failures are only logged.
     func ensureDirectoryExists() {
         var isDirectory: ObjCBool = false
         if fileManager.fileExists(atPath: themesDirectoryURL.path, isDirectory: &isDirectory) {

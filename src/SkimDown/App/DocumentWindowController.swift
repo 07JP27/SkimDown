@@ -28,10 +28,9 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Side
     private var scrollPositions: [URL: Double] = [:]
     private var isInitialLayoutComplete = false
 
-    /// コンテンツ側 (defaultLow = 250) がリサイズを引き受けるよう、
-    /// サイドバー側だけ一段高い保持優先度を割り当てる。これにより
-    /// ドラッグ終了直後の Auto Layout 再解決でサイドバー幅が
-    /// スナップバックしないようにする。
+    /// Give the sidebar a slightly higher holding priority so the content side
+    /// absorbs resizing. This avoids sidebar width snapping back after AppKit
+    /// resolves Auto Layout at the end of a divider drag.
     private static let sidebarHoldingPriority = NSLayoutConstraint.Priority(
         rawValue: NSLayoutConstraint.Priority.defaultLow.rawValue + 10
     )

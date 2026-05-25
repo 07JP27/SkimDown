@@ -1,15 +1,14 @@
 import Foundation
 
-/// VS Code カラーテーマ JSON を SkimDown の CSS 変数へ解決した中間表現。
+/// Intermediate representation that resolves VS Code color theme JSON into SkimDown CSS variables.
 ///
-/// `MarkdownWebView` はこの構造体を受け取り、`<style>:root[data-theme="custom"][data-theme-type]{...}`
-/// を生成して HTML に注入する。値が無い項目は `type` (light/dark) に応じた
-/// フォールバックを適用済み。
+/// `MarkdownWebView` injects this as `<style>:root[data-theme="custom"][data-theme-type]{...}`.
+/// Missing values are already filled from the light/dark fallback palette based on `type`.
 struct ResolvedTheme: Equatable {
     let id: String
     let displayName: String
     let type: ColorScheme.ThemeType
-    /// CSS 変数名 (先頭の `--` を含む) → CSS 互換の色文字列。
+    /// CSS variable name, including the leading `--`, mapped to a CSS-compatible color value.
     let cssVariables: [(name: String, value: String)]
 
     static func == (lhs: ResolvedTheme, rhs: ResolvedTheme) -> Bool {
@@ -27,9 +26,8 @@ struct ResolvedTheme: Equatable {
 }
 
 extension ResolvedTheme {
-    /// `ColorScheme` から `ResolvedTheme` を作る。
-    ///
-    /// VS Code の色キーが欠けている場合は `type` に応じたフォールバック値を入れる。
+    /// Creates a resolved theme from a `ColorScheme`.
+    /// Missing VS Code color keys are filled from the palette for the theme `type`.
     static func resolve(from scheme: ColorScheme) -> ResolvedTheme {
         let fallback = FallbackPalette.for(type: scheme.type)
         let mapping = ColorMapping.allMappings
@@ -52,10 +50,9 @@ extension ResolvedTheme {
         )
     }
 
-    /// CSS に安全に埋め込める色値だけを許可する。
-    ///
-    /// VS Code テーマは通常 `#rrggbb` / `#rrggbbaa` を使うが、既存資産との
-    /// 互換性のため `rgb[a]()` / `hsl[a]()` / `transparent` も受け付ける。
+    /// Allows only color values that are safe to embed in CSS.
+    /// VS Code themes usually use `#rrggbb` / `#rrggbbaa`, but `rgb[a]()`, `hsl[a]()`,
+    /// and `transparent` are accepted for compatibility with existing theme assets.
     private static func normalizeColor(_ raw: String) -> String? {
         let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return nil }
@@ -98,11 +95,11 @@ extension ResolvedTheme {
     private static let hslFunctionCharacters = CharacterSet(charactersIn: "0123456789.,% /+-abcdefghijklmnopqrstuvwxyz")
 }
 
-/// VS Code のキー → SkimDown CSS 変数のマッピングテーブル。
+/// Mapping table from VS Code keys to SkimDown CSS variables.
 private enum ColorMapping {
     struct Entry {
         let cssVariable: String
-        /// 優先順に並んだ VS Code のキー。最初に見つかったものを使う。
+        /// VS Code keys in priority order. The first matching key wins.
         let vsCodeKeys: [String]
     }
 
@@ -147,8 +144,8 @@ private enum ColorMapping {
     ]
 }
 
-/// VS Code キーが無いときに使うフォールバック値。
-/// 既存の `skimdown.css` のライト / ダーク既定とそろえる。
+/// Fallback values used when a VS Code key is missing.
+/// These match the built-in light/dark defaults from `skimdown.css`.
 private enum FallbackPalette {
     static func `for`(type: ColorScheme.ThemeType) -> [String: String] {
         type.isDark ? darkFallback : lightFallback

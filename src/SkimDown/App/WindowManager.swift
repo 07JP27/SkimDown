@@ -163,8 +163,8 @@ final class WindowManager {
         alert.runModal()
     }
 
-    /// 既存のすべてのウィンドウに同じテーマを設定して再描画する。
-    /// (例: 選択中のカスタムテーマが削除された場合のフォールバック)。
+    /// Applies the same theme to all existing windows and redraws them.
+    /// Used when the selected custom theme disappears and must fall back.
     func applyThemeToAllWindows(_ theme: AppTheme) {
         let effectiveTheme = colorSchemeStore.normalizedTheme(theme)
         settingsStore.theme = effectiveTheme
@@ -173,8 +173,8 @@ final class WindowManager {
         }
     }
 
-    /// 現在の `SettingsStore.theme` を全ウィンドウに改めて適用する。
-    /// (例: Reload Themes 後にカスタムテーマの色定義が更新された場合)。
+    /// Reapplies the current `SettingsStore.theme` to all windows.
+    /// Used after Reload Themes when a custom theme's color definition changed.
     func reapplyCurrentThemeToAllWindows() {
         let theme = settingsStore.theme
         for controller in controllers {

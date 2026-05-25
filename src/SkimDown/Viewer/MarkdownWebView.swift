@@ -343,7 +343,7 @@ final class MarkdownWebView: NSView, WKScriptMessageHandler, WKNavigationDelegat
         case .dark:
             webView.appearance = NSAppearance(named: .darkAqua)
         case .custom:
-            // 解決済みテーマが見つからない場合 (登録解除中など) は system 扱い。
+            // Treat unresolved custom themes as System while the store is reloading or the theme is missing.
             if let resolvedTheme {
                 webView.appearance = NSAppearance(named: resolvedTheme.isDark ? .darkAqua : .aqua)
             } else {
@@ -454,8 +454,8 @@ final class MarkdownWebView: NSView, WKScriptMessageHandler, WKNavigationDelegat
         """
     }
 
-    /// `<html data-theme="...">` に入れる値。
-    /// 組み込みテーマはそのまま、カスタムテーマは "custom" を返す。
+    /// Value for `<html data-theme="...">`.
+    /// Built-in themes keep their name; custom themes use "custom".
     private static func dataThemeAttribute(for theme: AppTheme) -> String {
         switch theme {
         case .system: return "system"
@@ -465,9 +465,8 @@ final class MarkdownWebView: NSView, WKScriptMessageHandler, WKNavigationDelegat
         }
     }
 
-    /// `<html data-theme-type="...">` に入れる値 ("light" / "dark")。
-    /// System は現在の effective appearance から light/dark のどちらかに解決する。
-    /// カスタムテーマの暗色判定にも使い、`skimdown.css` 側の暗色アラート色などを切り替える。
+    /// Value for `<html data-theme-type="...">` ("light" / "dark").
+    /// System resolves to the current effective appearance, and custom themes use their resolved type.
     private static func dataThemeTypeAttribute(for theme: AppTheme, resolvedTheme: ResolvedTheme?) -> String {
         isEffectiveThemeDark(theme, resolvedTheme: resolvedTheme) ? "dark" : "light"
     }
@@ -497,7 +496,7 @@ final class MarkdownWebView: NSView, WKScriptMessageHandler, WKNavigationDelegat
 
     nonisolated static let customThemeCSSSelector = #":root[data-theme="custom"][data-theme-type]"#
 
-    /// カスタムテーマの CSS 変数オーバーライドを返す。組み込み時は空文字。
+    /// Returns CSS variable overrides for a custom theme. Built-in themes return an empty string.
     private static func customThemeStyleBlock(resolvedTheme: ResolvedTheme?) -> String {
         guard let resolvedTheme else { return "" }
         let declarations = resolvedTheme.cssVariables

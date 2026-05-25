@@ -99,8 +99,8 @@ enum MainMenuBuilder {
 }
 
 extension MainMenuBuilder {
-    /// View > Theme サブメニューを現在の登録テーマで再構築する。
-    /// `AppDelegate.menuNeedsUpdate(_:)` から呼ばれる。
+    /// Rebuilds the View > Theme submenu from the currently registered themes.
+    /// Called by `AppDelegate.menuNeedsUpdate(_:)`.
     @MainActor
     static func populateThemeMenu(
         _ menu: NSMenu,
