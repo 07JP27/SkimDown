@@ -583,8 +583,9 @@ final class MarkdownWebView: NSView, WKScriptMessageHandler, WKNavigationDelegat
                         font: \(fontSize)px -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif;
                         line-height: 1.6;
                     }
-                    @media (prefers-color-scheme: dark) {
-                        body { color: #f3f4f6; background: #111827; }
+                    :root[data-theme-type="dark"] body {
+                        color: #f3f4f6;
+                        background: #111827;
                     }
                     .error {
                         max-width: 760px;

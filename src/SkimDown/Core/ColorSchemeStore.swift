@@ -51,7 +51,7 @@ final class ColorSchemeStore {
         var seenIds = Set<String>()
         for url in urls {
             guard let scheme = ColorScheme.load(from: url) else {
-                Self.log.warning("Skipping invalid theme JSON: \(url.path, privacy: .public)")
+                Self.log.warning("Skipping invalid theme JSON: \(url.lastPathComponent, privacy: .public)")
                 continue
             }
             // id (ファイル名) はユニークになる前提だが、念のため重複は無視する。
