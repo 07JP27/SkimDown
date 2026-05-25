@@ -17,16 +17,24 @@ Open the folder quickly from the app via **View → Theme → Open Themes Folder
 
 ## JSON format
 
-Each file is a standalone VS Code color theme:
+Each file is a standalone VS Code color theme. For example, save this as
+`solarized-light.json`:
 
 ```json
 {
-  "name": "My Theme",
-  "type": "dark",
+  "$schema": "vscode://schemas/color-theme",
+  "name": "Solarized Light",
+  "type": "light",
   "colors": {
-    "editor.background": "#1e1e1e",
-    "editor.foreground": "#d4d4d4",
-    "textLink.foreground": "#3794ff"
+    "editor.background": "#fdf6e3",
+    "editor.foreground": "#586e75",
+    "descriptionForeground": "#93a1a1",
+    "panel.border": "#eee8d5",
+    "editorGroupHeader.tabsBackground": "#eee8d5",
+    "editorWidget.background": "#fdf6e3",
+    "textLink.foreground": "#268bd2",
+    "editor.findMatchHighlightBackground": "#f8e8a5",
+    "editor.findMatchBackground": "#fad880"
   }
 }
 ```
