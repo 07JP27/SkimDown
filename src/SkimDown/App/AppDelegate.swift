@@ -151,8 +151,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         case #selector(swapSidebarPosition(_:)):
             menuItem.title = controller?.sidebarPosition == .right ? "Move Sidebar to Left" : "Move Sidebar to Right"
             return controller != nil && !controller!.isSingleFile
-        case #selector(zoomIn(_:)), #selector(zoomOut(_:)), #selector(actualSize(_:)), #selector(themeSystem(_:)), #selector(themeLight(_:)), #selector(themeDark(_:)), #selector(themeCustom(_:)):
+        case #selector(zoomIn(_:)), #selector(zoomOut(_:)), #selector(actualSize(_:)):
             return controller != nil
+        case #selector(themeSystem(_:)), #selector(themeLight(_:)), #selector(themeDark(_:)), #selector(themeCustom(_:)):
+            return true
         case #selector(openThemesFolder(_:)), #selector(reloadThemes(_:)):
             return true
         default:

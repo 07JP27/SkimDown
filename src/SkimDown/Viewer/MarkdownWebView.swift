@@ -460,9 +460,8 @@ final class MarkdownWebView: NSView, WKScriptMessageHandler, WKNavigationDelegat
     }
 
     /// `<html data-theme-type="...">` に入れる値 ("light" / "dark")。
-    /// カスタムテーマの暗色判定に使い、`skimdown.css` 側の暗色アラート色などを切り替える。
-    /// 組み込みテーマでは現状の挙動を変えないよう、Light=light / Dark=dark /
-    /// System=system OS appearance に従う。
+    /// System は現在の effective appearance から light/dark のどちらかに解決する。
+    /// カスタムテーマの暗色判定にも使い、`skimdown.css` 側の暗色アラート色などを切り替える。
     private static func dataThemeTypeAttribute(for theme: AppTheme, resolvedTheme: ResolvedTheme?) -> String {
         isEffectiveThemeDark(theme, resolvedTheme: resolvedTheme) ? "dark" : "light"
     }
@@ -476,14 +475,18 @@ final class MarkdownWebView: NSView, WKScriptMessageHandler, WKNavigationDelegat
     static func isEffectiveThemeDark(_ theme: AppTheme, resolvedTheme: ResolvedTheme?) -> Bool {
         switch theme {
         case .system:
-            return NSApp.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+            return isSystemAppearanceDark()
         case .light:
             return false
         case .dark:
             return true
         case .custom:
-            return resolvedTheme?.isDark ?? false
+            return resolvedTheme?.isDark ?? isSystemAppearanceDark()
         }
+    }
+
+    private static func isSystemAppearanceDark() -> Bool {
+        NSApp.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
     }
 
     nonisolated static let customThemeCSSSelector = #":root[data-theme="custom"][data-theme-type]"#

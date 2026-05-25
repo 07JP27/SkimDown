@@ -118,6 +118,7 @@ extension MainMenuBuilder {
         for builtIn in builtIns {
             let item = NSMenuItem(title: builtIn.title, action: builtIn.selector, keyEquivalent: "")
             item.target = target
+            item.isEnabled = true
             item.state = (currentTheme == builtIn.theme) ? .on : .off
             menu.addItem(item)
         }
@@ -131,6 +132,7 @@ extension MainMenuBuilder {
                     keyEquivalent: ""
                 )
                 item.target = target
+                item.isEnabled = true
                 item.representedObject = scheme.id
                 item.state = (currentTheme == .custom(id: scheme.id)) ? .on : .off
                 menu.addItem(item)
@@ -144,6 +146,7 @@ extension MainMenuBuilder {
             keyEquivalent: ""
         )
         openFolder.target = target
+        openFolder.isEnabled = true
         menu.addItem(openFolder)
 
         let reload = NSMenuItem(
@@ -152,6 +155,7 @@ extension MainMenuBuilder {
             keyEquivalent: ""
         )
         reload.target = target
+        reload.isEnabled = true
         menu.addItem(reload)
     }
 }

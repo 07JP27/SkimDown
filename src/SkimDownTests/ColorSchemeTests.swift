@@ -162,6 +162,14 @@ final class ColorSchemeTests: XCTestCase {
         )
     }
 
+    @MainActor
+    func testHighlightCSSResourcePathFallsBackToSystemForUnresolvedCustomTheme() {
+        XCTAssertEqual(
+            MarkdownWebView.highlightCSSResourcePath(for: .custom(id: "missing"), resolvedTheme: nil),
+            MarkdownWebView.highlightCSSResourcePath(for: .system, resolvedTheme: nil)
+        )
+    }
+
     func testCustomThemeSelectorMatchesDarkFallbackSpecificity() {
         XCTAssertEqual(
             MarkdownWebView.customThemeCSSSelector,
