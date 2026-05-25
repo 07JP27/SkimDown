@@ -91,6 +91,40 @@ final class ColorSchemeStoreTests: XCTestCase {
         XCTAssertTrue(FileManager.default.fileExists(atPath: target.path))
     }
 
+    func testEnsureDirectoryExistsDoesNotReplaceFileAtTargetPath() throws {
+        let parent = try TemporaryFolder()
+        let target = parent.url.appendingPathComponent("Themes", isDirectory: true)
+        try Data("not a directory".utf8).write(to: target)
+
+        let store = ColorSchemeStore(themesDirectoryURL: target)
+        XCTAssertTrue(store.reload().isEmpty)
+
+        var isDirectory: ObjCBool = true
+        XCTAssertTrue(FileManager.default.fileExists(atPath: target.path, isDirectory: &isDirectory))
+        XCTAssertFalse(isDirectory.boolValue)
+        XCTAssertEqual(try String(contentsOf: target, encoding: .utf8), "not a directory")
+    }
+
+    func testReloadIgnoresNonRegularJSONEntries() throws {
+        let folder = try TemporaryFolder()
+        try write(name: "good.json", json: "{\"name\":\"Good\",\"type\":\"dark\",\"colors\":{}}", in: folder.url)
+        try FileManager.default.createDirectory(
+            at: folder.url.appendingPathComponent("directory.json", isDirectory: true),
+            withIntermediateDirectories: false
+        )
+        let linkedTarget = folder.url.appendingPathComponent("linked-target.txt")
+        try Data("{\"name\":\"Linked\",\"type\":\"dark\",\"colors\":{}}".utf8).write(to: linkedTarget)
+        try FileManager.default.createSymbolicLink(
+            at: folder.url.appendingPathComponent("linked.json"),
+            withDestinationURL: linkedTarget
+        )
+
+        let store = ColorSchemeStore(themesDirectoryURL: folder.url)
+        let schemes = store.reload()
+
+        XCTAssertEqual(schemes.map(\.id), ["good"])
+    }
+
     private func write(name: String, json: String, in folderURL: URL) throws {
         let url = folderURL.appendingPathComponent(name)
         try Data(json.utf8).write(to: url)

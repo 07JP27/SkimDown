@@ -9,6 +9,7 @@ struct SearchResult {
 @MainActor
 protocol MarkdownWebViewDelegate: AnyObject {
     func markdownWebView(_ webView: MarkdownWebView, didRequestLink href: String)
+    func markdownWebViewDidChangeEffectiveAppearance(_ webView: MarkdownWebView)
 }
 
 @MainActor
@@ -106,6 +107,11 @@ final class MarkdownWebView: NSView, WKScriptMessageHandler, WKNavigationDelegat
         for scriptMessage in ScriptMessage.allCases {
             userContentController.removeScriptMessageHandler(forName: scriptMessage.rawValue)
         }
+    }
+
+    override func viewDidChangeEffectiveAppearance() {
+        super.viewDidChangeEffectiveAppearance()
+        delegate?.markdownWebViewDidChangeEffectiveAppearance(self)
     }
 
     func render(

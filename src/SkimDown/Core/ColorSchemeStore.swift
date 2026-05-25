@@ -90,25 +90,37 @@ final class ColorSchemeStore {
 
     /// 保存先フォルダが無ければ作成する。失敗は黙ってログに残すだけ。
     func ensureDirectoryExists() {
-        if !fileManager.fileExists(atPath: themesDirectoryURL.path) {
-            do {
-                try fileManager.createDirectory(at: themesDirectoryURL, withIntermediateDirectories: true)
-            } catch {
-                Self.log.error("Failed to create themes directory: \(error.localizedDescription, privacy: .public)")
+        var isDirectory: ObjCBool = false
+        if fileManager.fileExists(atPath: themesDirectoryURL.path, isDirectory: &isDirectory) {
+            if !isDirectory.boolValue {
+                Self.log.error("Themes path exists but is not a directory: \(self.themesDirectoryURL.path, privacy: .private)")
             }
+            return
+        }
+
+        do {
+            try fileManager.createDirectory(at: themesDirectoryURL, withIntermediateDirectories: true)
+        } catch {
+            Self.log.error("Failed to create themes directory: \(error.localizedDescription, privacy: .public)")
         }
     }
 
     private func jsonFileURLs() -> [URL] {
         guard let entries = try? fileManager.contentsOfDirectory(
             at: themesDirectoryURL,
-            includingPropertiesForKeys: [.isRegularFileKey],
+            includingPropertiesForKeys: [.isRegularFileKey, .isSymbolicLinkKey],
             options: [.skipsHiddenFiles, .skipsSubdirectoryDescendants]
         ) else {
             return []
         }
         return entries
-            .filter { $0.pathExtension.lowercased() == "json" }
+            .filter { url in
+                guard url.pathExtension.lowercased() == "json",
+                      let values = try? url.resourceValues(forKeys: [.isRegularFileKey, .isSymbolicLinkKey]) else {
+                    return false
+                }
+                return values.isRegularFile == true && values.isSymbolicLink != true
+            }
             .sorted { $0.lastPathComponent < $1.lastPathComponent }
     }
 }

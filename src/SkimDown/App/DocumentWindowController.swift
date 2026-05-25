@@ -392,6 +392,14 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Side
         }
     }
 
+    func markdownWebViewDidChangeEffectiveAppearance(_ webView: MarkdownWebView) {
+        guard settings.theme == .system,
+              selectedFileURL != nil else {
+            return
+        }
+        reloadSelectedMarkdown(preserveScrollPosition: true)
+    }
+
     func searchBarView(_ searchBarView: SearchBarView, didChangeQuery query: String, caseSensitive: Bool) {
         settings.isSearchCaseSensitive = caseSensitive
         settingsStore.isSearchCaseSensitive = caseSensitive
