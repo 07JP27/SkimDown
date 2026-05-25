@@ -54,4 +54,31 @@ final class ColorSchemeTests: XCTestCase {
         let scheme = try XCTUnwrap(ColorScheme.load(from: url))
         XCTAssertEqual(scheme.type, .dark)
     }
+
+    @MainActor
+    func testHighlightCSSResourcePathUsesBuiltInThemeType() {
+        XCTAssertEqual(
+            MarkdownWebView.highlightCSSResourcePath(for: .light, resolvedTheme: nil),
+            "vendor/highlight.js/github.min.css"
+        )
+        XCTAssertEqual(
+            MarkdownWebView.highlightCSSResourcePath(for: .dark, resolvedTheme: nil),
+            "vendor/highlight.js/github-dark.min.css"
+        )
+    }
+
+    @MainActor
+    func testHighlightCSSResourcePathUsesCustomThemeType() {
+        let lightTheme = ResolvedTheme.resolve(from: ColorScheme(id: "light", displayName: "Light", type: .light, colors: [:]))
+        let darkTheme = ResolvedTheme.resolve(from: ColorScheme(id: "dark", displayName: "Dark", type: .dark, colors: [:]))
+
+        XCTAssertEqual(
+            MarkdownWebView.highlightCSSResourcePath(for: .custom(id: "light"), resolvedTheme: lightTheme),
+            "vendor/highlight.js/github.min.css"
+        )
+        XCTAssertEqual(
+            MarkdownWebView.highlightCSSResourcePath(for: .custom(id: "dark"), resolvedTheme: darkTheme),
+            "vendor/highlight.js/github-dark.min.css"
+        )
+    }
 }

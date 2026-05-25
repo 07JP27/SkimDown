@@ -406,10 +406,10 @@ final class MarkdownWebView: NSView, WKScriptMessageHandler, WKNavigationDelegat
     }
 
     private static func buildHTML(payload: [String: Any], theme: AppTheme, resolvedTheme: ResolvedTheme?, katexFontsURL: String) throws -> String {
+        let highlightCSSPath = highlightCSSResourcePath(for: theme, resolvedTheme: resolvedTheme)
         let css = [
             try readWebResource("vendor/katex/katex.min.css").replacingOccurrences(of: "url(fonts/", with: "url(\(katexFontsURL)/"),
-            try readWebResource("vendor/highlight.js/github.min.css"),
-            try readWebResource("vendor/highlight.js/github-dark.min.css"),
+            try readWebResource(highlightCSSPath),
             try readWebResource("skimdown.css")
         ].joined(separator: "\n")
 
@@ -464,15 +464,25 @@ final class MarkdownWebView: NSView, WKScriptMessageHandler, WKNavigationDelegat
     /// 組み込みテーマでは現状の挙動を変えないよう、Light=light / Dark=dark /
     /// System=system OS appearance に従う。
     private static func dataThemeTypeAttribute(for theme: AppTheme, resolvedTheme: ResolvedTheme?) -> String {
+        isEffectiveThemeDark(theme, resolvedTheme: resolvedTheme) ? "dark" : "light"
+    }
+
+    static func highlightCSSResourcePath(for theme: AppTheme, resolvedTheme: ResolvedTheme?) -> String {
+        isEffectiveThemeDark(theme, resolvedTheme: resolvedTheme)
+            ? "vendor/highlight.js/github-dark.min.css"
+            : "vendor/highlight.js/github.min.css"
+    }
+
+    static func isEffectiveThemeDark(_ theme: AppTheme, resolvedTheme: ResolvedTheme?) -> Bool {
         switch theme {
         case .system:
-            return NSApp.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua ? "dark" : "light"
+            return NSApp.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
         case .light:
-            return "light"
+            return false
         case .dark:
-            return "dark"
+            return true
         case .custom:
-            return (resolvedTheme?.isDark ?? false) ? "dark" : "light"
+            return resolvedTheme?.isDark ?? false
         }
     }
 
@@ -501,17 +511,7 @@ final class MarkdownWebView: NSView, WKScriptMessageHandler, WKNavigationDelegat
         generation: Int,
         restoreScrollY: Double
     ) -> [String: Any] {
-        let themeIsDark: Bool
-        switch theme {
-        case .system:
-            themeIsDark = NSApp.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
-        case .light:
-            themeIsDark = false
-        case .dark:
-            themeIsDark = true
-        case .custom:
-            themeIsDark = resolvedTheme?.isDark ?? false
-        }
+        let themeIsDark = isEffectiveThemeDark(theme, resolvedTheme: resolvedTheme)
         return [
             "markdown": markdown,
             "baseURL": baseURL.absoluteString,
