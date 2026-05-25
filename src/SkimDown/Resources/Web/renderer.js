@@ -7,6 +7,7 @@
   let mermaidResizeObserver = null;
   let mermaidResizeHandler = null;
   const IMAGE_READY_TIMEOUT_MS = 3000;
+  const CODE_COPY_FEEDBACK_RESET_MS = 1500;
   // Matches standalone #RGB, #RGBA, #RRGGBB, and #RRGGBBAA color codes.
   const COLOR_CODE_PATTERN_SOURCE = "(^|[^\\w-])(#(?:[0-9A-Fa-f]{8}|[0-9A-Fa-f]{6}|[0-9A-Fa-f]{4}|[0-9A-Fa-f]{3}))(?![\\w-])";
   const COLOR_CODE_DETECTION_PATTERN = new RegExp(COLOR_CODE_PATTERN_SOURCE);
@@ -729,6 +730,12 @@
     content.querySelectorAll("pre > code").forEach(decorateCodeBlock);
   }
 
+  function resetCodeCopyButton(button) {
+    button.textContent = "Copy";
+    button.setAttribute("aria-label", "Copy code");
+    button.classList.remove("code-copy-copied");
+  }
+
   function decorateCodeBlock(code) {
     const pre = code.parentElement;
     if (!pre || pre.querySelector(".code-toolbar")) {
@@ -749,9 +756,24 @@
     const button = document.createElement("button");
     button.className = "code-copy";
     button.type = "button";
-    button.textContent = "Copy";
+    resetCodeCopyButton(button);
+    let feedbackResetTimer = null;
     button.addEventListener("click", function () {
       window.webkit.messageHandlers.copyCode.postMessage(code.textContent || "");
+      button.textContent = "Copied";
+      button.setAttribute("aria-label", "Copied code");
+      button.classList.add("code-copy-copied");
+      if (feedbackResetTimer !== null) {
+        window.clearTimeout(feedbackResetTimer);
+      }
+      const resetTimer = window.setTimeout(function () {
+        if (feedbackResetTimer !== resetTimer) {
+          return;
+        }
+        feedbackResetTimer = null;
+        resetCodeCopyButton(button);
+      }, CODE_COPY_FEEDBACK_RESET_MS);
+      feedbackResetTimer = resetTimer;
     });
     toolbar.appendChild(button);
     pre.appendChild(toolbar);

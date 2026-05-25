@@ -200,6 +200,16 @@ pre code {
   color: var(--skimdown-fg);
   font: inherit;
   cursor: default;
+  transition:
+    background-color 120ms ease,
+    border-color 120ms ease,
+    color 120ms ease;
+}
+
+.code-copy-copied {
+  border-color: color-mix(in srgb, var(--skimdown-accent) 55%, var(--skimdown-border));
+  background: color-mix(in srgb, var(--skimdown-accent) 14%, var(--skimdown-bg));
+  color: var(--skimdown-accent);
 }
 
 .table-scroll {
