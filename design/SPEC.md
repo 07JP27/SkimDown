@@ -206,7 +206,7 @@ GitHub Flavored Markdown寄りの表示を基本にする。
 - `Bring All to Front`
 - 開いているSkimDownウィンドウ一覧
 
-## カラースキーム
+## カラーテーマ
 
 - 組み込みテーマは `System / Light / Dark` の3種類。
 - ユーザーは VS Code 互換のカラーテーマ JSON を `~/Library/Application Support/SkimDown/Themes/` に置いて追加できる。

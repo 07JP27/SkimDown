@@ -42,7 +42,7 @@ See [`samples/README.md`](https://github.com/07JP27/SkimDown/blob/main/samples/R
 - [Open folders](./usage/open-folder.md)
 - [Open files](./usage/open-file.md)
 - [Preview](./usage/preview.md)
-- [Color schemes](./usage/color-schemes.md)
+- [Color theme](./usage/color-schemes.md)
 - [Search](./usage/search.md)
 - [Live reload](./usage/reload.md)
 - [Security model](./security.md)

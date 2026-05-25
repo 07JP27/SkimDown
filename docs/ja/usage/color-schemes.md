@@ -1,6 +1,6 @@
-# カスタムカラースキーム
+# カスタムカラーテーマ
 
-SkimDown では、プレビュー領域のカラースキームを JSON ファイルで定義して切り替えられます。テーマは [VS Code のカラーテーマ形式](https://code.visualstudio.com/api/references/theme-color) に合わせているため、既存の VS Code テーマ資産を再利用できます。
+SkimDown では、プレビュー領域のカラーテーマを JSON ファイルで定義して切り替えられます。テーマは [VS Code のカラーテーマ形式](https://code.visualstudio.com/api/references/theme-color) に合わせているため、既存の VS Code テーマ資産を再利用できます。
 
 ## テーマの配置場所
 

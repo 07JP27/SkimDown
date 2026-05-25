@@ -1,6 +1,6 @@
-# Custom Color Schemes
+# Custom Color Theme
 
-SkimDown lets you define and switch between custom color schemes for the
+SkimDown lets you define and switch between custom color themes for the
 preview area. Themes are written as JSON files in the
 [VS Code color theme format](https://code.visualstudio.com/api/references/theme-color),
 so existing VS Code theme assets can be reused.
