@@ -4,6 +4,7 @@ import AppKit
 final class DocumentWindowController: NSWindowController, NSWindowDelegate, SidebarViewControllerDelegate, EmptyStateViewDelegate, MarkdownWebViewDelegate, SearchBarViewDelegate {
     private let settingsStore: SettingsStore
     private let bookmarkStore: FolderBookmarkStore
+    private let colorSchemeStore: ColorSchemeStore
     private weak var windowManager: WindowManager?
 
     private let splitViewController = NSSplitViewController()
@@ -27,10 +28,9 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Side
     private var scrollPositions: [URL: Double] = [:]
     private var isInitialLayoutComplete = false
 
-    /// コンテンツ側 (defaultLow = 250) がリサイズを引き受けるよう、
-    /// サイドバー側だけ一段高い保持優先度を割り当てる。これにより
-    /// ドラッグ終了直後の Auto Layout 再解決でサイドバー幅が
-    /// スナップバックしないようにする。
+    /// Give the sidebar a slightly higher holding priority so the content side
+    /// absorbs resizing. This avoids sidebar width snapping back after AppKit
+    /// resolves Auto Layout at the end of a divider drag.
     private static let sidebarHoldingPriority = NSLayoutConstraint.Priority(
         rawValue: NSLayoutConstraint.Priority.defaultLow.rawValue + 10
     )
@@ -63,9 +63,10 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Side
         settings.sidebarWidth = max(180, min(width, 520))
     }
 
-    init(settingsStore: SettingsStore, bookmarkStore: FolderBookmarkStore, windowManager: WindowManager) {
+    init(settingsStore: SettingsStore, bookmarkStore: FolderBookmarkStore, colorSchemeStore: ColorSchemeStore, windowManager: WindowManager) {
         self.settingsStore = settingsStore
         self.bookmarkStore = bookmarkStore
+        self.colorSchemeStore = colorSchemeStore
         self.windowManager = windowManager
         self.settings = settingsStore.settings
 
@@ -340,9 +341,10 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Side
     }
 
     func setTheme(_ theme: AppTheme) {
-        settings.theme = theme
-        settingsStore.theme = theme
-        applyWindowAppearance(theme)
+        let effectiveTheme = colorSchemeStore.normalizedTheme(theme)
+        settings.theme = effectiveTheme
+        settingsStore.theme = effectiveTheme
+        applyWindowAppearance(effectiveTheme)
         reloadSelectedMarkdown(preserveScrollPosition: true)
     }
 
@@ -387,6 +389,14 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Side
         case .localResource, .blocked:
             NSSound.beep()
         }
+    }
+
+    func markdownWebViewDidChangeEffectiveAppearance(_ webView: MarkdownWebView) {
+        guard settings.theme == .system,
+              selectedFileURL != nil else {
+            return
+        }
+        reloadSelectedMarkdown(preserveScrollPosition: true)
     }
 
     func searchBarView(_ searchBarView: SearchBarView, didChangeQuery query: String, caseSensitive: Bool) {
@@ -650,6 +660,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Side
                 currentFileURL: fileURL,
                 rootFolderURL: session.folderURL,
                 theme: settings.theme,
+                resolvedTheme: colorSchemeStore.resolvedTheme(for: settings.theme),
                 fontSize: settings.fontSize,
                 preserveScrollPosition: shouldPreserveScrollPosition,
                 restoreScrollY: restoreScrollY
@@ -661,7 +672,12 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Side
             sidebarViewController.selectFile(fileURL)
             emptyStateView.isHidden = true
             markdownWebView.isHidden = false
-            markdownWebView.showError(error.localizedDescription, theme: settings.theme, fontSize: settings.fontSize)
+            markdownWebView.showError(
+                error.localizedDescription,
+                theme: settings.theme,
+                resolvedTheme: colorSchemeStore.resolvedTheme(for: settings.theme),
+                fontSize: settings.fontSize
+            )
         }
     }
 
@@ -745,6 +761,12 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Side
             window?.appearance = NSAppearance(named: .aqua)
         case .dark:
             window?.appearance = NSAppearance(named: .darkAqua)
+        case .custom:
+            if let resolved = colorSchemeStore.resolvedTheme(for: theme) {
+                window?.appearance = NSAppearance(named: resolved.isDark ? .darkAqua : .aqua)
+            } else {
+                window?.appearance = nil
+            }
         }
     }
 
