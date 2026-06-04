@@ -10,23 +10,8 @@ final class SearchBarViewTests: XCTestCase {
 
         searchBar.viewDidChangeEffectiveAppearance()
 
-        let searchField = try XCTUnwrap(searchBar.firstSubview(ofType: NSSearchField.self))
+        let stack = try XCTUnwrap(searchBar.subviews.compactMap { $0 as? NSStackView }.first)
+        let searchField = try XCTUnwrap(stack.arrangedSubviews.compactMap { $0 as? NSSearchField }.first)
         XCTAssertEqual(searchField.appearance?.name, .darkAqua)
-    }
-}
-
-private extension NSView {
-    func firstSubview<T: NSView>(ofType type: T.Type) -> T? {
-        if let matchingView = self as? T {
-            return matchingView
-        }
-
-        for subview in subviews {
-            if let matchingView = subview.firstSubview(ofType: type) {
-                return matchingView
-            }
-        }
-
-        return nil
     }
 }
