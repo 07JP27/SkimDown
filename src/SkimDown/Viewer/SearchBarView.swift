@@ -22,7 +22,7 @@ final class SearchBarView: NSView, NSSearchFieldDelegate {
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
         wantsLayer = true
-        layer?.backgroundColor = NSColor.windowBackgroundColor.cgColor
+        updateAppearance()
 
         searchField.delegate = self
         searchField.target = self
@@ -107,10 +107,19 @@ final class SearchBarView: NSView, NSSearchFieldDelegate {
 
     override func viewDidChangeEffectiveAppearance() {
         super.viewDidChangeEffectiveAppearance()
-        layer?.backgroundColor = NSColor.windowBackgroundColor.cgColor
+        updateAppearance()
     }
 
     @objc private func close() {
         delegate?.searchBarViewDidRequestClose(self)
+    }
+
+    private func updateAppearance() {
+        layer?.backgroundColor = effectiveAppearance.performAsCurrentDrawingAppearance {
+            NSColor.windowBackgroundColor.cgColor
+        }
+        searchField.appearance = effectiveAppearance
+        searchField.needsDisplay = true
+        needsDisplay = true
     }
 }
