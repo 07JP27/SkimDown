@@ -666,7 +666,103 @@ final class RendererAnchorTests: XCTestCase {
     }
 
     @MainActor
-    func testNarrowTableKeepsNormalContentWidth() async throws {
+    func testContentUsesExpandedPreviewWidth() async throws {
+        let webView = try await renderMarkdown(
+            """
+            # Wide preview
+
+            Paragraph content should use more than the old fixed 980px preview cap.
+            """,
+            frameWidth: 1400,
+            includeStyles: true
+        )
+
+        let result = try await previewLayoutResult(in: webView)
+
+        XCTAssertGreaterThan(result.contentWidth, 980)
+        XCTAssertLessThanOrEqual(abs(result.contentWidth - result.bodyContentWidth), 1.0)
+    }
+
+    @MainActor
+    func testReservedTrailingWidthSetterShrinksContentWithoutRerendering() async throws {
+        let webView = try await renderMarkdown(
+            """
+            # Reserved width
+
+            Content marker should survive a layout-only update.
+            """,
+            frameWidth: 1400,
+            includeStyles: true
+        )
+
+        let resultJSON = try await evaluateStringJavaScript(
+            """
+            (function () {
+              var content = document.getElementById('content');
+              var beforeWidth = content.getBoundingClientRect().width;
+              content.dataset.marker = 'kept';
+              window.skimdown.setReservedTrailingWidth(300);
+              var style = window.getComputedStyle(document.body);
+              return JSON.stringify({
+                beforeWidth: beforeWidth,
+                afterWidth: content.getBoundingClientRect().width,
+                marker: content.dataset.marker,
+                reservedCSS: window.getComputedStyle(document.documentElement).getPropertyValue('--skimdown-reserved-trailing-width').trim(),
+                paddingRight: parseFloat(style.paddingRight) || 0
+              });
+            })();
+            """,
+            in: webView
+        )
+        let result = try JSONDecoder().decode(ReservedWidthSetterResult.self, from: Data(resultJSON.utf8))
+
+        XCTAssertEqual(result.marker, "kept")
+        XCTAssertEqual(result.reservedCSS, "300px")
+        XCTAssertGreaterThanOrEqual(result.paddingRight, 300)
+        XCTAssertLessThan(result.afterWidth, result.beforeWidth)
+    }
+
+    @MainActor
+    func testRenderPayloadPreservesReservedTrailingWidth() async throws {
+        let webView = try await renderMarkdown(
+            """
+            # Reserved payload
+
+            This render starts with a reserved trailing width.
+            """,
+            frameWidth: 1400,
+            includeStyles: true,
+            reservedTrailingWidth: 300
+        )
+
+        let result = try await previewLayoutResult(in: webView)
+
+        XCTAssertEqual(result.reservedTrailingWidth, "300px")
+        XCTAssertGreaterThanOrEqual(result.paddingRight, 300)
+        XCTAssertLessThan(result.contentWidth, result.windowWidth - result.paddingLeft - 299)
+    }
+
+    @MainActor
+    func testZeroReservedTrailingWidthUsesFullAvailableContentArea() async throws {
+        let webView = try await renderMarkdown(
+            """
+            # Zero reserved width
+
+            The content should use the full body content area.
+            """,
+            frameWidth: 1400,
+            includeStyles: true
+        )
+
+        let result = try await previewLayoutResult(in: webView)
+
+        XCTAssertEqual(result.reservedTrailingWidth, "0px")
+        XCTAssertLessThan(result.paddingRight, 300)
+        XCTAssertLessThanOrEqual(abs(result.contentWidth - result.bodyContentWidth), 1.0)
+    }
+
+    @MainActor
+    func testReservedTrailingWidthSetterRecomputesTableScrollCues() async throws {
         let webView = try await renderMarkdown(
             """
             | Name | Value |
@@ -677,43 +773,32 @@ final class RendererAnchorTests: XCTestCase {
             includeStyles: true
         )
 
-        let result = try await tableLayoutResult(in: webView)
-
-        XCTAssertFalse(result.isWide)
-        XCTAssertLessThanOrEqual(abs(result.wrapperWidth - result.contentWidth), 1.0)
-    }
-
-    @MainActor
-    func testWideTableExpandsBeyondContentColumnOnWideWindow() async throws {
-        let webView = try await renderMarkdown(
-            wideTableMarkdown(columnCount: 20),
-            frameWidth: 1400,
-            includeStyles: true
+        let resultJSON = try await evaluateStringJavaScript(
+            """
+            (function () {
+              var wrapper = document.querySelector('.table-scroll');
+              var viewport = wrapper.querySelector('.table-scroll-viewport');
+              var table = wrapper.querySelector('table');
+              table.style.minWidth = '1100px';
+              window.skimdown.setReservedTrailingWidth(300);
+              return JSON.stringify({
+                viewportOverflows: viewport.scrollWidth > viewport.clientWidth + 1,
+                canScrollLeft: wrapper.classList.contains('can-scroll-left'),
+                canScrollRight: wrapper.classList.contains('can-scroll-right')
+              });
+            })();
+            """,
+            in: webView
         )
+        let result = try JSONDecoder().decode(TableCueState.self, from: Data(resultJSON.utf8))
 
-        let result = try await tableLayoutResult(in: webView)
-
-        XCTAssertTrue(result.isWide)
-        XCTAssertGreaterThan(result.wrapperWidth, result.contentWidth + 100)
-    }
-
-    @MainActor
-    func testWideTableDoesNotExpandWhenWindowCannotGainWidth() async throws {
-        let webView = try await renderMarkdown(
-            wideTableMarkdown(columnCount: 20),
-            frameWidth: 800,
-            includeStyles: true
-        )
-
-        let result = try await tableLayoutResult(in: webView)
-
-        XCTAssertFalse(result.isWide)
-        XCTAssertLessThanOrEqual(abs(result.wrapperWidth - result.contentWidth), 1.0)
+        XCTAssertTrue(result.viewportOverflows)
+        XCTAssertFalse(result.canScrollLeft)
         XCTAssertTrue(result.canScrollRight)
     }
 
     @MainActor
-    func testExpandedWideTableKeepsScrollCuesWhenStillOverflowing() async throws {
+    func testExtremelyWideTableKeepsLocalHorizontalScroll() async throws {
         let webView = try await renderMarkdown(
             wideTableMarkdown(columnCount: 40),
             frameWidth: 1400,
@@ -726,9 +811,13 @@ final class RendererAnchorTests: XCTestCase {
               var wrapper = document.querySelector('.table-scroll');
               var viewport = wrapper.querySelector('.table-scroll-viewport');
               var initial = {
-                isWide: wrapper.classList.contains('table-scroll-wide'),
+                wrapperCount: document.querySelectorAll('.table-scroll').length,
+                viewportCount: document.querySelectorAll('.table-scroll-viewport').length,
                 canScrollLeft: wrapper.classList.contains('can-scroll-left'),
-                canScrollRight: wrapper.classList.contains('can-scroll-right')
+                canScrollRight: wrapper.classList.contains('can-scroll-right'),
+                viewportOverflows: viewport.scrollWidth > viewport.clientWidth + 1,
+                pageScrollWidth: document.documentElement.scrollWidth,
+                windowWidth: window.innerWidth
               };
               viewport.scrollLeft = viewport.scrollWidth;
               viewport.dispatchEvent(new Event('scroll'));
@@ -743,118 +832,16 @@ final class RendererAnchorTests: XCTestCase {
             """,
             in: webView
         )
-        let result = try JSONDecoder().decode(TableScrollCueResult.self, from: Data(resultJSON.utf8))
+        let result = try JSONDecoder().decode(TableLocalScrollResult.self, from: Data(resultJSON.utf8))
 
-        XCTAssertEqual(result.initial.isWide, true)
+        XCTAssertEqual(result.initial.wrapperCount, 1)
+        XCTAssertEqual(result.initial.viewportCount, 1)
+        XCTAssertTrue(result.initial.viewportOverflows)
         XCTAssertFalse(result.initial.canScrollLeft)
         XCTAssertTrue(result.initial.canScrollRight)
         XCTAssertTrue(result.afterScroll.canScrollLeft)
         XCTAssertFalse(result.afterScroll.canScrollRight)
-    }
-
-    @MainActor
-    func testNestedWideTableAlignsWithBodyContentArea() async throws {
-        let quotedWideTable = wideTableMarkdown(columnCount: 20)
-            .split(separator: "\n")
-            .map { "> \($0)" }
-            .joined(separator: "\n")
-        let webView = try await renderMarkdown(
-            quotedWideTable,
-            frameWidth: 1400,
-            includeStyles: true
-        )
-
-        let resultJSON = try await evaluateStringJavaScript(
-            """
-            (function () {
-              var wrapper = document.querySelector('.table-scroll');
-              var rect = wrapper.getBoundingClientRect();
-              var bodyStyle = window.getComputedStyle(document.body);
-              var bodyLeft = parseFloat(bodyStyle.paddingLeft) || 0;
-              var bodyRight = window.innerWidth - (parseFloat(bodyStyle.paddingRight) || 0);
-              return JSON.stringify({
-                isWide: wrapper.classList.contains('table-scroll-wide'),
-                wrapperLeft: rect.left,
-                wrapperRight: rect.right,
-                bodyLeft: bodyLeft,
-                bodyRight: bodyRight
-              });
-            })();
-            """,
-            in: webView
-        )
-        let result = try JSONDecoder().decode(NestedTableAlignmentResult.self, from: Data(resultJSON.utf8))
-
-        XCTAssertTrue(result.isWide)
-        XCTAssertLessThanOrEqual(abs(result.wrapperLeft - result.bodyLeft), 1.0)
-        XCTAssertLessThanOrEqual(abs(result.wrapperRight - result.bodyRight), 1.0)
-    }
-
-    @MainActor
-    func testTableWideClassIsRecomputedAcrossRenders() async throws {
-        let webView = try await renderMarkdown(
-            wideTableMarkdown(columnCount: 20),
-            frameWidth: 1400,
-            includeStyles: true
-        )
-
-        let payload: [String: Any] = [
-            "markdown": """
-            | Name | Value |
-            | --- | --- |
-            | One | Two |
-            """,
-            "baseURL": Bundle.main.bundleURL.absoluteString,
-            "rootURL": Bundle.main.bundleURL.absoluteString,
-            "localFileScheme": LocalFileSchemeHandler.scheme,
-            "theme": "system",
-            "fontSize": 16,
-            "renderID": 2,
-            "restoreScrollY": 0
-        ]
-        let resultJSON = try await evaluateStringJavaScript(
-            """
-            window.skimdown.render(\(try jsonObject(payload)));
-            JSON.stringify({
-              wrapperCount: document.querySelectorAll('.table-scroll').length,
-              viewportCount: document.querySelectorAll('.table-scroll-viewport').length,
-              isWide: document.querySelector('.table-scroll').classList.contains('table-scroll-wide')
-            });
-            """,
-            in: webView
-        )
-        let result = try JSONDecoder().decode(TableRerenderResult.self, from: Data(resultJSON.utf8))
-
-        XCTAssertEqual(result.wrapperCount, 1)
-        XCTAssertEqual(result.viewportCount, 1)
-        XCTAssertFalse(result.isWide)
-    }
-
-    @MainActor
-    func testTableBecomesWideWhenContentGrowsAfterInitialRender() async throws {
-        let webView = try await renderMarkdown(
-            """
-            | Name | Value |
-            | --- | --- |
-            | One | Two |
-            """,
-            frameWidth: 1400,
-            includeStyles: true
-        )
-
-        _ = try await evaluateStringJavaScript(
-            """
-            (function () {
-              document.querySelector('table').style.minWidth = '1600px';
-              return 'mutated';
-            })();
-            """,
-            in: webView
-        )
-        let result = try await waitForTableLayout(in: webView) { $0.isWide }
-
-        XCTAssertTrue(result.isWide)
-        XCTAssertGreaterThan(result.wrapperWidth, result.contentWidth + 100)
+        XCTAssertLessThanOrEqual(result.initial.pageScrollWidth, result.initial.windowWidth + 1)
     }
 
     @MainActor
@@ -865,7 +852,8 @@ final class RendererAnchorTests: XCTestCase {
         additionalScripts: [String] = [],
         additionalStyles: [String] = [],
         frameWidth: CGFloat = 800,
-        includeStyles: Bool = false
+        includeStyles: Bool = false,
+        reservedTrailingWidth: Double = 0
     ) async throws -> WKWebView {
         let configuration = WKWebViewConfiguration()
         if let copyCodeMessageHandler {
@@ -891,7 +879,8 @@ final class RendererAnchorTests: XCTestCase {
                 markdown: markdown,
                 additionalScripts: additionalScripts,
                 additionalStyles: additionalStyles,
-                includeStyles: includeStyles
+                includeStyles: includeStyles,
+                reservedTrailingWidth: reservedTrailingWidth
             ),
             baseURL: Bundle.main.bundleURL
         )
@@ -905,7 +894,8 @@ final class RendererAnchorTests: XCTestCase {
         markdown: String,
         additionalScripts: [String] = [],
         additionalStyles: [String] = [],
-        includeStyles: Bool = false
+        includeStyles: Bool = false,
+        reservedTrailingWidth: Double = 0
     ) throws -> String {
         let baseScripts = try [
             "vendor/markdown-it/markdown-it.min.js",
@@ -933,7 +923,8 @@ final class RendererAnchorTests: XCTestCase {
             "theme": "system",
             "fontSize": 16,
             "renderID": 1,
-            "restoreScrollY": 0
+            "restoreScrollY": 0,
+            "reservedTrailingWidth": reservedTrailingWidth
         ]
 
         return """
@@ -965,39 +956,25 @@ final class RendererAnchorTests: XCTestCase {
     }
 
     @MainActor
-    private func tableLayoutResult(in webView: WKWebView) async throws -> TableLayoutResult {
+    private func previewLayoutResult(in webView: WKWebView) async throws -> PreviewLayoutResult {
         let resultJSON = try await evaluateStringJavaScript(
             """
             (function () {
-              var wrapper = document.querySelector('.table-scroll');
               var content = document.getElementById('content');
+              var bodyStyle = window.getComputedStyle(document.body);
               return JSON.stringify({
-                isWide: wrapper.classList.contains('table-scroll-wide'),
-                canScrollRight: wrapper.classList.contains('can-scroll-right'),
-                wrapperWidth: wrapper.getBoundingClientRect().width,
-                contentWidth: content.getBoundingClientRect().width
+                contentWidth: content.getBoundingClientRect().width,
+                paddingLeft: parseFloat(bodyStyle.paddingLeft) || 0,
+                paddingRight: parseFloat(bodyStyle.paddingRight) || 0,
+                bodyContentWidth: window.innerWidth - (parseFloat(bodyStyle.paddingLeft) || 0) - (parseFloat(bodyStyle.paddingRight) || 0),
+                windowWidth: window.innerWidth,
+                reservedTrailingWidth: window.getComputedStyle(document.documentElement).getPropertyValue('--skimdown-reserved-trailing-width').trim()
               });
             })();
             """,
             in: webView
         )
-        return try JSONDecoder().decode(TableLayoutResult.self, from: Data(resultJSON.utf8))
-    }
-
-    @MainActor
-    private func waitForTableLayout(
-        in webView: WKWebView,
-        matching predicate: (TableLayoutResult) -> Bool
-    ) async throws -> TableLayoutResult {
-        var result = try await tableLayoutResult(in: webView)
-        for _ in 0..<40 {
-            if predicate(result) {
-                return result
-            }
-            try await Task.sleep(nanoseconds: 50_000_000)
-            result = try await tableLayoutResult(in: webView)
-        }
-        return result
+        return try JSONDecoder().decode(PreviewLayoutResult.self, from: Data(resultJSON.utf8))
     }
 
     private func readWebResource(_ relativePath: String) throws -> String {
@@ -1182,36 +1159,47 @@ private struct ActiveHeadingMessage: Equatable {
     let headingID: String?
 }
 
-private struct TableLayoutResult: Decodable {
-    let isWide: Bool
-    let canScrollRight: Bool
-    let wrapperWidth: Double
+private struct PreviewLayoutResult: Decodable {
     let contentWidth: Double
+    let paddingLeft: Double
+    let paddingRight: Double
+    let bodyContentWidth: Double
+    let windowWidth: Double
+    let reservedTrailingWidth: String
 }
 
-private struct TableScrollCueResult: Decodable {
-    let initial: TableScrollCueState
-    let afterScroll: TableScrollCueState
+private struct ReservedWidthSetterResult: Decodable {
+    let beforeWidth: Double
+    let afterWidth: Double
+    let marker: String
+    let reservedCSS: String
+    let paddingRight: Double
 }
 
-private struct TableScrollCueState: Decodable {
-    let isWide: Bool?
+private struct TableLocalScrollResult: Decodable {
+    let initial: TableLocalScrollInitialState
+    let afterScroll: TableLocalScrollAfterState
+}
+
+private struct TableLocalScrollInitialState: Decodable {
+    let wrapperCount: Int
+    let viewportCount: Int
+    let viewportOverflows: Bool
+    let canScrollLeft: Bool
+    let canScrollRight: Bool
+    let pageScrollWidth: Double
+    let windowWidth: Double
+}
+
+private struct TableLocalScrollAfterState: Decodable {
     let canScrollLeft: Bool
     let canScrollRight: Bool
 }
 
-private struct TableRerenderResult: Decodable {
-    let wrapperCount: Int
-    let viewportCount: Int
-    let isWide: Bool
-}
-
-private struct NestedTableAlignmentResult: Decodable {
-    let isWide: Bool
-    let wrapperLeft: Double
-    let wrapperRight: Double
-    let bodyLeft: Double
-    let bodyRight: Double
+private struct TableCueState: Decodable {
+    let viewportOverflows: Bool
+    let canScrollLeft: Bool
+    let canScrollRight: Bool
 }
 
 private struct CodeCopyFeedbackResult: Decodable {

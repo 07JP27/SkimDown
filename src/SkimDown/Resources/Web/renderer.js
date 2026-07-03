@@ -3,13 +3,9 @@
   let searchMatches = [];
   let currentSearchIndex = -1;
   let tableResizeObserver = null;
-  let tableMutationObserver = null;
   let tableResizeHandler = null;
-  let tableLayoutFrame = null;
   let tableCueFrame = null;
-  let pendingTableLayoutWrappers = new Set();
   let pendingTableCueWrappers = new Set();
-  let tableImagesWithLayoutListener = new WeakSet();
   let mermaidResizeObserver = null;
   let mermaidResizeHandler = null;
   let activeHeadingIntersectionObserver = null;
@@ -121,6 +117,7 @@
     }
     document.documentElement.dataset.theme = payload.theme || "system";
     document.documentElement.style.setProperty("--skimdown-font-size", String(payload.fontSize || 16) + "px");
+    applyReservedTrailingWidth(payload.reservedTrailingWidth);
     closeActiveMermaidModal();
 
     const content = document.getElementById("content");
@@ -148,6 +145,19 @@
     installUserInteractionWatcher(payload.renderID);
     installScrollPositionListener(payload.renderID);
     installActiveHeadingTracker(content, payload.renderID);
+  }
+
+  function setReservedTrailingWidth(value) {
+    applyReservedTrailingWidth(value);
+    updateAllTableScrollCues();
+    if (activeHeadingUpdateHandler) {
+      activeHeadingUpdateHandler();
+    }
+  }
+
+  function applyReservedTrailingWidth(value) {
+    const width = Math.max(0, Number(value) || 0);
+    document.documentElement.style.setProperty("--skimdown-reserved-trailing-width", width + "px");
   }
 
   function installScrollPositionListener(renderID) {
@@ -596,35 +606,23 @@
       tableResizeObserver.disconnect();
       tableResizeObserver = null;
     }
-    if (tableMutationObserver) {
-      tableMutationObserver.disconnect();
-      tableMutationObserver = null;
-    }
     if (tableResizeHandler) {
       window.removeEventListener("resize", tableResizeHandler);
       tableResizeHandler = null;
-    }
-    if (tableLayoutFrame !== null) {
-      window.cancelAnimationFrame(tableLayoutFrame);
-      tableLayoutFrame = null;
     }
     if (tableCueFrame !== null) {
       window.cancelAnimationFrame(tableCueFrame);
       tableCueFrame = null;
     }
-    pendingTableLayoutWrappers.clear();
     pendingTableCueWrappers.clear();
-    tableImagesWithLayoutListener = new WeakSet();
 
     const wrappers = Array.from(content.querySelectorAll(".table-scroll"));
     if (wrappers.length === 0) {
       return;
     }
-
     wrappers.forEach(function (wrapper) {
       const viewport = tableScrollViewport(wrapper);
-      updateTableLayout(wrapper);
-      registerTableImageLayoutUpdates(wrapper);
+      updateTableScrollCue(wrapper);
       viewport.addEventListener("scroll", function () {
         updateTableScrollCue(wrapper);
       }, { passive: true });
@@ -645,7 +643,7 @@
             }
           }
         });
-        scheduleTableLayoutUpdates(wrappersToUpdate);
+        scheduleTableCueUpdates(wrappersToUpdate);
       });
 
       wrappers.forEach(function (wrapper) {
@@ -659,59 +657,12 @@
       });
     }
 
-    if ("MutationObserver" in window) {
-      tableMutationObserver = new MutationObserver(function (entries) {
-        const wrappersToUpdate = new Set();
-        entries.forEach(function (entry) {
-          const wrapper = tableWrapperForNode(entry.target);
-          if (wrapper) {
-            wrappersToUpdate.add(wrapper);
-          }
-          entry.addedNodes.forEach(function (node) {
-            const addedWrapper = tableWrapperForNode(node);
-            if (addedWrapper) {
-              wrappersToUpdate.add(addedWrapper);
-            }
-          });
-        });
-        wrappersToUpdate.forEach(function (wrapper) {
-          registerTableImageLayoutUpdates(wrapper);
-          updateTableLayout(wrapper);
-        });
-      });
-      wrappers.forEach(function (wrapper) {
-        const table = wrapper.querySelector("table");
-        if (table) {
-          tableMutationObserver.observe(table, {
-            attributes: true,
-            characterData: true,
-            childList: true,
-            subtree: true
-          });
-        }
-      });
-    }
-
     tableResizeHandler = function () {
-      scheduleTableLayoutUpdates(wrappers);
+      scheduleTableCueUpdates(wrappers);
     };
     window.addEventListener("resize", tableResizeHandler);
 
-    scheduleTableLayoutUpdates(wrappers);
     scheduleTableCueUpdates(wrappers);
-  }
-
-  function scheduleTableLayoutUpdates(wrappers) {
-    addPendingTableWrappers(pendingTableLayoutWrappers, wrappers);
-    if (pendingTableLayoutWrappers.size === 0 || tableLayoutFrame !== null) {
-      return;
-    }
-    tableLayoutFrame = window.requestAnimationFrame(function () {
-      tableLayoutFrame = null;
-      const wrappersToUpdate = Array.from(pendingTableLayoutWrappers);
-      pendingTableLayoutWrappers.clear();
-      wrappersToUpdate.forEach(updateTableLayout);
-    });
   }
 
   function scheduleTableCueUpdates(wrappers) {
@@ -735,88 +686,8 @@
     });
   }
 
-  function tableWrapperForNode(node) {
-    if (!node) {
-      return null;
-    }
-    if (node.nodeType === Node.ELEMENT_NODE) {
-      return node.classList && node.classList.contains("table-scroll")
-        ? node
-        : node.closest && node.closest(".table-scroll");
-    }
-    return node.parentElement && node.parentElement.closest(".table-scroll");
-  }
-
-  function registerTableImageLayoutUpdates(wrapper) {
-    wrapper.querySelectorAll("img").forEach(function (image) {
-      if (tableImagesWithLayoutListener.has(image)) {
-        return;
-      }
-      tableImagesWithLayoutListener.add(image);
-      const update = function () {
-        if (wrapper.isConnected) {
-          updateTableLayout(wrapper);
-        }
-      };
-      image.addEventListener("load", update, { once: true });
-      image.addEventListener("error", update, { once: true });
-    });
-  }
-
-  function updateTableLayout(wrapper) {
-    const wideMetrics = tableWideMetrics(wrapper);
-    if (wideMetrics) {
-      wrapper.style.setProperty("--table-wide-width", wideMetrics.width + "px");
-      wrapper.style.setProperty("--table-wide-margin-left", wideMetrics.marginLeft + "px");
-      wrapper.classList.add("table-scroll-wide");
-    } else {
-      wrapper.classList.remove("table-scroll-wide");
-      wrapper.style.removeProperty("--table-wide-width");
-      wrapper.style.removeProperty("--table-wide-margin-left");
-    }
-    updateTableScrollCue(wrapper);
-  }
-
-  function tableWideMetrics(wrapper) {
-    const viewport = tableScrollViewport(wrapper);
-    const content = document.getElementById("content");
-    if (!viewport || !content) {
-      return null;
-    }
-
-    const contentWidth = content.clientWidth;
-    const wideArea = availableTableWideArea();
-    if (wideArea.width <= contentWidth + TABLE_SCROLL_TOLERANCE) {
-      return null;
-    }
-
-    const wasWide = wrapper.classList.contains("table-scroll-wide");
-    if (wasWide) {
-      wrapper.classList.remove("table-scroll-wide");
-    }
-    const overflowsNormalColumn = viewport.scrollWidth - viewport.clientWidth > TABLE_SCROLL_TOLERANCE;
-    const normalLeft = wrapper.getBoundingClientRect().left;
-    if (wasWide) {
-      wrapper.classList.add("table-scroll-wide");
-    }
-    if (!overflowsNormalColumn) {
-      return null;
-    }
-
-    return {
-      width: wideArea.width,
-      marginLeft: wideArea.left - normalLeft
-    };
-  }
-
-  function availableTableWideArea() {
-    const bodyStyle = window.getComputedStyle(document.body);
-    const paddingLeft = parseFloat(bodyStyle.paddingLeft) || 0;
-    const paddingRight = parseFloat(bodyStyle.paddingRight) || 0;
-    return {
-      left: paddingLeft,
-      width: Math.max(0, window.innerWidth - paddingLeft - paddingRight)
-    };
+  function updateAllTableScrollCues() {
+    document.querySelectorAll(".table-scroll").forEach(updateTableScrollCue);
   }
 
   function updateTableScrollCue(wrapper) {
@@ -2096,6 +1967,7 @@
 
   window.skimdown = {
     render: render,
+    setReservedTrailingWidth: setReservedTrailingWidth,
     performSearch: performSearch,
     nextSearch: nextSearch,
     previousSearch: previousSearch,

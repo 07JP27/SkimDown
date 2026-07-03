@@ -38,6 +38,8 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Side
         rawValue: NSLayoutConstraint.Priority.defaultLow.rawValue + 10
     )
     private static let tableOfContentsWidth: CGFloat = 260
+    private static let tableOfContentsTrailingInset: CGFloat = 16
+    private static let tableOfContentsReservedGutter: CGFloat = 24
     private static let tableOfContentsVerticalInset: CGFloat = 24
 
     var isEmpty: Bool {
@@ -486,7 +488,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Side
             emptyStateView.topAnchor.constraint(equalTo: contentRootView.topAnchor),
             emptyStateView.bottomAnchor.constraint(equalTo: contentRootView.bottomAnchor),
 
-            tableOfContentsViewController.view.trailingAnchor.constraint(equalTo: contentRootView.trailingAnchor, constant: -16),
+            tableOfContentsViewController.view.trailingAnchor.constraint(equalTo: contentRootView.trailingAnchor, constant: -Self.tableOfContentsTrailingInset),
             tableOfContentsViewController.view.topAnchor.constraint(
                 equalTo: searchBarView.bottomAnchor,
                 constant: Self.tableOfContentsVerticalInset
@@ -693,7 +695,6 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Side
             return
         }
 
-        clearTableOfContents()
         do {
             let canonicalFileURL = fileURL.skimdownCanonicalFileURL
             let shouldPreserveScrollPosition = preserveScrollPosition
@@ -708,6 +709,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Side
             sidebarViewController.selectFile(fileURL)
             emptyStateView.isHidden = true
             markdownWebView.isHidden = false
+            clearTableOfContents(reserveWidthWhileLoading: settings.isTableOfContentsVisible)
             markdownWebView.render(
                 markdown: markdown,
                 currentFileURL: fileURL,
@@ -775,12 +777,12 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Side
         }
     }
 
-    private func clearTableOfContents() {
+    private func clearTableOfContents(reserveWidthWhileLoading: Bool = false) {
         hasLoadedTableOfContents = false
         tableOfContentsViewController.update(items: [])
         tableOfContentsViewController.setActiveHeadingID(nil)
         updateTableOfContentsHeight()
-        updateTableOfContentsVisibility()
+        updateTableOfContentsVisibility(reserveWidthWhileLoading: reserveWidthWhileLoading)
     }
 
     private func updateTableOfContentsHeight() {
@@ -794,11 +796,18 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Side
         contentRootView.needsLayout = true
     }
 
-    private func updateTableOfContentsVisibility() {
-        tableOfContentsViewController.view.isHidden = !settings.isTableOfContentsVisible
-            || !hasLoadedTableOfContents
-            || markdownWebView.isHidden
-            || selectedFileURL == nil
+    private func updateTableOfContentsVisibility(reserveWidthWhileLoading: Bool = false) {
+        let canShowTableOfContents = settings.isTableOfContentsVisible
+            && !markdownWebView.isHidden
+            && selectedFileURL != nil
+        let isVisible = canShowTableOfContents && hasLoadedTableOfContents
+        tableOfContentsViewController.view.isHidden = !isVisible
+        let shouldReserveWidth = isVisible || (reserveWidthWhileLoading && canShowTableOfContents)
+        markdownWebView.setReservedTrailingWidth(shouldReserveWidth ? Self.tableOfContentsReservedTrailingWidth : 0)
+    }
+
+    private static var tableOfContentsReservedTrailingWidth: Double {
+        Double(tableOfContentsWidth + tableOfContentsTrailingInset + tableOfContentsReservedGutter)
     }
 
     private func performSearch(scrollToMatch: Bool = true) {

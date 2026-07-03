@@ -2,6 +2,8 @@
   color-scheme: light dark;
   --skimdown-font-size: 16px;
   --skimdown-page-inline-padding: clamp(40px, 8vw, 120px);
+  --skimdown-reserved-trailing-width: 0px;
+  --skimdown-content-max-width: 92rem;
   --skimdown-bg: #fbfbfd;
   --skimdown-fg: #20242c;
   --skimdown-muted: #69707d;
@@ -63,11 +65,15 @@ body {
 }
 
 body {
-  padding: 56px var(--skimdown-page-inline-padding) 96px;
+  padding:
+    56px
+    max(var(--skimdown-page-inline-padding), var(--skimdown-reserved-trailing-width))
+    96px
+    var(--skimdown-page-inline-padding);
 }
 
 #content {
-  max-width: 980px;
+  max-width: var(--skimdown-content-max-width);
   margin: 0 auto;
 }
 
@@ -228,12 +234,6 @@ pre code {
   width: 100%;
   margin-bottom: 1.15em;
   --table-overflow-cue-edge: var(--skimdown-bg);
-}
-
-.table-scroll.table-scroll-wide {
-  width: var(--table-wide-width, calc(100vw - var(--skimdown-page-inline-padding) - var(--skimdown-page-inline-padding)));
-  max-width: none;
-  margin-left: var(--table-wide-margin-left, 0);
 }
 
 .table-scroll::before,
