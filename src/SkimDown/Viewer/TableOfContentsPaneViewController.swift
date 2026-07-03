@@ -14,6 +14,7 @@ final class TableOfContentsPaneViewController: NSViewController, NSTableViewData
         static let titleToListSpacing: CGFloat = 8
         static let bottomPadding: CGFloat = 10
         static let emptyContentHeight: CGFloat = 48
+        static let scrollFittingAllowance: CGFloat = 10
     }
 
     weak var delegate: TableOfContentsPaneViewControllerDelegate?
@@ -29,19 +30,26 @@ final class TableOfContentsPaneViewController: NSViewController, NSTableViewData
 
     var preferredPaneHeight: CGFloat {
         let rowCount = items.count
-        let listHeight: CGFloat
-        if rowCount == 0 {
-            listHeight = Metrics.emptyContentHeight
-        } else {
-            listHeight = CGFloat(rowCount) * tableView.rowHeight
-                + CGFloat(max(0, rowCount - 1)) * tableView.intercellSpacing.height
-        }
+        let listHeight = Self.preferredListHeight(
+            rowCount: rowCount,
+            rowHeight: tableView.rowHeight,
+            intercellSpacing: tableView.intercellSpacing.height
+        )
 
         return Metrics.topPadding
             + titleLabel.intrinsicContentSize.height
             + Metrics.titleToListSpacing
             + listHeight
             + Metrics.bottomPadding
+    }
+
+    static func preferredListHeight(rowCount: Int, rowHeight: CGFloat, intercellSpacing: CGFloat) -> CGFloat {
+        guard rowCount > 0 else {
+            return Metrics.emptyContentHeight
+        }
+        return CGFloat(rowCount) * rowHeight
+            + CGFloat(max(0, rowCount - 1)) * intercellSpacing
+            + Metrics.scrollFittingAllowance
     }
 
     static func resolvedPaneHeight(preferredHeight: CGFloat, availableHeight: CGFloat) -> CGFloat {

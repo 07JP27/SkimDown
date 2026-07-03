@@ -21,6 +21,17 @@ final class TableOfContentsPaneViewControllerTests: XCTestCase {
         XCTAssertLessThan(controller.preferredPaneHeight, 160)
     }
 
+    func testPreferredListHeightLeavesSlackForScrollViewFitting() {
+        XCTAssertEqual(
+            TableOfContentsPaneViewController.preferredListHeight(
+                rowCount: 2,
+                rowHeight: 24,
+                intercellSpacing: 2
+            ),
+            60
+        )
+    }
+
     func testResolvedPaneHeightUsesAvailableHeightForOverflowingContent() {
         let height = TableOfContentsPaneViewController.resolvedPaneHeight(
             preferredHeight: 640,
