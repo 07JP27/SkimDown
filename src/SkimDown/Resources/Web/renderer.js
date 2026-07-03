@@ -615,7 +615,7 @@
     const bg = cssVar("--skimdown-bg");
     const fg = cssVar("--skimdown-fg");
     const subtle = cssVar("--skimdown-subtle");
-    const accent = cssVar("--skimdown-accent");
+    const diagramLine = cssVar("--skimdown-diagram-line");
     const border = cssVar("--skimdown-border");
     if (bg) { mermaidVars.background = bg; }
     if (subtle) { mermaidVars.primaryColor = subtle; }
@@ -625,7 +625,7 @@
       mermaidVars.tertiaryTextColor = fg;
     }
     if (border) { mermaidVars.primaryBorderColor = border; }
-    if (accent) { mermaidVars.lineColor = accent; }
+    if (diagramLine) { mermaidVars.lineColor = diagramLine; }
     window.mermaid.initialize({
       startOnLoad: false,
       theme: isDark ? "dark" : "default",

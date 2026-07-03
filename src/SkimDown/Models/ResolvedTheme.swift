@@ -135,6 +135,12 @@ private enum ColorMapping {
             "editorLink.activeForeground",
             "focusBorder"
         ]),
+        Entry(cssVariable: "--skimdown-diagram-line", vsCodeKeys: [
+            "descriptionForeground",
+            "disabledForeground",
+            "editor.foreground",
+            "foreground"
+        ]),
         Entry(cssVariable: "--skimdown-mark", vsCodeKeys: [
             "editor.findMatchHighlightBackground"
         ]),
@@ -159,6 +165,7 @@ private enum FallbackPalette {
         "--skimdown-subtle": "#f4f6f8",
         "--skimdown-surface": "rgba(255, 255, 255, 0.72)",
         "--skimdown-accent": "#0a66d6",
+        "--skimdown-diagram-line": "#69707d",
         "--skimdown-mark": "#fff8c5",
         "--skimdown-current-mark": "#ffd33d"
     ]
@@ -171,6 +178,7 @@ private enum FallbackPalette {
         "--skimdown-subtle": "#171b22",
         "--skimdown-surface": "rgba(255, 255, 255, 0.04)",
         "--skimdown-accent": "#69a7ff",
+        "--skimdown-diagram-line": "#8b94a3",
         "--skimdown-mark": "#6e4f00",
         "--skimdown-current-mark": "#9e6a03"
     ]

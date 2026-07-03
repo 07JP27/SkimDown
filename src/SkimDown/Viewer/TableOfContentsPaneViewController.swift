@@ -20,15 +20,15 @@ final class TableOfContentsPaneViewController: NSViewController, NSTableViewData
 
     override func loadView() {
         let rootView = NSVisualEffectView()
-        rootView.material = .popover
+        rootView.material = .sidebar
         rootView.blendingMode = .withinWindow
         rootView.state = .active
         rootView.wantsLayer = true
-        rootView.layer?.cornerRadius = 14
+        rootView.layer?.cornerRadius = 12
         rootView.layer?.borderWidth = 1
-        rootView.layer?.borderColor = NSColor.separatorColor.withAlphaComponent(0.6).cgColor
         rootView.layer?.masksToBounds = true
         view = rootView
+        updatePanelChrome()
 
         titleLabel.font = .systemFont(ofSize: 13, weight: .semibold)
         titleLabel.textColor = .labelColor
@@ -46,7 +46,7 @@ final class TableOfContentsPaneViewController: NSViewController, NSTableViewData
         tableView.rowHeight = 24
         tableView.intercellSpacing = NSSize(width: 0, height: 2)
         tableView.backgroundColor = .clear
-        tableView.selectionHighlightStyle = .regular
+        tableView.selectionHighlightStyle = .none
         tableView.allowsEmptySelection = true
         tableView.allowsMultipleSelection = false
         tableView.dataSource = self
@@ -159,15 +159,30 @@ final class TableOfContentsPaneViewController: NSViewController, NSTableViewData
         }
         tableView.reloadData(forRowIndexes: IndexSet(rows), columnIndexes: IndexSet(integer: 0))
     }
+
+    private func updatePanelChrome() {
+        view.layer?.borderColor = NSColor.separatorColor
+            .withAlphaComponent(0.28)
+            .cgColor
+    }
 }
 
 private final class TableOfContentsCellView: NSTableCellView {
+    private static let activeBackgroundColor = NSColor(
+        calibratedRed: 0.04,
+        green: 0.40,
+        blue: 0.84,
+        alpha: 1
+    )
+
     private let titleLabel = NSTextField(labelWithString: "")
     private var leadingConstraint: NSLayoutConstraint!
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
         wantsLayer = true
+        layer?.cornerRadius = 6
+        layer?.masksToBounds = true
 
         titleLabel.translatesAutoresizingMaskIntoConstraints = false
         titleLabel.lineBreakMode = .byTruncatingTail
@@ -191,7 +206,10 @@ private final class TableOfContentsCellView: NSTableCellView {
     func configure(item: TableOfContentsItem, indentation: CGFloat, isActive: Bool) {
         titleLabel.stringValue = item.title
         titleLabel.font = .systemFont(ofSize: 12, weight: isActive ? .semibold : .regular)
-        titleLabel.textColor = isActive ? .controlAccentColor : .labelColor
+        titleLabel.textColor = isActive ? .white : .labelColor
+        layer?.backgroundColor = isActive
+            ? Self.activeBackgroundColor.cgColor
+            : NSColor.clear.cgColor
         leadingConstraint.constant = 8 + indentation
     }
 }

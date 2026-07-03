@@ -10,6 +10,7 @@ final class ResolvedThemeTests: XCTestCase {
             colors: [
                 "editor.background": "#1e1e1e",
                 "editor.foreground": "#d4d4d4",
+                "descriptionForeground": "#9da5b4",
                 "textLink.foreground": "#3794ff",
                 "panel.border": "#333333",
                 "editor.findMatchBackground": "#515c6a",
@@ -26,6 +27,7 @@ final class ResolvedThemeTests: XCTestCase {
         XCTAssertEqual(values["--skimdown-bg"], "#1e1e1e")
         XCTAssertEqual(values["--skimdown-fg"], "#d4d4d4")
         XCTAssertEqual(values["--skimdown-accent"], "#3794ff")
+        XCTAssertEqual(values["--skimdown-diagram-line"], "#9da5b4")
         XCTAssertEqual(values["--skimdown-border"], "#333333")
         XCTAssertEqual(values["--skimdown-current-mark"], "#515c6a")
         XCTAssertEqual(values["--skimdown-mark"], "#ea5c00")
@@ -38,6 +40,7 @@ final class ResolvedThemeTests: XCTestCase {
         // Dark fallback values from ResolvedTheme.swift.
         XCTAssertEqual(values["--skimdown-bg"], "#0f1116")
         XCTAssertEqual(values["--skimdown-fg"], "#e8ebf1")
+        XCTAssertEqual(values["--skimdown-diagram-line"], "#8b94a3")
     }
 
     func testResolveAppliesLightFallbackWhenKeyIsMissing() {
@@ -47,6 +50,7 @@ final class ResolvedThemeTests: XCTestCase {
         // Light fallback values.
         XCTAssertEqual(values["--skimdown-bg"], "#fbfbfd")
         XCTAssertEqual(values["--skimdown-fg"], "#20242c")
+        XCTAssertEqual(values["--skimdown-diagram-line"], "#69707d")
         XCTAssertFalse(resolved.isDark)
     }
 
