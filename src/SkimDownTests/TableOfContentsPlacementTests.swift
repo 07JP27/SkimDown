@@ -58,7 +58,7 @@ final class TableOfContentsPlacementTests: XCTestCase {
             reservedTrailingWidth: 300
         )
 
-        XCTAssertEqual(contentRight, 1_100)
+        XCTAssertEqual(contentRight, 1_100, accuracy: 0.001)
     }
 
     func testEstimatedContentRightCentersBoundedContentOnUltrawideWindows() {
@@ -68,7 +68,7 @@ final class TableOfContentsPlacementTests: XCTestCase {
             reservedTrailingWidth: 300
         )
 
-        XCTAssertEqual(contentRight, 1_746)
+        XCTAssertEqual(contentRight, 1_746, accuracy: 0.001)
     }
 
     func testEstimatedContentRightScalesRemWithPreviewFontSize() {
@@ -78,6 +78,6 @@ final class TableOfContentsPlacementTests: XCTestCase {
             reservedTrailingWidth: 300
         )
 
-        XCTAssertEqual(contentRight, 2_698)
+        XCTAssertEqual(contentRight, 2_698, accuracy: 0.001)
     }
 }

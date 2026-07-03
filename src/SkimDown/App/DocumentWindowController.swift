@@ -31,6 +31,8 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Side
     private var scrollPositions: [URL: Double] = [:]
     private var isInitialLayoutComplete = false
     private var hasLoadedTableOfContents = false
+    private var isTableOfContentsMetricsRequestInFlight = false
+    private var needsTableOfContentsMetricsRefresh = false
 
     /// Give the sidebar a slightly higher holding priority so the content side
     /// absorbs resizing. This avoids sidebar width snapping back after AppKit
@@ -827,26 +829,50 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Side
             containerWidth: containerWidth
         )
         guard !tableOfContentsViewController.view.isHidden else {
+            needsTableOfContentsMetricsRefresh = false
             return
         }
 
+        requestTableOfContentsMetrics(containerWidth: containerWidth)
+    }
+
+    private func requestTableOfContentsMetrics(containerWidth: CGFloat) {
+        guard !isTableOfContentsMetricsRequestInFlight else {
+            needsTableOfContentsMetricsRefresh = true
+            return
+        }
+
+        isTableOfContentsMetricsRequestInFlight = true
+        needsTableOfContentsMetricsRefresh = false
         markdownWebView.previewLayoutMetrics { [weak self] metrics in
-            guard let self,
-                  !self.tableOfContentsViewController.view.isHidden else {
+            guard let self else {
+                return
+            }
+            self.isTableOfContentsMetricsRequestInFlight = false
+            let shouldRefresh = self.needsTableOfContentsMetricsRefresh
+            self.needsTableOfContentsMetricsRefresh = false
+
+            guard !self.tableOfContentsViewController.view.isHidden else {
+                if shouldRefresh {
+                    self.updateTableOfContentsPlacement()
+                }
                 return
             }
 
             let currentContainerWidth = self.contentRootView.bounds.width
-            guard currentContainerWidth > 0,
-                  let metrics,
-                  abs(CGFloat(metrics.viewportWidth) - currentContainerWidth) <= 20 else {
-                return
+            if currentContainerWidth > 0,
+               let metrics,
+               abs(currentContainerWidth - containerWidth) <= 1,
+               abs(CGFloat(metrics.viewportWidth) - containerWidth) <= 20 {
+                self.applyTableOfContentsPlacement(
+                    contentRight: CGFloat(metrics.contentRight),
+                    containerWidth: currentContainerWidth
+                )
             }
 
-            self.applyTableOfContentsPlacement(
-                contentRight: CGFloat(metrics.contentRight),
-                containerWidth: currentContainerWidth
-            )
+            if shouldRefresh || abs(currentContainerWidth - containerWidth) > 1 {
+                self.updateTableOfContentsPlacement()
+            }
         }
     }
 
