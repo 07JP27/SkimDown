@@ -335,7 +335,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Side
         settings.isTableOfContentsVisible.toggle()
         settingsStore.isTableOfContentsVisible = settings.isTableOfContentsVisible
         updateTableOfContentsHeight()
-        updateTableOfContentsVisibility()
+        updateTableOfContentsVisibility(reserveWidthWhileLoading: settings.isTableOfContentsVisible)
     }
 
     func moveSidebar(to position: SidebarPosition) {

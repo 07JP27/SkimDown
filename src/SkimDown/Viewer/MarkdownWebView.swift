@@ -195,7 +195,7 @@ final class MarkdownWebView: NSView, WKScriptMessageHandler, WKNavigationDelegat
     func setReservedTrailingWidth(_ width: Double) {
         let normalizedWidth = Self.normalizedReservedTrailingWidth(width)
         reservedTrailingWidth = normalizedWidth
-        webView.evaluateJavaScript("window.skimdown && window.skimdown.setReservedTrailingWidth(\(normalizedWidth))")
+        applyReservedTrailingWidthToDocument()
     }
 
     static func normalizedReservedTrailingWidth(_ width: Double) -> Double {
@@ -462,10 +462,23 @@ final class MarkdownWebView: NSView, WKScriptMessageHandler, WKNavigationDelegat
 
         self.pendingNavigation = nil
         let completion = pendingNavigation.completion
+        let generation = pendingNavigation.generation
         if observedScrollY == nil {
             observedScrollY = pendingNavigation.scrollY ?? 0
         }
-        completion?()
+        applyReservedTrailingWidthToDocument { [weak self] in
+            guard let self,
+                  self.renderGeneration == generation else {
+                return
+            }
+            completion?()
+        }
+    }
+
+    private func applyReservedTrailingWidthToDocument(completion: (() -> Void)? = nil) {
+        webView.evaluateJavaScript("window.skimdown && window.skimdown.setReservedTrailingWidth(\(reservedTrailingWidth))") { _, _ in
+            completion?()
+        }
     }
 
     private static func buildHTML(payload: [String: Any], theme: AppTheme, resolvedTheme: ResolvedTheme?, katexFontsURL: String) throws -> String {
