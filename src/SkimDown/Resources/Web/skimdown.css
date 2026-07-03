@@ -458,7 +458,12 @@ tr:nth-child(even) td {
   backdrop-filter: blur(10px);
 }
 
-.mermaid-modal:focus {
+.mermaid-modal:focus-visible {
+  outline: 2px solid var(--skimdown-accent);
+  outline-offset: -4px;
+}
+
+.mermaid-modal:focus:not(:focus-visible) {
   outline: none;
 }
 
