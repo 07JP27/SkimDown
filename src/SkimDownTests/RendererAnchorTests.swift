@@ -252,6 +252,14 @@ final class RendererAnchorTests: XCTestCase {
               var htmlLockedAfterOpen = document.documentElement.classList.contains('skimdown-mermaid-modal-open');
               var baselineZoom = Number(viewport.dataset.zoomBaseline);
               var initialZoom = Number(viewport.dataset.zoom);
+              var firstControl = modal.querySelector('.mermaid-modal-zoom-out');
+              var lastControl = modal.querySelector('.mermaid-modal-close');
+              modal.focus();
+              modal.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true }));
+              var tabFromModalFocusesFirstControl = document.activeElement === firstControl;
+              modal.focus();
+              modal.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', shiftKey: true, bubbles: true, cancelable: true }));
+              var shiftTabFromModalFocusesLastControl = document.activeElement === lastControl;
 
               modal.querySelector('.mermaid-modal-zoom-in').click();
               var zoomAfterZoomIn = Number(viewport.dataset.zoom);
@@ -293,6 +301,8 @@ final class RendererAnchorTests: XCTestCase {
                 modalSVGStyleMaxWidth: modalSVG.style.maxWidth,
                 baselineZoom: baselineZoom,
                 initialZoom: initialZoom,
+                tabFromModalFocusesFirstControl: tabFromModalFocusesFirstControl,
+                shiftTabFromModalFocusesLastControl: shiftTabFromModalFocusesLastControl,
                 zoomAfterZoomIn: zoomAfterZoomIn,
                 zoomAfterResizeEvent: zoomAfterResizeEvent,
                 baselineAfterResizeEvent: baselineAfterResizeEvent,
@@ -328,6 +338,8 @@ final class RendererAnchorTests: XCTestCase {
         XCTAssertEqual(result.modalSVGStyleMaxWidth, "none")
         XCTAssertLessThan(result.baselineZoom, 1)
         XCTAssertEqual(result.initialZoom, result.baselineZoom, accuracy: 0.001)
+        XCTAssertTrue(result.tabFromModalFocusesFirstControl)
+        XCTAssertTrue(result.shiftTabFromModalFocusesLastControl)
         XCTAssertGreaterThan(result.zoomAfterZoomIn, result.baselineZoom)
         XCTAssertTrue(result.transformAfterZoom.contains("scale("))
         XCTAssertEqual(result.zoomAfterResizeEvent, result.zoomAfterZoomIn, accuracy: 0.001)
@@ -726,6 +738,8 @@ private struct MermaidExpandPaneResult: Decodable {
     let modalSVGStyleMaxWidth: String
     let baselineZoom: Double
     let initialZoom: Double
+    let tabFromModalFocusesFirstControl: Bool
+    let shiftTabFromModalFocusesLastControl: Bool
     let zoomAfterZoomIn: Double
     let zoomAfterResizeEvent: Double
     let baselineAfterResizeEvent: Double
