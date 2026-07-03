@@ -1,6 +1,9 @@
 :root {
   color-scheme: light dark;
   --skimdown-font-size: 16px;
+  --skimdown-page-inline-padding: clamp(40px, 8vw, 120px);
+  --skimdown-reserved-trailing-width: 0px;
+  --skimdown-content-max-width: 92rem;
   --skimdown-bg: #fbfbfd;
   --skimdown-fg: #20242c;
   --skimdown-muted: #69707d;
@@ -62,11 +65,15 @@ body {
 }
 
 body {
-  padding: 56px clamp(40px, 8vw, 120px) 96px;
+  padding:
+    56px
+    max(var(--skimdown-page-inline-padding), var(--skimdown-reserved-trailing-width))
+    96px
+    var(--skimdown-page-inline-padding);
 }
 
 #content {
-  max-width: 980px;
+  max-width: var(--skimdown-content-max-width);
   margin: 0 auto;
 }
 

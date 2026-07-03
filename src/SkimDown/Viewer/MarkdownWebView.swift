@@ -6,6 +6,11 @@ struct SearchResult {
     let index: Int
 }
 
+struct PreviewLayoutMetrics {
+    let contentRight: Double
+    let viewportWidth: Double
+}
+
 @MainActor
 protocol MarkdownWebViewDelegate: AnyObject {
     func markdownWebView(_ webView: MarkdownWebView, didRequestLink href: String)
@@ -72,6 +77,7 @@ final class MarkdownWebView: NSView, WKScriptMessageHandler, WKNavigationDelegat
     private var renderGeneration = 0
     private var pendingNavigation: PendingNavigation?
     private var observedScrollY: Double?
+    private var reservedTrailingWidth: Double = 0
 
     override init(frame frameRect: NSRect) {
         let configuration = WKWebViewConfiguration()
@@ -144,7 +150,8 @@ final class MarkdownWebView: NSView, WKScriptMessageHandler, WKNavigationDelegat
                 resolvedTheme: resolvedTheme,
                 fontSize: fontSize,
                 generation: generation,
-                restoreScrollY: effectiveScrollY
+                restoreScrollY: effectiveScrollY,
+                reservedTrailingWidth: reservedTrailingWidth
             )
             do {
                 let html = try Self.buildHTML(payload: payload, theme: theme, resolvedTheme: resolvedTheme, katexFontsURL: self.katexFontsURLString())
@@ -185,6 +192,19 @@ final class MarkdownWebView: NSView, WKScriptMessageHandler, WKNavigationDelegat
         observedScrollY
     }
 
+    func setReservedTrailingWidth(_ width: Double) {
+        let normalizedWidth = Self.normalizedReservedTrailingWidth(width)
+        reservedTrailingWidth = normalizedWidth
+        applyReservedTrailingWidthToDocument()
+    }
+
+    static func normalizedReservedTrailingWidth(_ width: Double) -> Double {
+        guard width.isFinite else {
+            return 0
+        }
+        return max(0, width)
+    }
+
     func showError(_ message: String, theme: AppTheme, resolvedTheme: ResolvedTheme?, fontSize: Double, completion: (() -> Void)? = nil) {
         let generation = advanceRenderGeneration()
         applyNativeAppearance(theme, resolvedTheme: resolvedTheme)
@@ -196,7 +216,8 @@ final class MarkdownWebView: NSView, WKScriptMessageHandler, WKNavigationDelegat
             resolvedTheme: resolvedTheme,
             fontSize: fontSize,
             generation: generation,
-            restoreScrollY: 0
+            restoreScrollY: 0,
+            reservedTrailingWidth: reservedTrailingWidth
         )
         do {
             loadHTML(
@@ -250,6 +271,18 @@ final class MarkdownWebView: NSView, WKScriptMessageHandler, WKNavigationDelegat
                 return
             }
             completion(rows.compactMap(TableOfContentsItem.init(javaScriptDictionary:)))
+        }
+    }
+
+    func previewLayoutMetrics(completion: @escaping (PreviewLayoutMetrics?) -> Void) {
+        webView.evaluateJavaScript("window.skimdown && window.skimdown.previewLayoutMetrics && window.skimdown.previewLayoutMetrics()") { value, _ in
+            guard let dictionary = value as? [String: Any],
+                  let contentRight = Self.doubleValue(dictionary["contentRight"]),
+                  let viewportWidth = Self.doubleValue(dictionary["viewportWidth"]) else {
+                completion(nil)
+                return
+            }
+            completion(PreviewLayoutMetrics(contentRight: contentRight, viewportWidth: viewportWidth))
         }
     }
 
@@ -429,10 +462,23 @@ final class MarkdownWebView: NSView, WKScriptMessageHandler, WKNavigationDelegat
 
         self.pendingNavigation = nil
         let completion = pendingNavigation.completion
+        let generation = pendingNavigation.generation
         if observedScrollY == nil {
             observedScrollY = pendingNavigation.scrollY ?? 0
         }
-        completion?()
+        applyReservedTrailingWidthToDocument { [weak self] in
+            guard let self,
+                  self.renderGeneration == generation else {
+                return
+            }
+            completion?()
+        }
+    }
+
+    private func applyReservedTrailingWidthToDocument(completion: (() -> Void)? = nil) {
+        webView.evaluateJavaScript("window.skimdown && window.skimdown.setReservedTrailingWidth(\(reservedTrailingWidth))") { _, _ in
+            completion?()
+        }
     }
 
     private static func buildHTML(payload: [String: Any], theme: AppTheme, resolvedTheme: ResolvedTheme?, katexFontsURL: String) throws -> String {
@@ -543,7 +589,8 @@ final class MarkdownWebView: NSView, WKScriptMessageHandler, WKNavigationDelegat
         resolvedTheme: ResolvedTheme?,
         fontSize: Double,
         generation: Int,
-        restoreScrollY: Double
+        restoreScrollY: Double,
+        reservedTrailingWidth: Double
     ) -> [String: Any] {
         let themeIsDark = isEffectiveThemeDark(theme, resolvedTheme: resolvedTheme)
         return [
@@ -555,7 +602,8 @@ final class MarkdownWebView: NSView, WKScriptMessageHandler, WKNavigationDelegat
             "themeIsDark": themeIsDark,
             "fontSize": fontSize,
             "renderID": generation,
-            "restoreScrollY": restoreScrollY
+            "restoreScrollY": restoreScrollY,
+            "reservedTrailingWidth": reservedTrailingWidth
         ]
     }
 

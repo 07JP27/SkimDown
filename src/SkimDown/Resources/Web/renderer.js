@@ -4,6 +4,8 @@
   let currentSearchIndex = -1;
   let tableResizeObserver = null;
   let tableResizeHandler = null;
+  let tableCueFrame = null;
+  let pendingTableCueWrappers = new Set();
   let mermaidResizeObserver = null;
   let mermaidResizeHandler = null;
   let activeHeadingIntersectionObserver = null;
@@ -20,6 +22,7 @@
   let mermaidModalSequence = 0;
   const IMAGE_READY_TIMEOUT_MS = 3000;
   const CODE_COPY_FEEDBACK_RESET_MS = 1500;
+  const TABLE_SCROLL_TOLERANCE = 1;
   // Matches standalone #RGB, #RGBA, #RRGGBB, and #RRGGBBAA color codes.
   const COLOR_CODE_PATTERN_SOURCE = "(^|[^\\w-])(#(?:[0-9A-Fa-f]{8}|[0-9A-Fa-f]{6}|[0-9A-Fa-f]{4}|[0-9A-Fa-f]{3}))(?![\\w-])";
   const COLOR_CODE_DETECTION_PATTERN = new RegExp(COLOR_CODE_PATTERN_SOURCE);
@@ -114,6 +117,7 @@
     }
     document.documentElement.dataset.theme = payload.theme || "system";
     document.documentElement.style.setProperty("--skimdown-font-size", String(payload.fontSize || 16) + "px");
+    applyReservedTrailingWidth(payload.reservedTrailingWidth);
     closeActiveMermaidModal();
 
     const content = document.getElementById("content");
@@ -141,6 +145,41 @@
     installUserInteractionWatcher(payload.renderID);
     installScrollPositionListener(payload.renderID);
     installActiveHeadingTracker(content, payload.renderID);
+  }
+
+  function setReservedTrailingWidth(value) {
+    applyReservedTrailingWidth(value);
+    updateAllTableScrollCues();
+    if (activeHeadingUpdateHandler) {
+      activeHeadingUpdateHandler();
+    }
+  }
+
+  function applyReservedTrailingWidth(value) {
+    const numericWidth = Number(value);
+    const width = Number.isFinite(numericWidth) ? Math.max(0, numericWidth) : 0;
+    document.documentElement.style.setProperty("--skimdown-reserved-trailing-width", width + "px");
+  }
+
+  function previewLayoutMetrics() {
+    const content = document.getElementById("content");
+    const viewportWidth = window.innerWidth || document.documentElement.clientWidth || 0;
+    if (!content) {
+      return {
+        contentLeft: 0,
+        contentRight: 0,
+        contentWidth: 0,
+        viewportWidth: viewportWidth
+      };
+    }
+
+    const rect = content.getBoundingClientRect();
+    return {
+      contentLeft: rect.left,
+      contentRight: rect.right,
+      contentWidth: rect.width,
+      viewportWidth: viewportWidth
+    };
   }
 
   function installScrollPositionListener(renderID) {
@@ -593,12 +632,16 @@
       window.removeEventListener("resize", tableResizeHandler);
       tableResizeHandler = null;
     }
+    if (tableCueFrame !== null) {
+      window.cancelAnimationFrame(tableCueFrame);
+      tableCueFrame = null;
+    }
+    pendingTableCueWrappers.clear();
 
     const wrappers = Array.from(content.querySelectorAll(".table-scroll"));
     if (wrappers.length === 0) {
       return;
     }
-
     wrappers.forEach(function (wrapper) {
       const viewport = tableScrollViewport(wrapper);
       updateTableScrollCue(wrapper);
@@ -622,7 +665,7 @@
             }
           }
         });
-        wrappersToUpdate.forEach(updateTableScrollCue);
+        scheduleTableCueUpdates(wrappersToUpdate);
       });
 
       wrappers.forEach(function (wrapper) {
@@ -634,27 +677,49 @@
           tableResizeObserver.observe(table);
         }
       });
-    } else {
-      tableResizeHandler = function () {
-        wrappers.forEach(updateTableScrollCue);
-      };
-      window.addEventListener("resize", tableResizeHandler);
     }
 
-    window.requestAnimationFrame(function () {
-      wrappers.forEach(updateTableScrollCue);
+    tableResizeHandler = function () {
+      scheduleTableCueUpdates(wrappers);
+    };
+    window.addEventListener("resize", tableResizeHandler);
+
+    scheduleTableCueUpdates(wrappers);
+  }
+
+  function scheduleTableCueUpdates(wrappers) {
+    addPendingTableWrappers(pendingTableCueWrappers, wrappers);
+    if (pendingTableCueWrappers.size === 0 || tableCueFrame !== null) {
+      return;
+    }
+    tableCueFrame = window.requestAnimationFrame(function () {
+      tableCueFrame = null;
+      const wrappersToUpdate = Array.from(pendingTableCueWrappers);
+      pendingTableCueWrappers.clear();
+      wrappersToUpdate.forEach(updateTableScrollCue);
     });
+  }
+
+  function addPendingTableWrappers(target, wrappers) {
+    wrappers.forEach(function (wrapper) {
+      if (wrapper && wrapper.isConnected) {
+        target.add(wrapper);
+      }
+    });
+  }
+
+  function updateAllTableScrollCues() {
+    document.querySelectorAll(".table-scroll").forEach(updateTableScrollCue);
   }
 
   function updateTableScrollCue(wrapper) {
     const viewport = tableScrollViewport(wrapper);
-    const tolerance = 1;
     const maxScrollLeft = viewport.scrollWidth - viewport.clientWidth;
-    const isOverflowing = maxScrollLeft > tolerance;
+    const isOverflowing = maxScrollLeft > TABLE_SCROLL_TOLERANCE;
     const scrollLeft = Math.max(0, viewport.scrollLeft);
 
-    wrapper.classList.toggle("can-scroll-left", isOverflowing && scrollLeft > tolerance);
-    wrapper.classList.toggle("can-scroll-right", isOverflowing && scrollLeft < maxScrollLeft - tolerance);
+    wrapper.classList.toggle("can-scroll-left", isOverflowing && scrollLeft > TABLE_SCROLL_TOLERANCE);
+    wrapper.classList.toggle("can-scroll-right", isOverflowing && scrollLeft < maxScrollLeft - TABLE_SCROLL_TOLERANCE);
   }
 
   function tableScrollViewport(wrapper) {
@@ -1924,6 +1989,8 @@
 
   window.skimdown = {
     render: render,
+    setReservedTrailingWidth: setReservedTrailingWidth,
+    previewLayoutMetrics: previewLayoutMetrics,
     performSearch: performSearch,
     nextSearch: nextSearch,
     previousSearch: previousSearch,
