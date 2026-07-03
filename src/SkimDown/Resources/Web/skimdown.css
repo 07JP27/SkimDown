@@ -10,6 +10,7 @@
   --skimdown-accent: #0a66d6;
   --skimdown-mark: #fff8c5;
   --skimdown-current-mark: #ffd33d;
+  --skimdown-z-modal: 1000;
 }
 
 :root[data-theme="dark"],
@@ -68,6 +69,11 @@ body {
 
 body.skimdown-restoring #content {
   visibility: hidden;
+}
+
+html.skimdown-mermaid-modal-open,
+body.skimdown-mermaid-modal-open {
+  overflow: hidden;
 }
 
 #content > :first-child {
@@ -421,10 +427,146 @@ tr:nth-child(even) td {
   background: var(--skimdown-border);
 }
 
+.mermaid-zoom-btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.mermaid-zoom-btn:disabled:hover {
+  background: var(--skimdown-surface);
+}
+
 .mermaid-zoom-btn.mermaid-zoom-reset {
   width: auto;
   padding: 0 8px;
   font-size: 11px;
+}
+
+.mermaid-zoom-btn.mermaid-expand {
+  width: auto;
+  padding: 0 8px;
+  font-size: 11px;
+}
+
+.mermaid-modal {
+  position: fixed;
+  inset: 0;
+  z-index: var(--skimdown-z-modal);
+  display: flex;
+  padding: clamp(14px, 3vw, 32px);
+  background: color-mix(in srgb, var(--skimdown-bg) 62%, transparent);
+  backdrop-filter: blur(10px);
+}
+
+.mermaid-modal:focus-visible {
+  outline: 2px solid var(--skimdown-accent);
+  outline-offset: -4px;
+}
+
+.mermaid-modal:focus:not(:focus-visible) {
+  outline: none;
+}
+
+.mermaid-modal-panel {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  border: 1px solid var(--skimdown-border);
+  border-radius: 16px;
+  background: var(--skimdown-bg);
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.28);
+}
+
+.mermaid-modal-header {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--skimdown-border);
+  background: color-mix(in srgb, var(--skimdown-surface) 82%, var(--skimdown-bg));
+}
+
+.mermaid-modal-title {
+  overflow: hidden;
+  color: var(--skimdown-fg);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mermaid-modal-controls {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 6px;
+  align-items: center;
+}
+
+.mermaid-modal-button {
+  min-width: 32px;
+  height: 30px;
+  border: 1px solid var(--skimdown-border);
+  border-radius: 7px;
+  padding: 0 9px;
+  background: var(--skimdown-surface);
+  color: var(--skimdown-fg);
+  font: inherit;
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.mermaid-modal-button:hover {
+  background: var(--skimdown-border);
+}
+
+.mermaid-modal-button:focus-visible {
+  outline: 2px solid var(--skimdown-accent);
+  outline-offset: 2px;
+}
+
+.mermaid-modal-frame {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  justify-content: center;
+  min-height: 0;
+  overflow: hidden;
+  padding: clamp(16px, 3vw, 32px);
+  background: var(--skimdown-surface);
+}
+
+.mermaid-modal-viewport {
+  flex: 0 0 auto;
+  transform-origin: center center;
+  transition: transform 0.1s ease;
+  will-change: transform;
+  cursor: grab;
+}
+
+.mermaid-modal-viewport.mermaid-dragging {
+  transition: none;
+}
+
+.mermaid-modal-overflowing .mermaid-modal-viewport,
+.mermaid-zoomed .mermaid-modal-viewport {
+  cursor: grab;
+}
+
+.mermaid-modal svg {
+  display: block;
+  max-width: none;
+  margin: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mermaid-modal-viewport {
+    transition: none;
+  }
 }
 
 .skimdown-search-match {

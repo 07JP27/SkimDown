@@ -204,6 +204,167 @@ final class RendererAnchorTests: XCTestCase {
     }
 
     @MainActor
+    func testMermaidExpandPaneOpensZoomsAndCloses() async throws {
+        let webView = try await renderMarkdown(
+            """
+            ```mermaid
+            graph LR
+                A[Start] --> B[Middle] --> C[End]
+            ```
+            """,
+            additionalScripts: [Self.mermaidStubScript],
+            additionalStyles: [Self.mermaidModalTestStyle]
+        )
+        try await waitForJavaScriptCondition(
+            "document.querySelector('.mermaid-expand:not([disabled])') !== null",
+            in: webView
+        )
+
+        try await evaluateStringJavaScript(
+            """
+            (function () {
+              var expand = document.querySelector('.mermaid-expand');
+              document.body.tabIndex = -1;
+              document.body.focus();
+              expand.click();
+              return "opened";
+            })();
+            """,
+            in: webView
+        )
+        try await waitForJavaScriptCondition(
+            "document.querySelector('.mermaid-modal-viewport') && document.querySelector('.mermaid-modal-viewport').dataset.zoomBaseline",
+            in: webView
+        )
+
+        let resultJSON = try await evaluateStringJavaScript(
+            """
+            (function () {
+              var expand = document.querySelector('.mermaid-expand');
+              var modal = document.querySelector('.mermaid-modal');
+              var viewport = modal.querySelector('.mermaid-modal-viewport');
+              var frame = modal.querySelector('.mermaid-modal-frame');
+              var modalSVG = modal.querySelector('svg');
+              var originalMarkerID = document.querySelector('.mermaid-container svg marker').id;
+              var modalMarkerID = modalSVG.querySelector('marker').id;
+              var modalMarkerEnd = modalSVG.querySelector('path[marker-end]').getAttribute('marker-end');
+              var bodyLockedAfterOpen = document.body.classList.contains('skimdown-mermaid-modal-open');
+              var htmlLockedAfterOpen = document.documentElement.classList.contains('skimdown-mermaid-modal-open');
+              var baselineZoom = Number(viewport.dataset.zoomBaseline);
+              var initialZoom = Number(viewport.dataset.zoom);
+              var firstControl = modal.querySelector('.mermaid-modal-zoom-out');
+              var lastControl = modal.querySelector('.mermaid-modal-close');
+              modal.focus();
+              modal.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true }));
+              var tabFromModalFocusesFirstControl = document.activeElement === firstControl;
+              modal.focus();
+              modal.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', shiftKey: true, bubbles: true, cancelable: true }));
+              var shiftTabFromModalFocusesLastControl = document.activeElement === lastControl;
+
+              modal.querySelector('.mermaid-modal-zoom-in').click();
+              var zoomAfterZoomIn = Number(viewport.dataset.zoom);
+              var transformAfterZoom = viewport.style.transform;
+
+              frame.style.flex = '0 0 auto';
+              frame.style.width = '600px';
+              frame.style.height = '300px';
+              window.dispatchEvent(new Event('resize'));
+              var zoomAfterResizeEvent = Number(viewport.dataset.zoom);
+              var baselineAfterResizeEvent = Number(viewport.dataset.zoomBaseline);
+              modal.querySelector('.mermaid-modal-zoom-reset').click();
+              var zoomAfterReset = Number(viewport.dataset.zoom);
+              var baselineAfterResizeReset = Number(viewport.dataset.zoomBaseline);
+              var panXAfterReset = viewport.dataset.panX;
+              var panYAfterReset = viewport.dataset.panY;
+              var transformAfterReset = viewport.style.transform;
+              viewport.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 }));
+              modal.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+              var stayedOpenAfterDragReleaseOnBackdrop = document.querySelector('.mermaid-modal') !== null;
+
+              var openerFocusAttemptedAfterHidden = false;
+              var originalExpandFocus = expand.focus.bind(expand);
+              expand.focus = function () {
+                openerFocusAttemptedAfterHidden = true;
+                originalExpandFocus();
+              };
+              expand.style.visibility = 'hidden';
+              modal.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+
+              return JSON.stringify({
+                modalOpened: modal !== null,
+                bodyLockedAfterOpen: bodyLockedAfterOpen,
+                htmlLockedAfterOpen: htmlLockedAfterOpen,
+                modalSVGWidthAttribute: modalSVG.getAttribute('width'),
+                modalSVGHeightAttribute: modalSVG.getAttribute('height'),
+                modalSVGStyleWidth: modalSVG.style.width,
+                modalSVGStyleHeight: modalSVG.style.height,
+                modalSVGStyleMaxWidth: modalSVG.style.maxWidth,
+                baselineZoom: baselineZoom,
+                initialZoom: initialZoom,
+                tabFromModalFocusesFirstControl: tabFromModalFocusesFirstControl,
+                shiftTabFromModalFocusesLastControl: shiftTabFromModalFocusesLastControl,
+                zoomAfterZoomIn: zoomAfterZoomIn,
+                zoomAfterResizeEvent: zoomAfterResizeEvent,
+                baselineAfterResizeEvent: baselineAfterResizeEvent,
+                zoomAfterReset: zoomAfterReset,
+                baselineAfterResizeReset: baselineAfterResizeReset,
+                panXAfterReset: panXAfterReset,
+                panYAfterReset: panYAfterReset,
+                transformAfterZoom: transformAfterZoom,
+                transformAfterReset: transformAfterReset,
+                stayedOpenAfterDragReleaseOnBackdrop: stayedOpenAfterDragReleaseOnBackdrop,
+                modalExistsAfterClose: document.querySelector('.mermaid-modal') !== null,
+                bodyLockedAfterClose: document.body.classList.contains('skimdown-mermaid-modal-open'),
+                htmlLockedAfterClose: document.documentElement.classList.contains('skimdown-mermaid-modal-open'),
+                openerFocusAttemptedAfterHidden: openerFocusAttemptedAfterHidden,
+                focusRestoredToContainer: document.activeElement === document.querySelector('.mermaid-container'),
+                originalMarkerID: originalMarkerID,
+                modalMarkerID: modalMarkerID,
+                modalMarkerEnd: modalMarkerEnd
+              });
+            })();
+            """,
+            in: webView
+        )
+        let result = try JSONDecoder().decode(MermaidExpandPaneResult.self, from: Data(resultJSON.utf8))
+
+        XCTAssertTrue(result.modalOpened)
+        XCTAssertTrue(result.bodyLockedAfterOpen)
+        XCTAssertTrue(result.htmlLockedAfterOpen)
+        XCTAssertEqual(result.modalSVGWidthAttribute, "1200")
+        XCTAssertEqual(result.modalSVGHeightAttribute, "240")
+        XCTAssertEqual(result.modalSVGStyleWidth, "1200px")
+        XCTAssertEqual(result.modalSVGStyleHeight, "240px")
+        XCTAssertEqual(result.modalSVGStyleMaxWidth, "none")
+        XCTAssertLessThan(result.baselineZoom, 1)
+        XCTAssertEqual(result.initialZoom, result.baselineZoom, accuracy: 0.001)
+        XCTAssertTrue(result.tabFromModalFocusesFirstControl)
+        XCTAssertTrue(result.shiftTabFromModalFocusesLastControl)
+        XCTAssertGreaterThan(result.zoomAfterZoomIn, result.baselineZoom)
+        XCTAssertTrue(result.transformAfterZoom.contains("scale("))
+        XCTAssertEqual(result.zoomAfterResizeEvent, result.zoomAfterZoomIn, accuracy: 0.001)
+        XCTAssertEqual(result.baselineAfterResizeEvent, result.baselineZoom, accuracy: 0.001)
+        XCTAssertLessThan(result.baselineAfterResizeReset, result.baselineZoom)
+        XCTAssertEqual(result.baselineAfterResizeReset, 0.5, accuracy: 0.001)
+        XCTAssertEqual(result.zoomAfterReset, result.baselineAfterResizeReset, accuracy: 0.001)
+        XCTAssertEqual(result.panXAfterReset, "0")
+        XCTAssertEqual(result.panYAfterReset, "0")
+        if result.baselineAfterResizeReset == 1 {
+            XCTAssertEqual(result.transformAfterReset, "")
+        } else {
+            XCTAssertTrue(result.transformAfterReset.contains("scale(\(result.baselineAfterResizeReset))"))
+        }
+        XCTAssertTrue(result.stayedOpenAfterDragReleaseOnBackdrop)
+        XCTAssertFalse(result.modalExistsAfterClose)
+        XCTAssertFalse(result.bodyLockedAfterClose)
+        XCTAssertFalse(result.htmlLockedAfterClose)
+        XCTAssertFalse(result.openerFocusAttemptedAfterHidden)
+        XCTAssertTrue(result.focusRestoredToContainer)
+        XCTAssertNotEqual(result.originalMarkerID, result.modalMarkerID)
+        XCTAssertEqual(result.modalMarkerEnd, "url(#\(result.modalMarkerID))")
+    }
+
+    @MainActor
     func testSearchDoesNotMatchAcrossBlockBoundaries() async throws {
         let webView = try await renderMarkdown(
             """
@@ -366,7 +527,9 @@ final class RendererAnchorTests: XCTestCase {
     @MainActor
     private func renderMarkdown(
         _ markdown: String,
-        copyCodeMessageHandler: WKScriptMessageHandler? = nil
+        copyCodeMessageHandler: WKScriptMessageHandler? = nil,
+        additionalScripts: [String] = [],
+        additionalStyles: [String] = []
     ) async throws -> WKWebView {
         let configuration = WKWebViewConfiguration()
         if let copyCodeMessageHandler {
@@ -384,19 +547,29 @@ final class RendererAnchorTests: XCTestCase {
         }
         webView.navigationDelegate = navigationDelegate
 
-        webView.loadHTMLString(try rendererHTML(markdown: markdown), baseURL: Bundle.main.bundleURL)
+        webView.loadHTMLString(
+            try rendererHTML(markdown: markdown, additionalScripts: additionalScripts, additionalStyles: additionalStyles),
+            baseURL: Bundle.main.bundleURL
+        )
         await fulfillment(of: [navigationFinished], timeout: 5)
         webView.navigationDelegate = nil
 
         return webView
     }
 
-    private func rendererHTML(markdown: String) throws -> String {
-        let scripts = try [
+    private func rendererHTML(markdown: String, additionalScripts: [String] = [], additionalStyles: [String] = []) throws -> String {
+        let baseScripts = try [
             "vendor/markdown-it/markdown-it.min.js",
-            "vendor/dompurify/purify.min.js",
+            "vendor/dompurify/purify.min.js"
+        ].map(readWebResource)
+        let rendererScripts = try [
             "renderer.js"
-        ].map(readWebResource).joined(separator: "\n")
+        ].map(readWebResource)
+        let scripts = (
+            baseScripts +
+            additionalScripts +
+            rendererScripts
+        ).joined(separator: "\n")
 
         let payload: [String: Any] = [
             "markdown": markdown,
@@ -414,6 +587,7 @@ final class RendererAnchorTests: XCTestCase {
         <html>
           <head>
             <meta charset="utf-8">
+            <style>\(additionalStyles.joined(separator: "\n"))</style>
           </head>
           <body>
             <main id="content"></main>
@@ -458,6 +632,74 @@ final class RendererAnchorTests: XCTestCase {
             }
         }
     }
+
+    @MainActor
+    private func waitForJavaScriptCondition(_ script: String, in webView: WKWebView) async throws {
+        let timeout = Date().addingTimeInterval(2)
+        while Date() < timeout {
+            let result = try await evaluateStringJavaScript("String(Boolean(\(script)))", in: webView)
+            if result == "true" {
+                return
+            }
+            try await Task.sleep(nanoseconds: 50_000_000)
+        }
+        throw RendererAnchorTestError.scriptEvaluationFailed("Timed out waiting for JavaScript condition: \(script)")
+    }
+
+    private static let mermaidStubScript = """
+    window.mermaid = {
+      initialize: function () {},
+      run: function (options) {
+        (options.nodes || []).forEach(function (node) {
+          node.innerHTML = [
+            '<svg id="diagram" viewBox="0 0 1200 240" width="100%" style="max-width: 1200px;" xmlns="http://www.w3.org/2000/svg">',
+            '<defs><marker id="arrowhead" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto"><path d="M0,0 L0,6 L9,3 z"></path></marker></defs>',
+            '<style>#arrowhead path { fill: currentColor; }</style>',
+            '<path id="flow-line" d="M24 96 H1160" marker-end="url(#arrowhead)"></path>',
+            '<text x="24" y="72">Wide Mermaid flow</text>',
+            '</svg>'
+          ].join('');
+        });
+        return Promise.resolve();
+      }
+    };
+    """
+
+    private static let mermaidModalTestStyle = """
+    html, body {
+      width: 800px;
+      height: 600px;
+      margin: 0;
+    }
+    .mermaid-modal {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      padding: 0;
+    }
+    .mermaid-modal-panel {
+      display: flex;
+      flex: 1 1 auto;
+      flex-direction: column;
+      min-width: 0;
+      min-height: 0;
+    }
+    .mermaid-modal-header {
+      flex: 0 0 50px;
+    }
+    .mermaid-modal-frame {
+      display: flex;
+      flex: 1 1 auto;
+      align-items: center;
+      justify-content: center;
+      min-height: 0;
+      overflow: hidden;
+      padding: 0;
+    }
+    .mermaid-modal-viewport {
+      flex: 0 0 auto;
+    }
+    """
 }
 
 private enum RendererAnchorTestError: Error {
@@ -483,6 +725,39 @@ private struct SearchAcrossColorCodeResult: Decodable {
 private struct MermaidColorExclusionResult: Decodable {
     let mermaidSwatches: Int
     let paragraphSwatches: Int
+}
+
+private struct MermaidExpandPaneResult: Decodable {
+    let modalOpened: Bool
+    let bodyLockedAfterOpen: Bool
+    let htmlLockedAfterOpen: Bool
+    let modalSVGWidthAttribute: String
+    let modalSVGHeightAttribute: String
+    let modalSVGStyleWidth: String
+    let modalSVGStyleHeight: String
+    let modalSVGStyleMaxWidth: String
+    let baselineZoom: Double
+    let initialZoom: Double
+    let tabFromModalFocusesFirstControl: Bool
+    let shiftTabFromModalFocusesLastControl: Bool
+    let zoomAfterZoomIn: Double
+    let zoomAfterResizeEvent: Double
+    let baselineAfterResizeEvent: Double
+    let zoomAfterReset: Double
+    let baselineAfterResizeReset: Double
+    let panXAfterReset: String
+    let panYAfterReset: String
+    let transformAfterZoom: String
+    let transformAfterReset: String
+    let stayedOpenAfterDragReleaseOnBackdrop: Bool
+    let modalExistsAfterClose: Bool
+    let bodyLockedAfterClose: Bool
+    let htmlLockedAfterClose: Bool
+    let openerFocusAttemptedAfterHidden: Bool
+    let focusRestoredToContainer: Bool
+    let originalMarkerID: String
+    let modalMarkerID: String
+    let modalMarkerEnd: String
 }
 
 private struct SearchBlockBoundaryResult: Decodable {
