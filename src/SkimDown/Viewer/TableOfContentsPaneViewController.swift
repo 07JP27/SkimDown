@@ -303,8 +303,8 @@ private final class TableOfContentsPaneBackgroundView: NSView {
     private func backgroundColor(for appearance: NSAppearance) -> NSColor {
         let isDark = appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
         return isDark
-            ? NSColor(calibratedRed: 9 / 255, green: 11 / 255, blue: 13 / 255, alpha: 1)
-            : NSColor(calibratedRed: 240 / 255, green: 240 / 255, blue: 242 / 255, alpha: 1)
+            ? NSColor(calibratedRed: 9.0 / 255.0, green: 11.0 / 255.0, blue: 13.0 / 255.0, alpha: 1)
+            : NSColor(calibratedRed: 240.0 / 255.0, green: 240.0 / 255.0, blue: 242.0 / 255.0, alpha: 1)
     }
 }
 

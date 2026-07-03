@@ -4,7 +4,7 @@ import XCTest
 
 @MainActor
 final class TableOfContentsPaneViewControllerTests: XCTestCase {
-    func testPreferredPaneHeightExpandsForLongTablesOfContents() {
+    func testPreferredPaneHeightExpandsForLongTableOfContents() {
         let controller = TableOfContentsPaneViewController()
         controller.loadViewIfNeeded()
 
@@ -13,7 +13,7 @@ final class TableOfContentsPaneViewControllerTests: XCTestCase {
         XCTAssertGreaterThan(controller.preferredPaneHeight, 360)
     }
 
-    func testPreferredPaneHeightKeepsShortTablesOfContentsCompact() {
+    func testPreferredPaneHeightKeepsShortTableOfContentsCompact() {
         let controller = TableOfContentsPaneViewController()
         controller.loadViewIfNeeded()
 
