@@ -805,15 +805,29 @@
   }
 
   function restoreMermaidModalFocus(opener, container) {
-    if (opener && opener.focus && document.contains(opener)) {
+    if (isRestorableMermaidFocusTarget(opener)) {
       opener.focus();
       if (document.activeElement === opener) {
         return;
       }
     }
-    if (container && container.focus && document.contains(container)) {
+    if (isRestorableMermaidFocusTarget(container)) {
       container.focus();
     }
+  }
+
+  function isRestorableMermaidFocusTarget(element) {
+    if (!element || typeof element.focus !== "function" || !document.contains(element)) {
+      return false;
+    }
+    if (element.disabled || element.getAttribute("aria-disabled") === "true") {
+      return false;
+    }
+    var style = window.getComputedStyle(element);
+    if (!style || style.display === "none" || style.visibility === "hidden") {
+      return false;
+    }
+    return element.getClientRects().length > 0;
   }
 
   function buildMermaidModalButton(text, ariaLabel, className) {

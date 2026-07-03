@@ -273,6 +273,12 @@ final class RendererAnchorTests: XCTestCase {
               modal.dispatchEvent(new MouseEvent('click', { bubbles: true }));
               var stayedOpenAfterDragReleaseOnBackdrop = document.querySelector('.mermaid-modal') !== null;
 
+              var openerFocusAttemptedAfterHidden = false;
+              var originalExpandFocus = expand.focus.bind(expand);
+              expand.focus = function () {
+                openerFocusAttemptedAfterHidden = true;
+                originalExpandFocus();
+              };
               expand.style.visibility = 'hidden';
               modal.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
 
@@ -300,6 +306,7 @@ final class RendererAnchorTests: XCTestCase {
                 modalExistsAfterClose: document.querySelector('.mermaid-modal') !== null,
                 bodyLockedAfterClose: document.body.classList.contains('skimdown-mermaid-modal-open'),
                 htmlLockedAfterClose: document.documentElement.classList.contains('skimdown-mermaid-modal-open'),
+                openerFocusAttemptedAfterHidden: openerFocusAttemptedAfterHidden,
                 focusRestoredToContainer: document.activeElement === document.querySelector('.mermaid-container'),
                 originalMarkerID: originalMarkerID,
                 modalMarkerID: modalMarkerID,
@@ -339,6 +346,7 @@ final class RendererAnchorTests: XCTestCase {
         XCTAssertFalse(result.modalExistsAfterClose)
         XCTAssertFalse(result.bodyLockedAfterClose)
         XCTAssertFalse(result.htmlLockedAfterClose)
+        XCTAssertFalse(result.openerFocusAttemptedAfterHidden)
         XCTAssertTrue(result.focusRestoredToContainer)
         XCTAssertNotEqual(result.originalMarkerID, result.modalMarkerID)
         XCTAssertEqual(result.modalMarkerEnd, "url(#\(result.modalMarkerID))")
@@ -731,6 +739,7 @@ private struct MermaidExpandPaneResult: Decodable {
     let modalExistsAfterClose: Bool
     let bodyLockedAfterClose: Bool
     let htmlLockedAfterClose: Bool
+    let openerFocusAttemptedAfterHidden: Bool
     let focusRestoredToContainer: Bool
     let originalMarkerID: String
     let modalMarkerID: String
