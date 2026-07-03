@@ -60,6 +60,15 @@ final class TableOfContentsPaneViewControllerTests: XCTestCase {
         XCTAssertEqual(height, 420)
     }
 
+    func testResolvedPaneHeightClampsNegativeAvailableHeight() {
+        let height = TableOfContentsPaneViewController.resolvedPaneHeight(
+            preferredHeight: 420,
+            availableHeight: -12
+        )
+
+        XCTAssertEqual(height, 0)
+    }
+
     func testNativeBackgroundColorParsesShortHex() {
         assertColor(
             TableOfContentsPaneViewController.nativeBackgroundColor(from: "#abc"),

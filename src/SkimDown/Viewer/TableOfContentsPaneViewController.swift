@@ -54,10 +54,10 @@ final class TableOfContentsPaneViewController: NSViewController, NSTableViewData
     }
 
     static func resolvedPaneHeight(preferredHeight: CGFloat, availableHeight: CGFloat) -> CGFloat {
-        guard availableHeight > 0 else {
+        guard availableHeight != 0 else {
             return preferredHeight
         }
-        return min(preferredHeight, availableHeight)
+        return max(0, min(preferredHeight, availableHeight))
     }
 
     static func nativeBackgroundColor(from value: String) -> NSColor? {
