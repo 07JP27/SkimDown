@@ -193,9 +193,16 @@ final class MarkdownWebView: NSView, WKScriptMessageHandler, WKNavigationDelegat
     }
 
     func setReservedTrailingWidth(_ width: Double) {
-        let normalizedWidth = max(0, width)
+        let normalizedWidth = Self.normalizedReservedTrailingWidth(width)
         reservedTrailingWidth = normalizedWidth
         webView.evaluateJavaScript("window.skimdown && window.skimdown.setReservedTrailingWidth(\(normalizedWidth))")
+    }
+
+    static func normalizedReservedTrailingWidth(_ width: Double) -> Double {
+        guard width.isFinite else {
+            return 0
+        }
+        return max(0, width)
     }
 
     func showError(_ message: String, theme: AppTheme, resolvedTheme: ResolvedTheme?, fontSize: Double, completion: (() -> Void)? = nil) {
