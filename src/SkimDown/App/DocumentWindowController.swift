@@ -329,6 +329,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Side
     func toggleTableOfContents() {
         settings.isTableOfContentsVisible.toggle()
         settingsStore.isTableOfContentsVisible = settings.isTableOfContentsVisible
+        updateTableOfContentsHeight()
         updateTableOfContentsVisibility()
     }
 
@@ -382,6 +383,10 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Side
     func tableOfContentsPaneViewController(_ controller: TableOfContentsPaneViewController, didSelect item: TableOfContentsItem) {
         tableOfContentsViewController.setActiveHeadingID(item.id)
         markdownWebView.scrollToElementID(item.id)
+    }
+
+    func windowDidResize(_ notification: Notification) {
+        updateTableOfContentsHeight()
     }
 
     func emptyStateViewDidRequestOpenFolder(_ view: EmptyStateView) {
@@ -521,6 +526,8 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Side
     }
 
     @objc private func splitViewDidResizeSubviewsNotification(_ notification: Notification) {
+        updateTableOfContentsHeight()
+
         guard isInitialLayoutComplete,
               !sidebarItem.isCollapsed,
               splitViewController.splitViewItems.count == 2 else {
@@ -777,7 +784,13 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Side
     }
 
     private func updateTableOfContentsHeight() {
-        tableOfContentsHeightConstraint.constant = tableOfContentsViewController.preferredPaneHeight
+        let availableHeight = contentRootView.bounds.height
+            - searchBarHeightConstraint.constant
+            - Self.tableOfContentsVerticalInset * 2
+        tableOfContentsHeightConstraint.constant = TableOfContentsPaneViewController.resolvedPaneHeight(
+            preferredHeight: tableOfContentsViewController.preferredPaneHeight,
+            availableHeight: availableHeight
+        )
         contentRootView.needsLayout = true
     }
 
@@ -804,6 +817,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Side
     private func setSearchBarVisible(_ isVisible: Bool) {
         searchBarView.isHidden = !isVisible
         searchBarHeightConstraint.constant = isVisible ? 44 : 0
+        updateTableOfContentsHeight()
     }
 
     private func handleDroppedFolder(_ folderURL: URL) {

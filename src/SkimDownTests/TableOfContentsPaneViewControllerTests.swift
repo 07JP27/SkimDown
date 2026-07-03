@@ -21,6 +21,33 @@ final class TableOfContentsPaneViewControllerTests: XCTestCase {
         XCTAssertLessThan(controller.preferredPaneHeight, 160)
     }
 
+    func testResolvedPaneHeightUsesAvailableHeightForOverflowingContent() {
+        let height = TableOfContentsPaneViewController.resolvedPaneHeight(
+            preferredHeight: 640,
+            availableHeight: 520
+        )
+
+        XCTAssertEqual(height, 520)
+    }
+
+    func testResolvedPaneHeightKeepsCompactContentAtPreferredHeight() {
+        let height = TableOfContentsPaneViewController.resolvedPaneHeight(
+            preferredHeight: 120,
+            availableHeight: 520
+        )
+
+        XCTAssertEqual(height, 120)
+    }
+
+    func testResolvedPaneHeightFallsBackToPreferredHeightBeforeLayout() {
+        let height = TableOfContentsPaneViewController.resolvedPaneHeight(
+            preferredHeight: 420,
+            availableHeight: 0
+        )
+
+        XCTAssertEqual(height, 420)
+    }
+
     private func makeItems(count: Int) -> [TableOfContentsItem] {
         (0..<count).map { index in
             TableOfContentsItem(level: 2, title: "Heading \(index + 1)", id: "heading-\(index + 1)")

@@ -44,6 +44,13 @@ final class TableOfContentsPaneViewController: NSViewController, NSTableViewData
             + Metrics.bottomPadding
     }
 
+    static func resolvedPaneHeight(preferredHeight: CGFloat, availableHeight: CGFloat) -> CGFloat {
+        guard availableHeight > 0 else {
+            return preferredHeight
+        }
+        return min(preferredHeight, availableHeight)
+    }
+
     override func loadView() {
         let rootView = NSVisualEffectView()
         rootView.material = .sidebar
