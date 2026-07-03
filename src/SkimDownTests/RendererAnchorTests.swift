@@ -723,6 +723,44 @@ final class RendererAnchorTests: XCTestCase {
     }
 
     @MainActor
+    func testReservedTrailingWidthSetterRejectsNonFiniteValues() async throws {
+        let webView = try await renderMarkdown(
+            """
+            # Reserved width sanitization
+
+            Non-finite JavaScript inputs should not leave stale CSS lengths.
+            """,
+            frameWidth: 1400,
+            includeStyles: true
+        )
+
+        let resultJSON = try await evaluateStringJavaScript(
+            """
+            (function () {
+              window.skimdown.setReservedTrailingWidth(300);
+              var finiteCSS = window.getComputedStyle(document.documentElement).getPropertyValue('--skimdown-reserved-trailing-width').trim();
+              window.skimdown.setReservedTrailingWidth(Infinity);
+              var infinityCSS = window.getComputedStyle(document.documentElement).getPropertyValue('--skimdown-reserved-trailing-width').trim();
+              window.skimdown.setReservedTrailingWidth(300);
+              window.skimdown.setReservedTrailingWidth(NaN);
+              var nanCSS = window.getComputedStyle(document.documentElement).getPropertyValue('--skimdown-reserved-trailing-width').trim();
+              return JSON.stringify({
+                finiteCSS: finiteCSS,
+                infinityCSS: infinityCSS,
+                nanCSS: nanCSS
+              });
+            })();
+            """,
+            in: webView
+        )
+        let result = try JSONDecoder().decode(ReservedWidthSanitizationResult.self, from: Data(resultJSON.utf8))
+
+        XCTAssertEqual(result.finiteCSS, "300px")
+        XCTAssertEqual(result.infinityCSS, "0px")
+        XCTAssertEqual(result.nanCSS, "0px")
+    }
+
+    @MainActor
     func testRenderPayloadPreservesReservedTrailingWidth() async throws {
         let webView = try await renderMarkdown(
             """
@@ -1198,6 +1236,12 @@ private struct ReservedWidthSetterResult: Decodable {
     let marker: String
     let reservedCSS: String
     let paddingRight: Double
+}
+
+private struct ReservedWidthSanitizationResult: Decodable {
+    let finiteCSS: String
+    let infinityCSS: String
+    let nanCSS: String
 }
 
 private struct TableLocalScrollResult: Decodable {

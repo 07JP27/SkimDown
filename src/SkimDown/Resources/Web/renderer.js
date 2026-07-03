@@ -156,7 +156,8 @@
   }
 
   function applyReservedTrailingWidth(value) {
-    const width = Math.max(0, Number(value) || 0);
+    const numericWidth = Number(value);
+    const width = Number.isFinite(numericWidth) ? Math.max(0, numericWidth) : 0;
     document.documentElement.style.setProperty("--skimdown-reserved-trailing-width", width + "px");
   }
 
