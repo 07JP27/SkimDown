@@ -1,6 +1,6 @@
 # カスタムカラーテーマ
 
-SkimDown では、プレビュー領域のカラーテーマを JSON / JSONC ファイルで定義して切り替えられます。テーマは [VS Code のカラーテーマ形式](https://code.visualstudio.com/api/references/theme-color) に合わせているため、既存の VS Code テーマ資産を再利用できます。
+SkimDown では、プレビュー領域と目次のカラーテーマを JSON / JSONC ファイルで定義して切り替えられます。テーマは [VS Code のカラーテーマ形式](https://code.visualstudio.com/api/references/theme-color) に合わせているため、既存の VS Code テーマ資産を再利用できます。
 
 ## テーマの配置場所
 
@@ -27,6 +27,7 @@ JSON または JSONC ファイルを次のフォルダに置きます。
     "descriptionForeground": "#93a1a1",
     "panel.border": "#eee8d5",
     "editorGroupHeader.tabsBackground": "#eee8d5",
+    "skimdown.tableOfContents.background": "#f3ead2",
     "editorWidget.background": "#fdf6e3",
     "textLink.foreground": "#268bd2",
     "editor.findMatchHighlightBackground": "#f8e8a5",
@@ -53,11 +54,13 @@ JSON または JSONC ファイルを次のフォルダに置きます。
 | ボーダー | `panel.border`, `editorGroup.border`, `editorWidget.border`, `contrastBorder` |
 | 薄い背景 | `editorGroupHeader.tabsBackground`, `editor.lineHighlightBackground`, `sideBar.background` |
 | パネル背景 | `editorWidget.background`, `editor.background` |
+| 目次の背景 | `skimdown.tableOfContents.background`, `sideBar.background`, `editorWidget.background` |
 | リンクとアクセント | `textLink.foreground`, `editorLink.activeForeground`, `focusBorder` |
 | 検索ハイライト | `editor.findMatchHighlightBackground` |
 | 現在の検索一致 | `editor.findMatchBackground` |
 
 キーが不足している場合は、テーマの `type` に応じて SkimDown 組み込みの light / dark パレットで補完します。
+目次はネイティブ macOS view のため、背景色は hex カラー値だけに対応します。
 
 ## テーマの再読み込み
 

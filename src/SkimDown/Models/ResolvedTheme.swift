@@ -10,11 +10,17 @@ struct ResolvedTheme: Equatable {
     let type: ColorScheme.ThemeType
     /// CSS variable name, including the leading `--`, mapped to a CSS-compatible color value.
     let cssVariables: [(name: String, value: String)]
+    /// Native AppKit color value for the floating table-of-contents pane.
+    ///
+    /// Unlike the WebView CSS variables, this is intentionally limited to hex
+    /// values so AppKit can parse it deterministically.
+    let tableOfContentsBackgroundColor: String
 
     static func == (lhs: ResolvedTheme, rhs: ResolvedTheme) -> Bool {
         guard lhs.id == rhs.id,
               lhs.displayName == rhs.displayName,
               lhs.type == rhs.type,
+              lhs.tableOfContentsBackgroundColor == rhs.tableOfContentsBackgroundColor,
               lhs.cssVariables.count == rhs.cssVariables.count else {
             return false
         }
@@ -46,7 +52,8 @@ extension ResolvedTheme {
             id: scheme.id,
             displayName: scheme.displayName,
             type: scheme.type,
-            cssVariables: resolved
+            cssVariables: resolved,
+            tableOfContentsBackgroundColor: tableOfContentsBackgroundColor(from: scheme)
         )
     }
 
@@ -70,6 +77,22 @@ extension ResolvedTheme {
             return trimmed
         }
         return nil
+    }
+
+    private static func tableOfContentsBackgroundColor(from scheme: ColorScheme) -> String {
+        ColorMapping.tableOfContentsBackgroundKeys
+            .lazy
+            .compactMap { scheme.colors[$0] }
+            .compactMap(normalizeNativeHexColor(_:))
+            .first ?? FallbackPalette.tableOfContentsBackground(for: scheme.type)
+    }
+
+    private static func normalizeNativeHexColor(_ raw: String) -> String? {
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard isHexColor(trimmed.lowercased()) else {
+            return nil
+        }
+        return trimmed
     }
 
     private static func isHexColor(_ value: String) -> Bool {
@@ -148,6 +171,12 @@ private enum ColorMapping {
             "editor.findMatchBackground"
         ])
     ]
+
+    static let tableOfContentsBackgroundKeys: [String] = [
+        "skimdown.tableOfContents.background",
+        "sideBar.background",
+        "editorWidget.background"
+    ]
 }
 
 /// Fallback values used when a VS Code key is missing.
@@ -155,6 +184,10 @@ private enum ColorMapping {
 private enum FallbackPalette {
     static func `for`(type: ColorScheme.ThemeType) -> [String: String] {
         type.isDark ? darkFallback : lightFallback
+    }
+
+    static func tableOfContentsBackground(for type: ColorScheme.ThemeType) -> String {
+        type.isDark ? "#090b0d" : "#f0f0f2"
     }
 
     private static let lightFallback: [String: String] = [

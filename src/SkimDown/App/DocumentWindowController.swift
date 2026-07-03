@@ -851,6 +851,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Side
     }
 
     private func applyWindowAppearance(_ theme: AppTheme) {
+        let resolvedTheme = colorSchemeStore.resolvedTheme(for: theme)
         switch theme {
         case .system:
             window?.appearance = nil
@@ -859,12 +860,20 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Side
         case .dark:
             window?.appearance = NSAppearance(named: .darkAqua)
         case .custom:
-            if let resolved = colorSchemeStore.resolvedTheme(for: theme) {
+            if let resolved = resolvedTheme {
                 window?.appearance = NSAppearance(named: resolved.isDark ? .darkAqua : .aqua)
             } else {
                 window?.appearance = nil
             }
         }
+        applyTableOfContentsTheme(resolvedTheme)
+    }
+
+    private func applyTableOfContentsTheme(_ resolvedTheme: ResolvedTheme?) {
+        let color = resolvedTheme.flatMap { theme in
+            TableOfContentsPaneViewController.nativeBackgroundColor(from: theme.tableOfContentsBackgroundColor)
+        }
+        tableOfContentsViewController.setBackgroundColor(color)
     }
 
     private func showOpenError(_ error: Error, title: String = "Could not open folder") {

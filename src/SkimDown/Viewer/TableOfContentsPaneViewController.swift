@@ -27,6 +27,7 @@ final class TableOfContentsPaneViewController: NSViewController, NSTableViewData
     private var activeHeadingID: String?
     private var isProgrammaticSelection = false
     private var minimumHeadingLevel = 1
+    private var backgroundColorOverride: NSColor?
 
     var preferredPaneHeight: CGFloat {
         let rowCount = items.count
@@ -59,15 +60,71 @@ final class TableOfContentsPaneViewController: NSViewController, NSTableViewData
         return min(preferredHeight, availableHeight)
     }
 
+    static func nativeBackgroundColor(from value: String) -> NSColor? {
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.first == "#" else {
+            return nil
+        }
+        let hex = trimmed.dropFirst()
+        guard [3, 4, 6, 8].contains(hex.count),
+              hex.allSatisfy(\.isHexDigit) else {
+            return nil
+        }
+
+        let red: UInt8
+        let green: UInt8
+        let blue: UInt8
+        let alpha: UInt8
+
+        switch hex.count {
+        case 3, 4:
+            let values = hex.compactMap { character in
+                UInt8(String(repeating: String(character), count: 2), radix: 16)
+            }
+            guard values.count == hex.count else {
+                return nil
+            }
+            red = values[0]
+            green = values[1]
+            blue = values[2]
+            alpha = values.count == 4 ? values[3] : 255
+        case 6, 8:
+            let text = String(hex)
+            guard let parsedRed = Self.hexByte(text, offset: 0),
+                  let parsedGreen = Self.hexByte(text, offset: 2),
+                  let parsedBlue = Self.hexByte(text, offset: 4) else {
+                return nil
+            }
+            red = parsedRed
+            green = parsedGreen
+            blue = parsedBlue
+            if hex.count == 8 {
+                guard let parsedAlpha = Self.hexByte(text, offset: 6) else {
+                    return nil
+                }
+                alpha = parsedAlpha
+            } else {
+                alpha = 255
+            }
+        default:
+            return nil
+        }
+
+        return NSColor(
+            calibratedRed: CGFloat(red) / 255,
+            green: CGFloat(green) / 255,
+            blue: CGFloat(blue) / 255,
+            alpha: CGFloat(alpha) / 255
+        )
+    }
+
     override func loadView() {
         let rootView = TableOfContentsPaneBackgroundView()
-        rootView.material = .underWindowBackground
-        rootView.blendingMode = .withinWindow
-        rootView.state = .active
         rootView.wantsLayer = true
         rootView.layer?.cornerRadius = 10
         rootView.layer?.borderWidth = 0
         rootView.layer?.masksToBounds = true
+        rootView.backgroundColorOverride = backgroundColorOverride
         view = rootView
 
         titleLabel.font = .systemFont(ofSize: 13, weight: .semibold)
@@ -116,6 +173,15 @@ final class TableOfContentsPaneViewController: NSViewController, NSTableViewData
             emptyLabel.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -16),
             emptyLabel.centerYAnchor.constraint(equalTo: view.centerYAnchor, constant: 8)
         ])
+    }
+
+    func setBackgroundColor(_ color: NSColor?) {
+        backgroundColorOverride = color
+        guard isViewLoaded,
+              let backgroundView = view as? TableOfContentsPaneBackgroundView else {
+            return
+        }
+        backgroundView.backgroundColorOverride = color
     }
 
     func update(items: [TableOfContentsItem]) {
@@ -200,25 +266,45 @@ final class TableOfContentsPaneViewController: NSViewController, NSTableViewData
         tableView.reloadData(forRowIndexes: IndexSet(rows), columnIndexes: IndexSet(integer: 0))
     }
 
+    private static func hexByte(_ text: String, offset: Int) -> UInt8? {
+        let start = text.index(text.startIndex, offsetBy: offset)
+        let end = text.index(start, offsetBy: 2)
+        return UInt8(text[start..<end], radix: 16)
+    }
+
 }
 
-private final class TableOfContentsPaneBackgroundView: NSVisualEffectView {
-    override func makeBackingLayer() -> CALayer {
-        let layer = super.makeBackingLayer()
-        layer.backgroundColor = backgroundColor(for: effectiveAppearance).cgColor
-        return layer
+private final class TableOfContentsPaneBackgroundView: NSView {
+    var backgroundColorOverride: NSColor? {
+        didSet {
+            updateBackgroundColor()
+        }
+    }
+
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        wantsLayer = true
+        updateBackgroundColor()
+    }
+
+    required init?(coder: NSCoder) {
+        nil
     }
 
     override func viewDidChangeEffectiveAppearance() {
         super.viewDidChangeEffectiveAppearance()
-        layer?.backgroundColor = backgroundColor(for: effectiveAppearance).cgColor
+        updateBackgroundColor()
+    }
+
+    private func updateBackgroundColor() {
+        layer?.backgroundColor = (backgroundColorOverride ?? backgroundColor(for: effectiveAppearance)).cgColor
     }
 
     private func backgroundColor(for appearance: NSAppearance) -> NSColor {
         let isDark = appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
         return isDark
-            ? NSColor(calibratedWhite: 0.015, alpha: 0.72)
-            : NSColor(calibratedWhite: 1.0, alpha: 0.78)
+            ? NSColor(calibratedRed: 9 / 255, green: 11 / 255, blue: 13 / 255, alpha: 1)
+            : NSColor(calibratedRed: 240 / 255, green: 240 / 255, blue: 242 / 255, alpha: 1)
     }
 }
 
