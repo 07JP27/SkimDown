@@ -20,6 +20,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Side
     private var sidebarItem: NSSplitViewItem!
     private var contentItem: NSSplitViewItem!
     private var searchBarHeightConstraint: NSLayoutConstraint!
+    private var tableOfContentsHeightConstraint: NSLayoutConstraint!
     private var session: FolderSession?
     private var fileWatcher = FileWatcher()
     private var settings: AppSettings
@@ -37,7 +38,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Side
         rawValue: NSLayoutConstraint.Priority.defaultLow.rawValue + 10
     )
     private static let tableOfContentsWidth: CGFloat = 260
-    private static let tableOfContentsHeight: CGFloat = 360
+    private static let tableOfContentsVerticalInset: CGFloat = 24
 
     var isEmpty: Bool {
         session == nil
@@ -451,6 +452,10 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Side
         searchBarView.isHidden = true
         tableOfContentsViewController.view.isHidden = true
         searchBarHeightConstraint = searchBarView.heightAnchor.constraint(equalToConstant: 0)
+        tableOfContentsHeightConstraint = tableOfContentsViewController.view.heightAnchor.constraint(
+            equalToConstant: tableOfContentsViewController.preferredPaneHeight
+        )
+        tableOfContentsHeightConstraint.priority = .defaultHigh
 
         contentRootView.addSubview(markdownWebView)
         contentRootView.addSubview(emptyStateView)
@@ -477,10 +482,16 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Side
             emptyStateView.bottomAnchor.constraint(equalTo: contentRootView.bottomAnchor),
 
             tableOfContentsViewController.view.trailingAnchor.constraint(equalTo: contentRootView.trailingAnchor, constant: -16),
-            tableOfContentsViewController.view.topAnchor.constraint(equalTo: searchBarView.bottomAnchor, constant: 24),
+            tableOfContentsViewController.view.topAnchor.constraint(
+                equalTo: searchBarView.bottomAnchor,
+                constant: Self.tableOfContentsVerticalInset
+            ),
             tableOfContentsViewController.view.widthAnchor.constraint(equalToConstant: Self.tableOfContentsWidth),
-            tableOfContentsViewController.view.heightAnchor.constraint(equalToConstant: Self.tableOfContentsHeight),
-            tableOfContentsViewController.view.bottomAnchor.constraint(lessThanOrEqualTo: contentRootView.bottomAnchor, constant: -24),
+            tableOfContentsHeightConstraint,
+            tableOfContentsViewController.view.bottomAnchor.constraint(
+                lessThanOrEqualTo: contentRootView.bottomAnchor,
+                constant: -Self.tableOfContentsVerticalInset
+            ),
 
             dragOverlayView.leadingAnchor.constraint(equalTo: contentRootView.leadingAnchor),
             dragOverlayView.trailingAnchor.constraint(equalTo: contentRootView.trailingAnchor),
@@ -752,6 +763,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Side
             }
             self.hasLoadedTableOfContents = true
             self.tableOfContentsViewController.update(items: items)
+            self.updateTableOfContentsHeight()
             self.updateTableOfContentsVisibility()
         }
     }
@@ -760,7 +772,13 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Side
         hasLoadedTableOfContents = false
         tableOfContentsViewController.update(items: [])
         tableOfContentsViewController.setActiveHeadingID(nil)
+        updateTableOfContentsHeight()
         updateTableOfContentsVisibility()
+    }
+
+    private func updateTableOfContentsHeight() {
+        tableOfContentsHeightConstraint.constant = tableOfContentsViewController.preferredPaneHeight
+        contentRootView.needsLayout = true
     }
 
     private func updateTableOfContentsVisibility() {

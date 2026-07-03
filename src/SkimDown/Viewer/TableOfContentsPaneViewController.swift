@@ -7,6 +7,15 @@ protocol TableOfContentsPaneViewControllerDelegate: AnyObject {
 
 @MainActor
 final class TableOfContentsPaneViewController: NSViewController, NSTableViewDataSource, NSTableViewDelegate {
+    private enum Metrics {
+        static let topPadding: CGFloat = 12
+        static let horizontalPadding: CGFloat = 14
+        static let listHorizontalPadding: CGFloat = 8
+        static let titleToListSpacing: CGFloat = 8
+        static let bottomPadding: CGFloat = 10
+        static let emptyContentHeight: CGFloat = 48
+    }
+
     weak var delegate: TableOfContentsPaneViewControllerDelegate?
 
     private let titleLabel = NSTextField(labelWithString: "Contents")
@@ -17,6 +26,23 @@ final class TableOfContentsPaneViewController: NSViewController, NSTableViewData
     private var activeHeadingID: String?
     private var isProgrammaticSelection = false
     private var minimumHeadingLevel = 1
+
+    var preferredPaneHeight: CGFloat {
+        let rowCount = items.count
+        let listHeight: CGFloat
+        if rowCount == 0 {
+            listHeight = Metrics.emptyContentHeight
+        } else {
+            listHeight = CGFloat(rowCount) * tableView.rowHeight
+                + CGFloat(max(0, rowCount - 1)) * tableView.intercellSpacing.height
+        }
+
+        return Metrics.topPadding
+            + titleLabel.intrinsicContentSize.height
+            + Metrics.titleToListSpacing
+            + listHeight
+            + Metrics.bottomPadding
+    }
 
     override func loadView() {
         let rootView = NSVisualEffectView()
@@ -63,14 +89,14 @@ final class TableOfContentsPaneViewController: NSViewController, NSTableViewData
         view.addSubview(scrollView)
 
         NSLayoutConstraint.activate([
-            titleLabel.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 14),
-            titleLabel.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -14),
-            titleLabel.topAnchor.constraint(equalTo: view.topAnchor, constant: 12),
+            titleLabel.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: Metrics.horizontalPadding),
+            titleLabel.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -Metrics.horizontalPadding),
+            titleLabel.topAnchor.constraint(equalTo: view.topAnchor, constant: Metrics.topPadding),
 
-            scrollView.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 8),
-            scrollView.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -8),
-            scrollView.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 8),
-            scrollView.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -10),
+            scrollView.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: Metrics.listHorizontalPadding),
+            scrollView.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -Metrics.listHorizontalPadding),
+            scrollView.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: Metrics.titleToListSpacing),
+            scrollView.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -Metrics.bottomPadding),
 
             emptyLabel.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 16),
             emptyLabel.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -16),
