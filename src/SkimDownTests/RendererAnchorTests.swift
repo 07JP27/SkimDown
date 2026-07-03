@@ -250,6 +250,34 @@ final class RendererAnchorTests: XCTestCase {
     }
 
     @MainActor
+    func testRendererExposesTableOfContentsWithActualHeadingIDs() async throws {
+        let webView = try await renderMarkdown(
+            """
+            <h2 id="custom-id">Custom Heading</h2>
+
+            ## Content
+            ## テスト
+            ## External Links
+            ## External Links
+            """
+        )
+
+        let entriesJSON = try await evaluateStringJavaScript(
+            "JSON.stringify(window.skimdown.tableOfContents())",
+            in: webView
+        )
+        let entries = try JSONDecoder().decode([TableOfContentsEntryResult].self, from: Data(entriesJSON.utf8))
+
+        XCTAssertEqual(entries, [
+            TableOfContentsEntryResult(level: 2, title: "Custom Heading", id: "custom-id"),
+            TableOfContentsEntryResult(level: 2, title: "Content", id: "content-1"),
+            TableOfContentsEntryResult(level: 2, title: "テスト", id: "テスト"),
+            TableOfContentsEntryResult(level: 2, title: "External Links", id: "external-links"),
+            TableOfContentsEntryResult(level: 2, title: "External Links", id: "external-links-1")
+        ])
+    }
+
+    @MainActor
     func testScrollToAnchorFindsDecodedAndSluggedHeadingIDs() async throws {
         let webView = try await renderMarkdown(
             """
@@ -282,6 +310,27 @@ final class RendererAnchorTests: XCTestCase {
         )
 
         XCTAssertEqual(sluggedTarget, "external-links")
+    }
+
+    @MainActor
+    func testScrollToElementIDUsesExactDOMIDForTableOfContentsSelection() async throws {
+        let webView = try await renderMarkdown(
+            """
+            <h2 id="foo%20bar">Encoded-looking ID</h2>
+            """
+        )
+
+        let target = try await evaluateStringJavaScript(
+            """
+            window.__skimdownScrolledTo = null;
+            document.getElementById('foo%20bar').scrollIntoView = function () { window.__skimdownScrolledTo = this.id; };
+            window.skimdown.scrollToElementID('foo%20bar');
+            window.__skimdownScrolledTo;
+            """,
+            in: webView
+        )
+
+        XCTAssertEqual(target, "foo%20bar")
     }
 
     @MainActor
@@ -492,6 +541,12 @@ private struct SearchBlockBoundaryResult: Decodable {
 private struct RenderTokenResult: Decodable {
     let first: String?
     let second: String?
+}
+
+private struct TableOfContentsEntryResult: Decodable, Equatable {
+    let level: Int
+    let title: String
+    let id: String
 }
 
 private struct CodeCopyFeedbackResult: Decodable {

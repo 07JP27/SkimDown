@@ -15,6 +15,7 @@ final class SettingsStoreTests: XCTestCase {
         store.sidebarPosition = .right
         store.isSidebarVisible = false
         store.sidebarWidth = 320
+        store.isTableOfContentsVisible = false
         store.theme = .dark
         store.fontSize = 18
         store.isSearchCaseSensitive = true
@@ -23,9 +24,27 @@ final class SettingsStoreTests: XCTestCase {
         XCTAssertEqual(reloaded.sidebarPosition, .right)
         XCTAssertFalse(reloaded.isSidebarVisible)
         XCTAssertEqual(reloaded.sidebarWidth, 320)
+        XCTAssertFalse(reloaded.isTableOfContentsVisible)
         XCTAssertEqual(reloaded.theme, .dark)
         XCTAssertEqual(reloaded.fontSize, 18)
         XCTAssertTrue(reloaded.isSearchCaseSensitive)
+    }
+
+    func testSettingsAggregatePersistsTableOfContentsVisibility() throws {
+        let suiteName = "dev.jp27.SkimDownTests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer {
+            defaults.removePersistentDomain(forName: suiteName)
+        }
+
+        let store = SettingsStore(defaults: defaults)
+        var settings = AppSettings()
+        settings.isTableOfContentsVisible = false
+        store.settings = settings
+
+        let reloaded = SettingsStore(defaults: defaults)
+        XCTAssertFalse(reloaded.isTableOfContentsVisible)
+        XCTAssertFalse(reloaded.settings.isTableOfContentsVisible)
     }
 
     func testPerFolderLastSelectionAndExpandedPaths() throws {
@@ -179,4 +198,3 @@ final class SettingsStoreTests: XCTestCase {
                       "Legacy bookmarks have no frame and should migrate as .zero")
     }
 }
-
