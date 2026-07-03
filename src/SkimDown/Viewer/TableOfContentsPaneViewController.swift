@@ -60,16 +60,15 @@ final class TableOfContentsPaneViewController: NSViewController, NSTableViewData
     }
 
     override func loadView() {
-        let rootView = NSVisualEffectView()
-        rootView.material = .sidebar
+        let rootView = TableOfContentsPaneBackgroundView()
+        rootView.material = .underWindowBackground
         rootView.blendingMode = .withinWindow
         rootView.state = .active
         rootView.wantsLayer = true
-        rootView.layer?.cornerRadius = 12
-        rootView.layer?.borderWidth = 1
+        rootView.layer?.cornerRadius = 10
+        rootView.layer?.borderWidth = 0
         rootView.layer?.masksToBounds = true
         view = rootView
-        updatePanelChrome()
 
         titleLabel.font = .systemFont(ofSize: 13, weight: .semibold)
         titleLabel.textColor = .labelColor
@@ -201,10 +200,25 @@ final class TableOfContentsPaneViewController: NSViewController, NSTableViewData
         tableView.reloadData(forRowIndexes: IndexSet(rows), columnIndexes: IndexSet(integer: 0))
     }
 
-    private func updatePanelChrome() {
-        view.layer?.borderColor = NSColor.separatorColor
-            .withAlphaComponent(0.28)
-            .cgColor
+}
+
+private final class TableOfContentsPaneBackgroundView: NSVisualEffectView {
+    override func makeBackingLayer() -> CALayer {
+        let layer = super.makeBackingLayer()
+        layer.backgroundColor = backgroundColor(for: effectiveAppearance).cgColor
+        return layer
+    }
+
+    override func viewDidChangeEffectiveAppearance() {
+        super.viewDidChangeEffectiveAppearance()
+        layer?.backgroundColor = backgroundColor(for: effectiveAppearance).cgColor
+    }
+
+    private func backgroundColor(for appearance: NSAppearance) -> NSColor {
+        let isDark = appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+        return isDark
+            ? NSColor(calibratedWhite: 0.015, alpha: 0.72)
+            : NSColor(calibratedWhite: 1.0, alpha: 0.78)
     }
 }
 
