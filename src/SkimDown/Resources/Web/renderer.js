@@ -160,6 +160,27 @@
     document.documentElement.style.setProperty("--skimdown-reserved-trailing-width", width + "px");
   }
 
+  function previewLayoutMetrics() {
+    const content = document.getElementById("content");
+    const viewportWidth = window.innerWidth || document.documentElement.clientWidth || 0;
+    if (!content) {
+      return {
+        contentLeft: 0,
+        contentRight: 0,
+        contentWidth: 0,
+        viewportWidth: viewportWidth
+      };
+    }
+
+    const rect = content.getBoundingClientRect();
+    return {
+      contentLeft: rect.left,
+      contentRight: rect.right,
+      contentWidth: rect.width,
+      viewportWidth: viewportWidth
+    };
+  }
+
   function installScrollPositionListener(renderID) {
     let pending = false;
     let lastPosted = null;
@@ -1968,6 +1989,7 @@
   window.skimdown = {
     render: render,
     setReservedTrailingWidth: setReservedTrailingWidth,
+    previewLayoutMetrics: previewLayoutMetrics,
     performSearch: performSearch,
     nextSearch: nextSearch,
     previousSearch: previousSearch,

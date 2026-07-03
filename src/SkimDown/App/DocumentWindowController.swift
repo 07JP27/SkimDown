@@ -21,6 +21,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Side
     private var contentItem: NSSplitViewItem!
     private var searchBarHeightConstraint: NSLayoutConstraint!
     private var tableOfContentsHeightConstraint: NSLayoutConstraint!
+    private var tableOfContentsLeadingConstraint: NSLayoutConstraint!
     private var session: FolderSession?
     private var fileWatcher = FileWatcher()
     private var settings: AppSettings
@@ -389,6 +390,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Side
 
     func windowDidResize(_ notification: Notification) {
         updateTableOfContentsHeight()
+        updateTableOfContentsPlacement()
     }
 
     func emptyStateViewDidRequestOpenFolder(_ view: EmptyStateView) {
@@ -472,6 +474,8 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Side
         contentRootView.addSubview(dragOverlayView, positioned: .above, relativeTo: nil)
         documentContentViewController.view = contentRootView
 
+        tableOfContentsLeadingConstraint = tableOfContentsViewController.view.leadingAnchor.constraint(equalTo: contentRootView.leadingAnchor)
+
         NSLayoutConstraint.activate([
             searchBarView.leadingAnchor.constraint(equalTo: contentRootView.leadingAnchor),
             searchBarView.trailingAnchor.constraint(equalTo: contentRootView.trailingAnchor),
@@ -488,7 +492,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Side
             emptyStateView.topAnchor.constraint(equalTo: contentRootView.topAnchor),
             emptyStateView.bottomAnchor.constraint(equalTo: contentRootView.bottomAnchor),
 
-            tableOfContentsViewController.view.trailingAnchor.constraint(equalTo: contentRootView.trailingAnchor, constant: -Self.tableOfContentsTrailingInset),
+            tableOfContentsLeadingConstraint,
             tableOfContentsViewController.view.topAnchor.constraint(
                 equalTo: searchBarView.bottomAnchor,
                 constant: Self.tableOfContentsVerticalInset
@@ -529,6 +533,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Side
 
     @objc private func splitViewDidResizeSubviewsNotification(_ notification: Notification) {
         updateTableOfContentsHeight()
+        updateTableOfContentsPlacement()
 
         guard isInitialLayoutComplete,
               !sidebarItem.isCollapsed,
@@ -804,10 +809,64 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Side
         tableOfContentsViewController.view.isHidden = !isVisible
         let shouldReserveWidth = isVisible || (reserveWidthWhileLoading && canShowTableOfContents)
         markdownWebView.setReservedTrailingWidth(shouldReserveWidth ? Self.tableOfContentsReservedTrailingWidth : 0)
+        updateTableOfContentsPlacement()
     }
 
     private static var tableOfContentsReservedTrailingWidth: Double {
         Double(tableOfContentsWidth + tableOfContentsTrailingInset + tableOfContentsReservedGutter)
+    }
+
+    private func updateTableOfContentsPlacement() {
+        let containerWidth = contentRootView.bounds.width
+        guard containerWidth > 0 else {
+            return
+        }
+
+        applyTableOfContentsPlacement(
+            contentRight: estimatedPreviewContentRight(containerWidth: containerWidth),
+            containerWidth: containerWidth
+        )
+        guard !tableOfContentsViewController.view.isHidden else {
+            return
+        }
+
+        markdownWebView.previewLayoutMetrics { [weak self] metrics in
+            guard let self,
+                  !self.tableOfContentsViewController.view.isHidden else {
+                return
+            }
+
+            let currentContainerWidth = self.contentRootView.bounds.width
+            guard currentContainerWidth > 0,
+                  let metrics,
+                  abs(CGFloat(metrics.viewportWidth) - currentContainerWidth) <= 20 else {
+                return
+            }
+
+            self.applyTableOfContentsPlacement(
+                contentRight: CGFloat(metrics.contentRight),
+                containerWidth: currentContainerWidth
+            )
+        }
+    }
+
+    private func applyTableOfContentsPlacement(contentRight: CGFloat?, containerWidth: CGFloat) {
+        tableOfContentsLeadingConstraint.constant = TableOfContentsPlacement.leadingOffset(
+            contentRight: contentRight,
+            containerWidth: containerWidth,
+            paneWidth: Self.tableOfContentsWidth,
+            trailingInset: Self.tableOfContentsTrailingInset,
+            gutter: Self.tableOfContentsReservedGutter
+        )
+        contentRootView.needsLayout = true
+    }
+
+    private func estimatedPreviewContentRight(containerWidth: CGFloat) -> CGFloat {
+        PreviewContentLayout.estimatedContentRight(
+            containerWidth: containerWidth,
+            fontSize: CGFloat(settings.fontSize),
+            reservedTrailingWidth: CGFloat(Self.tableOfContentsReservedTrailingWidth)
+        )
     }
 
     private func performSearch(scrollToMatch: Bool = true) {

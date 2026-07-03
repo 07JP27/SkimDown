@@ -762,6 +762,30 @@ final class RendererAnchorTests: XCTestCase {
     }
 
     @MainActor
+    func testPreviewLayoutMetricsReportsRenderedContentRect() async throws {
+        let webView = try await renderMarkdown(
+            """
+            # Layout metrics
+
+            The native TOC pane uses this content rect to stay near the rendered document.
+            """,
+            frameWidth: 1400,
+            includeStyles: true
+        )
+
+        let resultJSON = try await evaluateStringJavaScript(
+            "JSON.stringify(window.skimdown.previewLayoutMetrics());",
+            in: webView
+        )
+        let result = try JSONDecoder().decode(PreviewLayoutMetricsResult.self, from: Data(resultJSON.utf8))
+
+        XCTAssertEqual(result.viewportWidth, 1400, accuracy: 1)
+        XCTAssertGreaterThan(result.contentWidth, 0)
+        XCTAssertGreaterThan(result.contentRight, result.contentLeft)
+        XCTAssertLessThanOrEqual(result.contentRight, result.viewportWidth)
+    }
+
+    @MainActor
     func testReservedTrailingWidthSetterRecomputesTableScrollCues() async throws {
         let webView = try await renderMarkdown(
             """
@@ -1200,6 +1224,13 @@ private struct TableCueState: Decodable {
     let viewportOverflows: Bool
     let canScrollLeft: Bool
     let canScrollRight: Bool
+}
+
+private struct PreviewLayoutMetricsResult: Decodable {
+    let contentLeft: Double
+    let contentRight: Double
+    let contentWidth: Double
+    let viewportWidth: Double
 }
 
 private struct CodeCopyFeedbackResult: Decodable {

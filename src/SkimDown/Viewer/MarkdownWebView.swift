@@ -6,6 +6,11 @@ struct SearchResult {
     let index: Int
 }
 
+struct PreviewLayoutMetrics {
+    let contentRight: Double
+    let viewportWidth: Double
+}
+
 @MainActor
 protocol MarkdownWebViewDelegate: AnyObject {
     func markdownWebView(_ webView: MarkdownWebView, didRequestLink href: String)
@@ -259,6 +264,18 @@ final class MarkdownWebView: NSView, WKScriptMessageHandler, WKNavigationDelegat
                 return
             }
             completion(rows.compactMap(TableOfContentsItem.init(javaScriptDictionary:)))
+        }
+    }
+
+    func previewLayoutMetrics(completion: @escaping (PreviewLayoutMetrics?) -> Void) {
+        webView.evaluateJavaScript("window.skimdown && window.skimdown.previewLayoutMetrics && window.skimdown.previewLayoutMetrics()") { value, _ in
+            guard let dictionary = value as? [String: Any],
+                  let contentRight = Self.doubleValue(dictionary["contentRight"]),
+                  let viewportWidth = Self.doubleValue(dictionary["viewportWidth"]) else {
+                completion(nil)
+                return
+            }
+            completion(PreviewLayoutMetrics(contentRight: contentRight, viewportWidth: viewportWidth))
         }
     }
 
