@@ -679,7 +679,7 @@
     var opener = openerElement && openerElement.focus
       ? openerElement
       : activeElement && activeElement !== document.body && activeElement.focus
-      ? document.activeElement
+      ? activeElement
       : container;
     var modalID = "skimdown-mermaid-modal-" + (++mermaidModalSequence);
     var modal = document.createElement("div");
