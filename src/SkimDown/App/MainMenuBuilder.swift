@@ -59,6 +59,9 @@ enum MainMenuBuilder {
         let viewMenu = NSMenu(title: "View")
         viewMenuItem.submenu = viewMenu
         viewMenu.addItem(menuItem("Toggle Sidebar", action: #selector(AppDelegate.toggleSidebar(_:)), key: "s", target: target))
+        let tableOfContentsItem = menuItem("Toggle Table of Contents", action: #selector(AppDelegate.toggleTableOfContents(_:)), key: "t", target: target)
+        tableOfContentsItem.keyEquivalentModifierMask = [.command, .option]
+        viewMenu.addItem(tableOfContentsItem)
         viewMenu.addItem(menuItem("Move Sidebar to Right", action: #selector(AppDelegate.swapSidebarPosition(_:)), key: "", target: target))
         viewMenu.addItem(.separator())
 
@@ -159,4 +162,3 @@ extension MainMenuBuilder {
         menu.addItem(reload)
     }
 }
-

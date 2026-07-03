@@ -10,6 +10,7 @@ struct SearchResult {
 protocol MarkdownWebViewDelegate: AnyObject {
     func markdownWebView(_ webView: MarkdownWebView, didRequestLink href: String)
     func markdownWebViewDidChangeEffectiveAppearance(_ webView: MarkdownWebView)
+    func markdownWebView(_ webView: MarkdownWebView, didChangeActiveHeadingID headingID: String?)
 }
 
 @MainActor
@@ -38,6 +39,7 @@ final class MarkdownWebView: NSView, WKScriptMessageHandler, WKNavigationDelegat
         case renderReady
         case userInteracted
         case scrollPosition
+        case activeHeading
     }
 
     private struct PendingNavigation {
@@ -237,6 +239,20 @@ final class MarkdownWebView: NSView, WKScriptMessageHandler, WKNavigationDelegat
         webView.evaluateJavaScript("window.skimdown.scrollToAnchor(\(Self.jsonString(anchor)))")
     }
 
+    func scrollToElementID(_ elementID: String) {
+        webView.evaluateJavaScript("window.skimdown.scrollToElementID(\(Self.jsonString(elementID)))")
+    }
+
+    func tableOfContents(completion: @escaping ([TableOfContentsItem]) -> Void) {
+        webView.evaluateJavaScript("window.skimdown.tableOfContents()") { value, _ in
+            guard let rows = value as? [[String: Any]] else {
+                completion([])
+                return
+            }
+            completion(rows.compactMap(TableOfContentsItem.init(javaScriptDictionary:)))
+        }
+    }
+
     func copySelection() {
         webView.window?.makeFirstResponder(webView)
         NSApp.sendAction(#selector(NSText.copy(_:)), to: nil, from: webView)
@@ -292,6 +308,14 @@ final class MarkdownWebView: NSView, WKScriptMessageHandler, WKNavigationDelegat
                 return
             }
             observedScrollY = value
+        case .activeHeading:
+            guard let body = message.body as? [String: Any],
+                  let renderID = Self.intValue(body["renderID"]),
+                  renderID == renderGeneration else {
+                return
+            }
+            let headingID = (body["headingID"] as? String).flatMap { $0.isEmpty ? nil : $0 }
+            delegate?.markdownWebView(self, didChangeActiveHeadingID: headingID)
         }
     }
 

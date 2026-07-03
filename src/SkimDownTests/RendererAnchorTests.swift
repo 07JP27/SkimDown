@@ -411,6 +411,34 @@ final class RendererAnchorTests: XCTestCase {
     }
 
     @MainActor
+    func testRendererExposesTableOfContentsWithActualHeadingIDs() async throws {
+        let webView = try await renderMarkdown(
+            """
+            <h2 id="custom-id">Custom Heading</h2>
+
+            ## Content
+            ## テスト
+            ## External Links
+            ## External Links
+            """
+        )
+
+        let entriesJSON = try await evaluateStringJavaScript(
+            "JSON.stringify(window.skimdown.tableOfContents())",
+            in: webView
+        )
+        let entries = try JSONDecoder().decode([TableOfContentsEntryResult].self, from: Data(entriesJSON.utf8))
+
+        XCTAssertEqual(entries, [
+            TableOfContentsEntryResult(level: 2, title: "Custom Heading", id: "custom-id"),
+            TableOfContentsEntryResult(level: 2, title: "Content", id: "content-1"),
+            TableOfContentsEntryResult(level: 2, title: "テスト", id: "テスト"),
+            TableOfContentsEntryResult(level: 2, title: "External Links", id: "external-links"),
+            TableOfContentsEntryResult(level: 2, title: "External Links", id: "external-links-1")
+        ])
+    }
+
+    @MainActor
     func testScrollToAnchorFindsDecodedAndSluggedHeadingIDs() async throws {
         let webView = try await renderMarkdown(
             """
@@ -443,6 +471,119 @@ final class RendererAnchorTests: XCTestCase {
         )
 
         XCTAssertEqual(sluggedTarget, "external-links")
+    }
+
+    @MainActor
+    func testScrollToElementIDUsesExactDOMIDForTableOfContentsSelection() async throws {
+        let webView = try await renderMarkdown(
+            """
+            <h2 id="foo%20bar">Encoded-looking ID</h2>
+            """
+        )
+
+        let target = try await evaluateStringJavaScript(
+            """
+            window.__skimdownScrolledTo = null;
+            document.getElementById('foo%20bar').scrollIntoView = function () { window.__skimdownScrolledTo = this.id; };
+            window.skimdown.scrollToElementID('foo%20bar');
+            window.__skimdownScrolledTo;
+            """,
+            in: webView
+        )
+
+        XCTAssertEqual(target, "foo%20bar")
+    }
+
+    @MainActor
+    func testScrollToElementIDKeepsClickedHeadingActiveWhenItCannotReachAnchorBand() async throws {
+        let activeHeadingRecorder = ActiveHeadingMessageRecorder()
+        let webView = try await renderMarkdown(
+            """
+            ## Previous
+
+            Paragraph.
+
+            Paragraph.
+
+            Paragraph.
+
+            Paragraph.
+
+            Paragraph.
+
+            Paragraph.
+
+            Paragraph.
+
+            Paragraph.
+
+            Paragraph.
+
+            Paragraph.
+
+            Paragraph.
+
+            Paragraph.
+
+            ## Target
+
+            Short section.
+            """,
+            activeHeadingMessageHandler: activeHeadingRecorder
+        )
+        activeHeadingRecorder.removeAll()
+
+        _ = try await evaluateStringJavaScript(
+            """
+            window.scrollTo(0, 0);
+            document.getElementById('target').scrollIntoView = function () {};
+            window.skimdown.scrollToElementID('target');
+            window.dispatchEvent(new Event('scroll'));
+            'done';
+            """,
+            in: webView
+        )
+        try await Task.sleep(nanoseconds: 100_000_000)
+
+        XCTAssertEqual(activeHeadingRecorder.messages.last?.headingID, "target")
+    }
+
+    @MainActor
+    func testSearchScrollClearsProgrammaticActiveHeadingOverride() async throws {
+        let activeHeadingRecorder = ActiveHeadingMessageRecorder()
+        let spacer = Array(repeating: "Paragraph.", count: 80).joined(separator: "\n\n")
+        let webView = try await renderMarkdown(
+            """
+            ## Previous
+
+            Search hit.
+
+            \(spacer)
+
+            ## Target
+
+            Short section.
+            """,
+            activeHeadingMessageHandler: activeHeadingRecorder
+        )
+        activeHeadingRecorder.removeAll()
+
+        _ = try await evaluateStringJavaScript(
+            """
+            window.scrollTo(0, 0);
+            var originalScrollIntoView = Element.prototype.scrollIntoView;
+            Element.prototype.scrollIntoView = function () {};
+            window.skimdown.scrollToElementID('target');
+            window.skimdown.performSearch('Search hit', false, true);
+            Element.prototype.scrollIntoView = originalScrollIntoView;
+            window.dispatchEvent(new Event('scroll'));
+            'done';
+            """,
+            in: webView
+        )
+        try await Task.sleep(nanoseconds: 100_000_000)
+
+        XCTAssertEqual(activeHeadingRecorder.messages.last?.headingID, "previous")
     }
 
     @MainActor
@@ -528,12 +669,16 @@ final class RendererAnchorTests: XCTestCase {
     private func renderMarkdown(
         _ markdown: String,
         copyCodeMessageHandler: WKScriptMessageHandler? = nil,
+        activeHeadingMessageHandler: WKScriptMessageHandler? = nil,
         additionalScripts: [String] = [],
         additionalStyles: [String] = []
     ) async throws -> WKWebView {
         let configuration = WKWebViewConfiguration()
         if let copyCodeMessageHandler {
             configuration.userContentController.add(copyCodeMessageHandler, name: "copyCode")
+        }
+        if let activeHeadingMessageHandler {
+            configuration.userContentController.add(activeHeadingMessageHandler, name: "activeHeading")
         }
         let webView = WKWebView(frame: NSRect(x: 0, y: 0, width: 800, height: 1000), configuration: configuration)
         let navigationDelegate = NavigationFinishedDelegate()
@@ -769,6 +914,17 @@ private struct RenderTokenResult: Decodable {
     let second: String?
 }
 
+private struct TableOfContentsEntryResult: Decodable, Equatable {
+    let level: Int
+    let title: String
+    let id: String
+}
+
+private struct ActiveHeadingMessage: Equatable {
+    let renderID: Int
+    let headingID: String?
+}
+
 private struct CodeCopyFeedbackResult: Decodable {
     let initial: CodeCopyButtonState
     let firstClick: CodeCopyButtonState
@@ -818,5 +974,22 @@ private final class ScriptMessageRecorder: NSObject, WKScriptMessageHandler {
             messages.append(body)
         }
         onMessage()
+    }
+}
+
+private final class ActiveHeadingMessageRecorder: NSObject, WKScriptMessageHandler {
+    private(set) var messages: [ActiveHeadingMessage] = []
+
+    func removeAll() {
+        messages.removeAll()
+    }
+
+    func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
+        guard let body = message.body as? [String: Any],
+              let renderID = body["renderID"] as? Int else {
+            return
+        }
+        let headingID = body["headingID"] as? String
+        messages.append(ActiveHeadingMessage(renderID: renderID, headingID: headingID?.isEmpty == true ? nil : headingID))
     }
 }

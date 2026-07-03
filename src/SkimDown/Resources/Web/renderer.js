@@ -6,6 +6,16 @@
   let tableResizeHandler = null;
   let mermaidResizeObserver = null;
   let mermaidResizeHandler = null;
+  let activeHeadingIntersectionObserver = null;
+  let activeHeadingResizeHandler = null;
+  let activeHeadingScrollHandler = null;
+  let activeHeadingUpdateHandler = null;
+  let activeHeadingFrameRequest = null;
+  let activeHeadingUserInteractionHandler = null;
+  let programmaticActiveHeadingID = null;
+  let programmaticActiveHeadingWasVisible = false;
+  let activeHeadingRenderID = null;
+  let lastActiveHeadingID = null;
   let activeMermaidModal = null;
   let mermaidModalSequence = 0;
   const IMAGE_READY_TIMEOUT_MS = 3000;
@@ -130,6 +140,7 @@
     notifyWhenRenderSettled(content, payload.renderID, mermaidTasks, restoreScrollY);
     installUserInteractionWatcher(payload.renderID);
     installScrollPositionListener(payload.renderID);
+    installActiveHeadingTracker(content, payload.renderID);
   }
 
   function installScrollPositionListener(renderID) {
@@ -171,6 +182,228 @@
     window.addEventListener("touchstart", onInteract, { capture: true, once: true, passive: true });
     window.addEventListener("keydown", onInteract, { capture: true, once: true });
     window.addEventListener("mousedown", onInteract, { capture: true, once: true });
+  }
+
+  function tableOfContents() {
+    const content = document.getElementById("content");
+    if (!content) {
+      return [];
+    }
+
+    return headingElements(content).map(function (heading) {
+      return {
+        level: Number(heading.tagName.slice(1)),
+        title: (heading.textContent || "").trim(),
+        id: heading.id
+      };
+    }).filter(function (entry) {
+      return entry.title && entry.id;
+    });
+  }
+
+  function headingElements(content) {
+    return Array.from(content.querySelectorAll("h1, h2, h3, h4, h5, h6")).filter(function (heading) {
+      return Boolean(heading.id);
+    });
+  }
+
+  function installActiveHeadingTracker(content, renderID) {
+    teardownActiveHeadingTracker();
+    activeHeadingRenderID = renderID;
+    lastActiveHeadingID = null;
+
+    const headings = headingElements(content);
+    if (headings.length === 0) {
+      postActiveHeading(renderID, "");
+      return;
+    }
+
+    let positions = [];
+    let shouldRecalculate = false;
+
+    function recalculatePositions() {
+      positions = headings.map(function (heading) {
+        return {
+          id: heading.id,
+          top: heading.getBoundingClientRect().top + window.scrollY
+        };
+      });
+    }
+
+    function scheduleUpdate(recalculate) {
+      shouldRecalculate = shouldRecalculate || recalculate;
+      if (activeHeadingFrameRequest !== null) {
+        return;
+      }
+
+      activeHeadingFrameRequest = window.requestAnimationFrame(function () {
+        activeHeadingFrameRequest = null;
+        if (shouldRecalculate) {
+          recalculatePositions();
+          shouldRecalculate = false;
+        }
+        updateActiveHeading(renderID, positions);
+      });
+    }
+
+    activeHeadingScrollHandler = function () {
+      scheduleUpdate(false);
+    };
+    activeHeadingUpdateHandler = function () {
+      recalculatePositions();
+      updateActiveHeading(renderID, positions);
+    };
+    activeHeadingResizeHandler = function () {
+      scheduleUpdate(true);
+    };
+    activeHeadingUserInteractionHandler = function () {
+      clearProgrammaticActiveHeadingAndUpdate();
+    };
+
+    window.addEventListener("scroll", activeHeadingScrollHandler, { passive: true });
+    window.addEventListener("resize", activeHeadingResizeHandler);
+    window.addEventListener("wheel", activeHeadingUserInteractionHandler, { capture: true, passive: true });
+    window.addEventListener("touchstart", activeHeadingUserInteractionHandler, { capture: true, passive: true });
+    window.addEventListener("keydown", activeHeadingUserInteractionHandler, { capture: true });
+    window.addEventListener("mousedown", activeHeadingUserInteractionHandler, { capture: true });
+
+    if ("IntersectionObserver" in window) {
+      activeHeadingIntersectionObserver = new IntersectionObserver(function () {
+        scheduleUpdate(true);
+      }, {
+        root: null,
+        rootMargin: "-20% 0px -70% 0px",
+        threshold: [0, 1]
+      });
+      headings.forEach(function (heading) {
+        activeHeadingIntersectionObserver.observe(heading);
+      });
+    }
+
+    recalculatePositions();
+    updateActiveHeading(renderID, positions);
+  }
+
+  function teardownActiveHeadingTracker() {
+    if (activeHeadingIntersectionObserver) {
+      activeHeadingIntersectionObserver.disconnect();
+      activeHeadingIntersectionObserver = null;
+    }
+    if (activeHeadingScrollHandler) {
+      window.removeEventListener("scroll", activeHeadingScrollHandler);
+      activeHeadingScrollHandler = null;
+    }
+    activeHeadingUpdateHandler = null;
+    if (activeHeadingResizeHandler) {
+      window.removeEventListener("resize", activeHeadingResizeHandler);
+      activeHeadingResizeHandler = null;
+    }
+    if (activeHeadingUserInteractionHandler) {
+      window.removeEventListener("wheel", activeHeadingUserInteractionHandler, { capture: true });
+      window.removeEventListener("touchstart", activeHeadingUserInteractionHandler, { capture: true });
+      window.removeEventListener("keydown", activeHeadingUserInteractionHandler, { capture: true });
+      window.removeEventListener("mousedown", activeHeadingUserInteractionHandler, { capture: true });
+      activeHeadingUserInteractionHandler = null;
+    }
+    if (activeHeadingFrameRequest !== null) {
+      window.cancelAnimationFrame(activeHeadingFrameRequest);
+      activeHeadingFrameRequest = null;
+    }
+    clearProgrammaticActiveHeading();
+    activeHeadingRenderID = null;
+  }
+
+  function updateActiveHeading(renderID, positions) {
+    if (!positions || positions.length === 0) {
+      postActiveHeading(renderID, "");
+      return;
+    }
+
+    if (postProgrammaticActiveHeadingIfNeeded(renderID)) {
+      return;
+    }
+
+    const anchorY = window.scrollY + Math.min(window.innerHeight * 0.25, 160);
+    let low = 0;
+    let high = positions.length - 1;
+    let bestIndex = 0;
+    while (low <= high) {
+      const middle = Math.floor((low + high) / 2);
+      if (positions[middle].top <= anchorY) {
+        bestIndex = middle;
+        low = middle + 1;
+      } else {
+        high = middle - 1;
+      }
+    }
+    postActiveHeading(renderID, positions[bestIndex].id);
+  }
+
+  function setProgrammaticActiveHeading(renderID, headingID) {
+    if (renderID === null || renderID === undefined) {
+      clearProgrammaticActiveHeading();
+      return;
+    }
+    const target = document.getElementById(headingID || "");
+    if (!target) {
+      clearProgrammaticActiveHeading();
+      return;
+    }
+    programmaticActiveHeadingID = headingID;
+    programmaticActiveHeadingWasVisible = isElementInViewport(target);
+    postActiveHeading(renderID, headingID);
+  }
+
+  function clearProgrammaticActiveHeading() {
+    programmaticActiveHeadingID = null;
+    programmaticActiveHeadingWasVisible = false;
+  }
+
+  function clearProgrammaticActiveHeadingAndUpdate() {
+    const hadOverride = programmaticActiveHeadingID !== null;
+    clearProgrammaticActiveHeading();
+    if (hadOverride && activeHeadingUpdateHandler) {
+      activeHeadingUpdateHandler();
+    }
+  }
+
+  function postProgrammaticActiveHeadingIfNeeded(renderID) {
+    if (!programmaticActiveHeadingID) {
+      return false;
+    }
+
+    const target = document.getElementById(programmaticActiveHeadingID);
+    if (!target) {
+      clearProgrammaticActiveHeading();
+      return false;
+    }
+
+    const isVisible = isElementInViewport(target);
+    if (isVisible) {
+      programmaticActiveHeadingWasVisible = true;
+    } else if (programmaticActiveHeadingWasVisible) {
+      clearProgrammaticActiveHeading();
+      return false;
+    }
+
+    postActiveHeading(renderID, programmaticActiveHeadingID);
+    return true;
+  }
+
+  function isElementInViewport(element) {
+    const rect = element.getBoundingClientRect();
+    return rect.bottom > 0 && rect.top < window.innerHeight;
+  }
+
+  function postActiveHeading(renderID, headingID) {
+    const normalizedID = headingID || "";
+    if (normalizedID === lastActiveHeadingID) {
+      return;
+    }
+    lastActiveHeadingID = normalizedID;
+    if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.activeHeading) {
+      window.webkit.messageHandlers.activeHeading.postMessage({ renderID: renderID, headingID: normalizedID });
+    }
   }
 
   var ALERT_TYPES = {
@@ -472,7 +705,7 @@
     const bg = cssVar("--skimdown-bg");
     const fg = cssVar("--skimdown-fg");
     const subtle = cssVar("--skimdown-subtle");
-    const accent = cssVar("--skimdown-accent");
+    const diagramLine = cssVar("--skimdown-diagram-line");
     const border = cssVar("--skimdown-border");
     if (bg) { mermaidVars.background = bg; }
     if (subtle) { mermaidVars.primaryColor = subtle; }
@@ -482,7 +715,7 @@
       mermaidVars.tertiaryTextColor = fg;
     }
     if (border) { mermaidVars.primaryBorderColor = border; }
-    if (accent) { mermaidVars.lineColor = accent; }
+    if (diagramLine) { mermaidVars.lineColor = diagramLine; }
     window.mermaid.initialize({
       startOnLoad: false,
       theme: isDark ? "dark" : "default",
@@ -1535,6 +1768,7 @@
         match.classList.add("skimdown-search-current");
       });
       if (scrollToMatch) {
+        clearProgrammaticActiveHeadingAndUpdate();
         current[0].scrollIntoView({ block: "center" });
       }
     }
@@ -1549,6 +1783,7 @@
   }
 
   function scrollToAnchor(anchor) {
+    clearProgrammaticActiveHeadingAndUpdate();
     if (!anchor) {
       window.scrollTo({ top: 0, behavior: "smooth" });
       return;
@@ -1561,6 +1796,16 @@
       namedAnchorTarget(decoded);
     if (target) {
       target.scrollIntoView({ block: "start", behavior: "smooth" });
+    }
+  }
+
+  function scrollToElementID(elementID) {
+    const target = document.getElementById(elementID || "");
+    if (target) {
+      setProgrammaticActiveHeading(activeHeadingRenderID, target.id);
+      target.scrollIntoView({ block: "start", behavior: "smooth" });
+    } else {
+      clearProgrammaticActiveHeadingAndUpdate();
     }
   }
 
@@ -1682,6 +1927,8 @@
     performSearch: performSearch,
     nextSearch: nextSearch,
     previousSearch: previousSearch,
-    scrollToAnchor: scrollToAnchor
+    scrollToAnchor: scrollToAnchor,
+    scrollToElementID: scrollToElementID,
+    tableOfContents: tableOfContents
   };
 })();

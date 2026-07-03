@@ -1,7 +1,7 @@
 # Custom Color Theme
 
 SkimDown lets you define and switch between custom color themes for the
-preview area. Themes are written as JSON or JSONC files in the
+preview area and table of contents. Themes are written as JSON or JSONC files in the
 [VS Code color theme format](https://code.visualstudio.com/api/references/theme-color),
 so existing VS Code theme assets can be reused.
 
@@ -32,6 +32,7 @@ by VS Code theme files are accepted. For example, save this as
     "descriptionForeground": "#93a1a1",
     "panel.border": "#eee8d5",
     "editorGroupHeader.tabsBackground": "#eee8d5",
+    "skimdown.tableOfContents.background": "#f3ead2",
     "editorWidget.background": "#fdf6e3",
     "textLink.foreground": "#268bd2",
     "editor.findMatchHighlightBackground": "#f8e8a5",
@@ -59,11 +60,13 @@ When multiple keys are listed, SkimDown uses the first key found in the theme.
 | Borders | `panel.border`, `editorGroup.border`, `editorWidget.border`, `contrastBorder` |
 | Subtle backgrounds | `editorGroupHeader.tabsBackground`, `editor.lineHighlightBackground`, `sideBar.background` |
 | Panel backgrounds | `editorWidget.background`, `editor.background` |
+| Table of contents background | `skimdown.tableOfContents.background`, `sideBar.background`, `editorWidget.background` |
 | Links and accents | `textLink.foreground`, `editorLink.activeForeground`, `focusBorder` |
 | Search highlights | `editor.findMatchHighlightBackground` |
 | Current search match | `editor.findMatchBackground` |
 
 Missing keys fall back to SkimDown's built-in light or dark palette based on the theme `type`.
+The table of contents is a native macOS view, so its background supports hex color values only.
 
 ## Reloading themes
 

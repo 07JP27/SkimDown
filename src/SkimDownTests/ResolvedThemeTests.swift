@@ -10,6 +10,7 @@ final class ResolvedThemeTests: XCTestCase {
             colors: [
                 "editor.background": "#1e1e1e",
                 "editor.foreground": "#d4d4d4",
+                "descriptionForeground": "#9da5b4",
                 "textLink.foreground": "#3794ff",
                 "panel.border": "#333333",
                 "editor.findMatchBackground": "#515c6a",
@@ -26,9 +27,11 @@ final class ResolvedThemeTests: XCTestCase {
         XCTAssertEqual(values["--skimdown-bg"], "#1e1e1e")
         XCTAssertEqual(values["--skimdown-fg"], "#d4d4d4")
         XCTAssertEqual(values["--skimdown-accent"], "#3794ff")
+        XCTAssertEqual(values["--skimdown-diagram-line"], "#9da5b4")
         XCTAssertEqual(values["--skimdown-border"], "#333333")
         XCTAssertEqual(values["--skimdown-current-mark"], "#515c6a")
         XCTAssertEqual(values["--skimdown-mark"], "#ea5c00")
+        XCTAssertEqual(resolved.tableOfContentsBackgroundColor, "#090b0d")
     }
 
     func testResolveAppliesDarkFallbackWhenKeyIsMissing() {
@@ -38,6 +41,8 @@ final class ResolvedThemeTests: XCTestCase {
         // Dark fallback values from ResolvedTheme.swift.
         XCTAssertEqual(values["--skimdown-bg"], "#0f1116")
         XCTAssertEqual(values["--skimdown-fg"], "#e8ebf1")
+        XCTAssertEqual(values["--skimdown-diagram-line"], "#8b94a3")
+        XCTAssertEqual(resolved.tableOfContentsBackgroundColor, "#090b0d")
     }
 
     func testResolveAppliesLightFallbackWhenKeyIsMissing() {
@@ -47,6 +52,8 @@ final class ResolvedThemeTests: XCTestCase {
         // Light fallback values.
         XCTAssertEqual(values["--skimdown-bg"], "#fbfbfd")
         XCTAssertEqual(values["--skimdown-fg"], "#20242c")
+        XCTAssertEqual(values["--skimdown-diagram-line"], "#69707d")
+        XCTAssertEqual(resolved.tableOfContentsBackgroundColor, "#f0f0f2")
         XCTAssertFalse(resolved.isDark)
     }
 
@@ -101,5 +108,70 @@ final class ResolvedThemeTests: XCTestCase {
         let values = Dictionary(uniqueKeysWithValues: resolved.cssVariables.map { ($0.name, $0.value) })
 
         XCTAssertEqual(values["--skimdown-current-mark"], "#515c6aaa")
+    }
+
+    func testResolvePrefersDedicatedTableOfContentsBackgroundKey() {
+        let scheme = ColorScheme(
+            id: "test",
+            displayName: "Test",
+            type: .dark,
+            colors: [
+                "skimdown.tableOfContents.background": "#101820",
+                "sideBar.background": "#202a36",
+                "editorWidget.background": "#303a46"
+            ]
+        )
+
+        let resolved = ResolvedTheme.resolve(from: scheme)
+
+        XCTAssertEqual(resolved.tableOfContentsBackgroundColor, "#101820")
+    }
+
+    func testResolveUsesSidebarBackgroundForTableOfContentsBackground() {
+        let scheme = ColorScheme(
+            id: "test",
+            displayName: "Test",
+            type: .light,
+            colors: [
+                "sideBar.background": "#eef0f4",
+                "editorWidget.background": "#f8f9fb"
+            ]
+        )
+
+        let resolved = ResolvedTheme.resolve(from: scheme)
+
+        XCTAssertEqual(resolved.tableOfContentsBackgroundColor, "#eef0f4")
+    }
+
+    func testResolveUsesEditorWidgetBackgroundForTableOfContentsBackgroundFallback() {
+        let scheme = ColorScheme(
+            id: "test",
+            displayName: "Test",
+            type: .light,
+            colors: [
+                "editorWidget.background": "#f8f9fb"
+            ]
+        )
+
+        let resolved = ResolvedTheme.resolve(from: scheme)
+
+        XCTAssertEqual(resolved.tableOfContentsBackgroundColor, "#f8f9fb")
+    }
+
+    func testResolveRejectsUnsupportedNativeTableOfContentsBackgroundAndFallsBack() {
+        let scheme = ColorScheme(
+            id: "test",
+            displayName: "Test",
+            type: .dark,
+            colors: [
+                "skimdown.tableOfContents.background": "rgb(10, 20, 30)",
+                "sideBar.background": "transparent",
+                "editorWidget.background": "#1a1f25"
+            ]
+        )
+
+        let resolved = ResolvedTheme.resolve(from: scheme)
+
+        XCTAssertEqual(resolved.tableOfContentsBackgroundColor, "#1a1f25")
     }
 }

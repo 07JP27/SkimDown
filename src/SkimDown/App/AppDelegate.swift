@@ -148,6 +148,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
             return controller?.selectedFileURL != nil
         case #selector(toggleSidebar(_:)):
             return controller != nil && !controller!.isSingleFile
+        case #selector(toggleTableOfContents(_:)):
+            menuItem.state = controller?.isTableOfContentsVisible == true ? .on : .off
+            return controller?.selectedFileURL != nil
         case #selector(swapSidebarPosition(_:)):
             menuItem.title = controller?.sidebarPosition == .right ? "Move Sidebar to Left" : "Move Sidebar to Right"
             return controller != nil && !controller!.isSingleFile
@@ -243,6 +246,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
 
     @objc func toggleSidebar(_ sender: Any?) {
         windowManager.activeController?.toggleSidebar()
+    }
+
+    @objc func toggleTableOfContents(_ sender: Any?) {
+        windowManager.activeController?.toggleTableOfContents()
     }
 
     @objc func swapSidebarPosition(_ sender: Any?) {
