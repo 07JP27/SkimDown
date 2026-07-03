@@ -9,7 +9,12 @@
   let activeHeadingIntersectionObserver = null;
   let activeHeadingResizeHandler = null;
   let activeHeadingScrollHandler = null;
+  let activeHeadingUpdateHandler = null;
   let activeHeadingFrameRequest = null;
+  let activeHeadingUserInteractionHandler = null;
+  let programmaticActiveHeadingID = null;
+  let programmaticActiveHeadingWasVisible = false;
+  let activeHeadingRenderID = null;
   let lastActiveHeadingID = null;
   const IMAGE_READY_TIMEOUT_MS = 3000;
   const CODE_COPY_FEEDBACK_RESET_MS = 1500;
@@ -201,6 +206,7 @@
 
   function installActiveHeadingTracker(content, renderID) {
     teardownActiveHeadingTracker();
+    activeHeadingRenderID = renderID;
     lastActiveHeadingID = null;
 
     const headings = headingElements(content);
@@ -240,12 +246,23 @@
     activeHeadingScrollHandler = function () {
       scheduleUpdate(false);
     };
+    activeHeadingUpdateHandler = function () {
+      recalculatePositions();
+      updateActiveHeading(renderID, positions);
+    };
     activeHeadingResizeHandler = function () {
       scheduleUpdate(true);
+    };
+    activeHeadingUserInteractionHandler = function () {
+      clearProgrammaticActiveHeadingAndUpdate();
     };
 
     window.addEventListener("scroll", activeHeadingScrollHandler, { passive: true });
     window.addEventListener("resize", activeHeadingResizeHandler);
+    window.addEventListener("wheel", activeHeadingUserInteractionHandler, { capture: true, passive: true });
+    window.addEventListener("touchstart", activeHeadingUserInteractionHandler, { capture: true, passive: true });
+    window.addEventListener("keydown", activeHeadingUserInteractionHandler, { capture: true });
+    window.addEventListener("mousedown", activeHeadingUserInteractionHandler, { capture: true });
 
     if ("IntersectionObserver" in window) {
       activeHeadingIntersectionObserver = new IntersectionObserver(function () {
@@ -273,19 +290,33 @@
       window.removeEventListener("scroll", activeHeadingScrollHandler);
       activeHeadingScrollHandler = null;
     }
+    activeHeadingUpdateHandler = null;
     if (activeHeadingResizeHandler) {
       window.removeEventListener("resize", activeHeadingResizeHandler);
       activeHeadingResizeHandler = null;
+    }
+    if (activeHeadingUserInteractionHandler) {
+      window.removeEventListener("wheel", activeHeadingUserInteractionHandler, { capture: true });
+      window.removeEventListener("touchstart", activeHeadingUserInteractionHandler, { capture: true });
+      window.removeEventListener("keydown", activeHeadingUserInteractionHandler, { capture: true });
+      window.removeEventListener("mousedown", activeHeadingUserInteractionHandler, { capture: true });
+      activeHeadingUserInteractionHandler = null;
     }
     if (activeHeadingFrameRequest !== null) {
       window.cancelAnimationFrame(activeHeadingFrameRequest);
       activeHeadingFrameRequest = null;
     }
+    clearProgrammaticActiveHeading();
+    activeHeadingRenderID = null;
   }
 
   function updateActiveHeading(renderID, positions) {
     if (!positions || positions.length === 0) {
       postActiveHeading(renderID, "");
+      return;
+    }
+
+    if (postProgrammaticActiveHeadingIfNeeded(renderID)) {
       return;
     }
 
@@ -303,6 +334,62 @@
       }
     }
     postActiveHeading(renderID, positions[bestIndex].id);
+  }
+
+  function setProgrammaticActiveHeading(renderID, headingID) {
+    if (renderID === null || renderID === undefined) {
+      clearProgrammaticActiveHeading();
+      return;
+    }
+    const target = document.getElementById(headingID || "");
+    if (!target) {
+      clearProgrammaticActiveHeading();
+      return;
+    }
+    programmaticActiveHeadingID = headingID;
+    programmaticActiveHeadingWasVisible = isElementInViewport(target);
+    postActiveHeading(renderID, headingID);
+  }
+
+  function clearProgrammaticActiveHeading() {
+    programmaticActiveHeadingID = null;
+    programmaticActiveHeadingWasVisible = false;
+  }
+
+  function clearProgrammaticActiveHeadingAndUpdate() {
+    const hadOverride = programmaticActiveHeadingID !== null;
+    clearProgrammaticActiveHeading();
+    if (hadOverride && activeHeadingUpdateHandler) {
+      activeHeadingUpdateHandler();
+    }
+  }
+
+  function postProgrammaticActiveHeadingIfNeeded(renderID) {
+    if (!programmaticActiveHeadingID) {
+      return false;
+    }
+
+    const target = document.getElementById(programmaticActiveHeadingID);
+    if (!target) {
+      clearProgrammaticActiveHeading();
+      return false;
+    }
+
+    const isVisible = isElementInViewport(target);
+    if (isVisible) {
+      programmaticActiveHeadingWasVisible = true;
+    } else if (programmaticActiveHeadingWasVisible) {
+      clearProgrammaticActiveHeading();
+      return false;
+    }
+
+    postActiveHeading(renderID, programmaticActiveHeadingID);
+    return true;
+  }
+
+  function isElementInViewport(element) {
+    const rect = element.getBoundingClientRect();
+    return rect.bottom > 0 && rect.top < window.innerHeight;
   }
 
   function postActiveHeading(renderID, headingID) {
@@ -1241,6 +1328,7 @@
         match.classList.add("skimdown-search-current");
       });
       if (scrollToMatch) {
+        clearProgrammaticActiveHeadingAndUpdate();
         current[0].scrollIntoView({ block: "center" });
       }
     }
@@ -1255,6 +1343,7 @@
   }
 
   function scrollToAnchor(anchor) {
+    clearProgrammaticActiveHeadingAndUpdate();
     if (!anchor) {
       window.scrollTo({ top: 0, behavior: "smooth" });
       return;
@@ -1273,7 +1362,10 @@
   function scrollToElementID(elementID) {
     const target = document.getElementById(elementID || "");
     if (target) {
+      setProgrammaticActiveHeading(activeHeadingRenderID, target.id);
       target.scrollIntoView({ block: "start", behavior: "smooth" });
+    } else {
+      clearProgrammaticActiveHeadingAndUpdate();
     }
   }
 
