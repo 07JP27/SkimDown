@@ -121,7 +121,7 @@
     document.documentElement.dataset.theme = payload.theme || "system";
     document.documentElement.style.setProperty("--skimdown-font-size", String(payload.fontSize || 16) + "px");
     applyReservedTrailingWidth(payload.reservedTrailingWidth);
-    closeActiveMermaidModal();
+    closeActiveMermaidModal(currentRenderID);
 
     const content = document.getElementById("content");
     const dirtyHtml = renderer().render(payload.markdown || "");
@@ -1034,7 +1034,9 @@
       applyMermaidZoom(modal, viewport, 0.25);
       resizeHandler();
     });
-    closeButton.addEventListener("click", closeModal);
+    closeButton.addEventListener("click", function () {
+      closeModal();
+    });
 
     controls.appendChild(zoomOut);
     controls.appendChild(zoomReset);
@@ -1051,7 +1053,7 @@
     };
     var backdropMouseDown = false;
 
-    function closeModal() {
+    function closeModal(renderIDOverride) {
       if (!activeMermaidModal || activeMermaidModal.element !== modal) {
         return;
       }
@@ -1061,7 +1063,7 @@
       document.documentElement.classList.remove("skimdown-mermaid-modal-open");
       document.body.classList.remove("skimdown-mermaid-modal-open");
       activeMermaidModal = null;
-      postMermaidModalState(false, modalRenderID);
+      postMermaidModalState(false, renderIDOverride !== undefined ? renderIDOverride : modalRenderID);
       restoreMermaidModalFocus(opener, container);
     }
 
@@ -1078,7 +1080,7 @@
       handleMermaidModalKeydown(event, modal, closeModal);
     });
 
-    activeMermaidModal = { element: modal, close: closeModal, renderID: modalRenderID };
+    activeMermaidModal = { element: modal, close: closeModal };
     document.documentElement.classList.add("skimdown-mermaid-modal-open");
     document.body.classList.add("skimdown-mermaid-modal-open");
     document.body.appendChild(modal);
@@ -1102,9 +1104,9 @@
     });
   }
 
-  function closeActiveMermaidModal() {
+  function closeActiveMermaidModal(renderIDOverride) {
     if (activeMermaidModal) {
-      activeMermaidModal.close();
+      activeMermaidModal.close(renderIDOverride);
     }
   }
 
