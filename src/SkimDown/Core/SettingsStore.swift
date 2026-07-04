@@ -11,6 +11,7 @@ final class SettingsStore {
         static let sidebarPosition = "sidebarPosition"
         static let isSidebarVisible = "isSidebarVisible"
         static let sidebarWidth = "sidebarWidth"
+        static let isTableOfContentsVisible = "isTableOfContentsVisible"
         static let theme = "theme"
         static let fontSize = "fontSize"
         static let isSearchCaseSensitive = "isSearchCaseSensitive"
@@ -28,6 +29,7 @@ final class SettingsStore {
                 sidebarPosition: sidebarPosition,
                 isSidebarVisible: isSidebarVisible,
                 sidebarWidth: sidebarWidth,
+                isTableOfContentsVisible: isTableOfContentsVisible,
                 theme: theme,
                 fontSize: fontSize,
                 isSearchCaseSensitive: isSearchCaseSensitive
@@ -37,6 +39,7 @@ final class SettingsStore {
             sidebarPosition = newValue.sidebarPosition
             isSidebarVisible = newValue.isSidebarVisible
             sidebarWidth = newValue.sidebarWidth
+            isTableOfContentsVisible = newValue.isTableOfContentsVisible
             theme = newValue.theme
             fontSize = newValue.fontSize
             isSearchCaseSensitive = newValue.isSearchCaseSensitive
@@ -109,9 +112,22 @@ final class SettingsStore {
         set { defaults.set(max(180, min(newValue, 520)), forKey: Key.sidebarWidth) }
     }
 
+    var isTableOfContentsVisible: Bool {
+        get {
+            if defaults.object(forKey: Key.isTableOfContentsVisible) == nil {
+                return true
+            }
+            return defaults.bool(forKey: Key.isTableOfContentsVisible)
+        }
+        set { defaults.set(newValue, forKey: Key.isTableOfContentsVisible) }
+    }
+
     var theme: AppTheme {
-        get { AppTheme(rawValue: defaults.string(forKey: Key.theme) ?? "") ?? .system }
-        set { defaults.set(newValue.rawValue, forKey: Key.theme) }
+        get {
+            let stored = defaults.string(forKey: Key.theme) ?? ""
+            return AppTheme(storageValue: stored) ?? .system
+        }
+        set { defaults.set(newValue.storageValue, forKey: Key.theme) }
     }
 
     var fontSize: Double {
@@ -166,4 +182,3 @@ final class SettingsStore {
         set { defaults.set(newValue, forKey: Key.expandedTreeItemsByFolder) }
     }
 }
-

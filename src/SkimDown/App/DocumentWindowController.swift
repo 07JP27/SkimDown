@@ -1,13 +1,15 @@
 import AppKit
 
 @MainActor
-final class DocumentWindowController: NSWindowController, NSWindowDelegate, SidebarViewControllerDelegate, EmptyStateViewDelegate, MarkdownWebViewDelegate, SearchBarViewDelegate {
+final class DocumentWindowController: NSWindowController, NSWindowDelegate, SidebarViewControllerDelegate, EmptyStateViewDelegate, MarkdownWebViewDelegate, SearchBarViewDelegate, TableOfContentsPaneViewControllerDelegate {
     private let settingsStore: SettingsStore
     private let bookmarkStore: FolderBookmarkStore
+    private let colorSchemeStore: ColorSchemeStore
     private weak var windowManager: WindowManager?
 
     private let splitViewController = NSSplitViewController()
     private let sidebarViewController = SidebarViewController()
+    private let tableOfContentsViewController = TableOfContentsPaneViewController()
     private let documentContentViewController = NSViewController()
     private let contentRootView = FolderDropView()
     private let markdownWebView = MarkdownWebView()
@@ -18,6 +20,8 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Side
     private var sidebarItem: NSSplitViewItem!
     private var contentItem: NSSplitViewItem!
     private var searchBarHeightConstraint: NSLayoutConstraint!
+    private var tableOfContentsHeightConstraint: NSLayoutConstraint!
+    private var tableOfContentsLeadingConstraint: NSLayoutConstraint!
     private var session: FolderSession?
     private var fileWatcher = FileWatcher()
     private var settings: AppSettings
@@ -26,14 +30,20 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Side
     private var savedSidebarVisible: Bool?
     private var scrollPositions: [URL: Double] = [:]
     private var isInitialLayoutComplete = false
+    private var hasLoadedTableOfContents = false
+    private var isTableOfContentsMetricsRequestInFlight = false
+    private var needsTableOfContentsMetricsRefresh = false
 
-    /// コンテンツ側 (defaultLow = 250) がリサイズを引き受けるよう、
-    /// サイドバー側だけ一段高い保持優先度を割り当てる。これにより
-    /// ドラッグ終了直後の Auto Layout 再解決でサイドバー幅が
-    /// スナップバックしないようにする。
+    /// Give the sidebar a slightly higher holding priority so the content side
+    /// absorbs resizing. This avoids sidebar width snapping back after AppKit
+    /// resolves Auto Layout at the end of a divider drag.
     private static let sidebarHoldingPriority = NSLayoutConstraint.Priority(
         rawValue: NSLayoutConstraint.Priority.defaultLow.rawValue + 10
     )
+    private static let tableOfContentsWidth: CGFloat = 260
+    private static let tableOfContentsTrailingInset: CGFloat = 16
+    private static let tableOfContentsReservedGutter: CGFloat = 24
+    private static let tableOfContentsVerticalInset: CGFloat = 24
 
     var isEmpty: Bool {
         session == nil
@@ -51,6 +61,10 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Side
         settings.sidebarPosition
     }
 
+    var isTableOfContentsVisible: Bool {
+        settings.isTableOfContentsVisible
+    }
+
     var currentSidebarWidth: Double {
         settings.sidebarWidth
     }
@@ -63,9 +77,10 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Side
         settings.sidebarWidth = max(180, min(width, 520))
     }
 
-    init(settingsStore: SettingsStore, bookmarkStore: FolderBookmarkStore, windowManager: WindowManager) {
+    init(settingsStore: SettingsStore, bookmarkStore: FolderBookmarkStore, colorSchemeStore: ColorSchemeStore, windowManager: WindowManager) {
         self.settingsStore = settingsStore
         self.bookmarkStore = bookmarkStore
+        self.colorSchemeStore = colorSchemeStore
         self.windowManager = windowManager
         self.settings = settingsStore.settings
 
@@ -85,6 +100,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Side
 
         window.delegate = self
         sidebarViewController.delegate = self
+        tableOfContentsViewController.delegate = self
         emptyStateView.delegate = self
         markdownWebView.delegate = self
         searchBarView.delegate = self
@@ -315,6 +331,13 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Side
         }
     }
 
+    func toggleTableOfContents() {
+        settings.isTableOfContentsVisible.toggle()
+        settingsStore.isTableOfContentsVisible = settings.isTableOfContentsVisible
+        updateTableOfContentsHeight()
+        updateTableOfContentsVisibility(reserveWidthWhileLoading: settings.isTableOfContentsVisible)
+    }
+
     func moveSidebar(to position: SidebarPosition) {
         guard settings.sidebarPosition != position else {
             return
@@ -340,9 +363,10 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Side
     }
 
     func setTheme(_ theme: AppTheme) {
-        settings.theme = theme
-        settingsStore.theme = theme
-        applyWindowAppearance(theme)
+        let effectiveTheme = colorSchemeStore.normalizedTheme(theme)
+        settings.theme = effectiveTheme
+        settingsStore.theme = effectiveTheme
+        applyWindowAppearance(effectiveTheme)
         reloadSelectedMarkdown(preserveScrollPosition: true)
     }
 
@@ -359,6 +383,16 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Side
             return
         }
         settingsStore.setExpandedTreeItemRelativePaths(paths, for: session.folderURL)
+    }
+
+    func tableOfContentsPaneViewController(_ controller: TableOfContentsPaneViewController, didSelect item: TableOfContentsItem) {
+        tableOfContentsViewController.setActiveHeadingID(item.id)
+        markdownWebView.scrollToElementID(item.id)
+    }
+
+    func windowDidResize(_ notification: Notification) {
+        updateTableOfContentsHeight()
+        updateTableOfContentsPlacement()
     }
 
     func emptyStateViewDidRequestOpenFolder(_ view: EmptyStateView) {
@@ -389,6 +423,18 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Side
         }
     }
 
+    func markdownWebViewDidChangeEffectiveAppearance(_ webView: MarkdownWebView) {
+        guard settings.theme == .system,
+              selectedFileURL != nil else {
+            return
+        }
+        reloadSelectedMarkdown(preserveScrollPosition: true)
+    }
+
+    func markdownWebView(_ webView: MarkdownWebView, didChangeActiveHeadingID headingID: String?) {
+        tableOfContentsViewController.setActiveHeadingID(headingID)
+    }
+
     func searchBarView(_ searchBarView: SearchBarView, didChangeQuery query: String, caseSensitive: Bool) {
         settings.isSearchCaseSensitive = caseSensitive
         settingsStore.isSearchCaseSensitive = caseSensitive
@@ -410,17 +456,27 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Side
     private func configureContentView() {
         contentRootView.translatesAutoresizingMaskIntoConstraints = false
         markdownWebView.translatesAutoresizingMaskIntoConstraints = false
+        tableOfContentsViewController.view.translatesAutoresizingMaskIntoConstraints = false
         emptyStateView.translatesAutoresizingMaskIntoConstraints = false
         searchBarView.translatesAutoresizingMaskIntoConstraints = false
         dragOverlayView.translatesAutoresizingMaskIntoConstraints = false
         searchBarView.isHidden = true
+        tableOfContentsViewController.view.isHidden = true
         searchBarHeightConstraint = searchBarView.heightAnchor.constraint(equalToConstant: 0)
+        tableOfContentsHeightConstraint = tableOfContentsViewController.view.heightAnchor.constraint(
+            equalToConstant: tableOfContentsViewController.preferredPaneHeight
+        )
+        tableOfContentsHeightConstraint.priority = .defaultHigh
 
         contentRootView.addSubview(markdownWebView)
         contentRootView.addSubview(emptyStateView)
         contentRootView.addSubview(searchBarView)
+        documentContentViewController.addChild(tableOfContentsViewController)
+        contentRootView.addSubview(tableOfContentsViewController.view)
         contentRootView.addSubview(dragOverlayView, positioned: .above, relativeTo: nil)
         documentContentViewController.view = contentRootView
+
+        tableOfContentsLeadingConstraint = tableOfContentsViewController.view.leadingAnchor.constraint(equalTo: contentRootView.leadingAnchor)
 
         NSLayoutConstraint.activate([
             searchBarView.leadingAnchor.constraint(equalTo: contentRootView.leadingAnchor),
@@ -437,6 +493,18 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Side
             emptyStateView.trailingAnchor.constraint(equalTo: contentRootView.trailingAnchor),
             emptyStateView.topAnchor.constraint(equalTo: contentRootView.topAnchor),
             emptyStateView.bottomAnchor.constraint(equalTo: contentRootView.bottomAnchor),
+
+            tableOfContentsLeadingConstraint,
+            tableOfContentsViewController.view.topAnchor.constraint(
+                equalTo: searchBarView.bottomAnchor,
+                constant: Self.tableOfContentsVerticalInset
+            ),
+            tableOfContentsViewController.view.widthAnchor.constraint(equalToConstant: Self.tableOfContentsWidth),
+            tableOfContentsHeightConstraint,
+            tableOfContentsViewController.view.bottomAnchor.constraint(
+                lessThanOrEqualTo: contentRootView.bottomAnchor,
+                constant: -Self.tableOfContentsVerticalInset
+            ),
 
             dragOverlayView.leadingAnchor.constraint(equalTo: contentRootView.leadingAnchor),
             dragOverlayView.trailingAnchor.constraint(equalTo: contentRootView.trailingAnchor),
@@ -466,6 +534,9 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Side
     }
 
     @objc private func splitViewDidResizeSubviewsNotification(_ notification: Notification) {
+        updateTableOfContentsHeight()
+        updateTableOfContentsPlacement()
+
         guard isInitialLayoutComplete,
               !sidebarItem.isCollapsed,
               splitViewController.splitViewItems.count == 2 else {
@@ -645,23 +716,32 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Side
             sidebarViewController.selectFile(fileURL)
             emptyStateView.isHidden = true
             markdownWebView.isHidden = false
+            clearTableOfContents(reserveWidthWhileLoading: settings.isTableOfContentsVisible)
             markdownWebView.render(
                 markdown: markdown,
                 currentFileURL: fileURL,
                 rootFolderURL: session.folderURL,
                 theme: settings.theme,
+                resolvedTheme: colorSchemeStore.resolvedTheme(for: settings.theme),
                 fontSize: settings.fontSize,
                 preserveScrollPosition: shouldPreserveScrollPosition,
                 restoreScrollY: restoreScrollY
             ) { [weak self] in
                 self?.completeMarkdownRender(anchor: anchor, preservesViewport: preservesViewport)
+                self?.refreshTableOfContents(for: canonicalFileURL)
             }
         } catch {
             session.selectedFileURL = fileURL.skimdownCanonicalFileURL
             sidebarViewController.selectFile(fileURL)
             emptyStateView.isHidden = true
             markdownWebView.isHidden = false
-            markdownWebView.showError(error.localizedDescription, theme: settings.theme, fontSize: settings.fontSize)
+            clearTableOfContents()
+            markdownWebView.showError(
+                error.localizedDescription,
+                theme: settings.theme,
+                resolvedTheme: colorSchemeStore.resolvedTheme(for: settings.theme),
+                fontSize: settings.fontSize
+            )
         }
     }
 
@@ -683,10 +763,136 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Side
         emptyStateView.configure(state)
         emptyStateView.isHidden = false
         markdownWebView.isHidden = true
+        clearTableOfContents()
         setSearchBarVisible(false)
         if session == nil {
             window?.title = "SkimDown"
         }
+    }
+
+    private func refreshTableOfContents(for renderedFileURL: URL) {
+        markdownWebView.tableOfContents { [weak self] items in
+            guard let self,
+                  self.selectedFileURL?.skimdownCanonicalFileURL == renderedFileURL.skimdownCanonicalFileURL,
+                  !self.markdownWebView.isHidden else {
+                return
+            }
+            self.hasLoadedTableOfContents = true
+            self.tableOfContentsViewController.update(items: items)
+            self.updateTableOfContentsHeight()
+            self.updateTableOfContentsVisibility()
+        }
+    }
+
+    private func clearTableOfContents(reserveWidthWhileLoading: Bool = false) {
+        hasLoadedTableOfContents = false
+        tableOfContentsViewController.update(items: [])
+        tableOfContentsViewController.setActiveHeadingID(nil)
+        updateTableOfContentsHeight()
+        updateTableOfContentsVisibility(reserveWidthWhileLoading: reserveWidthWhileLoading)
+    }
+
+    private func updateTableOfContentsHeight() {
+        let availableHeight = contentRootView.bounds.height
+            - searchBarHeightConstraint.constant
+            - Self.tableOfContentsVerticalInset * 2
+        tableOfContentsHeightConstraint.constant = TableOfContentsPaneViewController.resolvedPaneHeight(
+            preferredHeight: tableOfContentsViewController.preferredPaneHeight,
+            availableHeight: availableHeight
+        )
+        contentRootView.needsLayout = true
+    }
+
+    private func updateTableOfContentsVisibility(reserveWidthWhileLoading: Bool = false) {
+        let canShowTableOfContents = settings.isTableOfContentsVisible
+            && !markdownWebView.isHidden
+            && selectedFileURL != nil
+        let isVisible = canShowTableOfContents && hasLoadedTableOfContents
+        tableOfContentsViewController.view.isHidden = !isVisible
+        let shouldReserveWidth = isVisible || (reserveWidthWhileLoading && canShowTableOfContents)
+        markdownWebView.setReservedTrailingWidth(shouldReserveWidth ? Self.tableOfContentsReservedTrailingWidth : 0)
+        updateTableOfContentsPlacement()
+    }
+
+    private static var tableOfContentsReservedTrailingWidth: Double {
+        Double(tableOfContentsWidth + tableOfContentsTrailingInset + tableOfContentsReservedGutter)
+    }
+
+    private func updateTableOfContentsPlacement() {
+        let containerWidth = contentRootView.bounds.width
+        guard containerWidth > 0 else {
+            return
+        }
+
+        applyTableOfContentsPlacement(
+            contentRight: estimatedPreviewContentRight(containerWidth: containerWidth),
+            containerWidth: containerWidth
+        )
+        guard !tableOfContentsViewController.view.isHidden else {
+            needsTableOfContentsMetricsRefresh = false
+            return
+        }
+
+        requestTableOfContentsMetrics(containerWidth: containerWidth)
+    }
+
+    private func requestTableOfContentsMetrics(containerWidth: CGFloat) {
+        guard !isTableOfContentsMetricsRequestInFlight else {
+            needsTableOfContentsMetricsRefresh = true
+            return
+        }
+
+        isTableOfContentsMetricsRequestInFlight = true
+        needsTableOfContentsMetricsRefresh = false
+        markdownWebView.previewLayoutMetrics { [weak self] metrics in
+            guard let self else {
+                return
+            }
+            self.isTableOfContentsMetricsRequestInFlight = false
+            let shouldRefresh = self.needsTableOfContentsMetricsRefresh
+            self.needsTableOfContentsMetricsRefresh = false
+
+            guard !self.tableOfContentsViewController.view.isHidden else {
+                if shouldRefresh {
+                    self.updateTableOfContentsPlacement()
+                }
+                return
+            }
+
+            let currentContainerWidth = self.contentRootView.bounds.width
+            if currentContainerWidth > 0,
+               let metrics,
+               abs(currentContainerWidth - containerWidth) <= 1,
+               abs(CGFloat(metrics.viewportWidth) - containerWidth) <= 20 {
+                self.applyTableOfContentsPlacement(
+                    contentRight: CGFloat(metrics.contentRight),
+                    containerWidth: currentContainerWidth
+                )
+            }
+
+            if shouldRefresh || abs(currentContainerWidth - containerWidth) > 1 {
+                self.updateTableOfContentsPlacement()
+            }
+        }
+    }
+
+    private func applyTableOfContentsPlacement(contentRight: CGFloat?, containerWidth: CGFloat) {
+        tableOfContentsLeadingConstraint.constant = TableOfContentsPlacement.leadingOffset(
+            contentRight: contentRight,
+            containerWidth: containerWidth,
+            paneWidth: Self.tableOfContentsWidth,
+            trailingInset: Self.tableOfContentsTrailingInset,
+            gutter: Self.tableOfContentsReservedGutter
+        )
+        contentRootView.needsLayout = true
+    }
+
+    private func estimatedPreviewContentRight(containerWidth: CGFloat) -> CGFloat {
+        PreviewContentLayout.estimatedContentRight(
+            containerWidth: containerWidth,
+            fontSize: CGFloat(settings.fontSize),
+            reservedTrailingWidth: CGFloat(Self.tableOfContentsReservedTrailingWidth)
+        )
     }
 
     private func performSearch(scrollToMatch: Bool = true) {
@@ -705,6 +911,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Side
     private func setSearchBarVisible(_ isVisible: Bool) {
         searchBarView.isHidden = !isVisible
         searchBarHeightConstraint.constant = isVisible ? 44 : 0
+        updateTableOfContentsHeight()
     }
 
     private func handleDroppedFolder(_ folderURL: URL) {
@@ -738,6 +945,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Side
     }
 
     private func applyWindowAppearance(_ theme: AppTheme) {
+        let resolvedTheme = colorSchemeStore.resolvedTheme(for: theme)
         switch theme {
         case .system:
             window?.appearance = nil
@@ -745,7 +953,21 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Side
             window?.appearance = NSAppearance(named: .aqua)
         case .dark:
             window?.appearance = NSAppearance(named: .darkAqua)
+        case .custom:
+            if let resolved = resolvedTheme {
+                window?.appearance = NSAppearance(named: resolved.isDark ? .darkAqua : .aqua)
+            } else {
+                window?.appearance = nil
+            }
         }
+        applyTableOfContentsTheme(resolvedTheme)
+    }
+
+    private func applyTableOfContentsTheme(_ resolvedTheme: ResolvedTheme?) {
+        let color = resolvedTheme.flatMap { theme in
+            TableOfContentsPaneViewController.nativeBackgroundColor(from: theme.tableOfContentsBackgroundColor)
+        }
+        tableOfContentsViewController.setBackgroundColor(color)
     }
 
     private func showOpenError(_ error: Error, title: String = "Could not open folder") {

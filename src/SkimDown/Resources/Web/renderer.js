@@ -4,9 +4,25 @@
   let currentSearchIndex = -1;
   let tableResizeObserver = null;
   let tableResizeHandler = null;
+  let tableCueFrame = null;
+  let pendingTableCueWrappers = new Set();
   let mermaidResizeObserver = null;
   let mermaidResizeHandler = null;
+  let activeHeadingIntersectionObserver = null;
+  let activeHeadingResizeHandler = null;
+  let activeHeadingScrollHandler = null;
+  let activeHeadingUpdateHandler = null;
+  let activeHeadingFrameRequest = null;
+  let activeHeadingUserInteractionHandler = null;
+  let programmaticActiveHeadingID = null;
+  let programmaticActiveHeadingWasVisible = false;
+  let activeHeadingRenderID = null;
+  let lastActiveHeadingID = null;
+  let activeMermaidModal = null;
+  let mermaidModalSequence = 0;
   const IMAGE_READY_TIMEOUT_MS = 3000;
+  const CODE_COPY_FEEDBACK_RESET_MS = 1500;
+  const TABLE_SCROLL_TOLERANCE = 1;
   // Matches standalone #RGB, #RGBA, #RRGGBB, and #RRGGBBAA color codes.
   const COLOR_CODE_PATTERN_SOURCE = "(^|[^\\w-])(#(?:[0-9A-Fa-f]{8}|[0-9A-Fa-f]{6}|[0-9A-Fa-f]{4}|[0-9A-Fa-f]{3}))(?![\\w-])";
   const COLOR_CODE_DETECTION_PATTERN = new RegExp(COLOR_CODE_PATTERN_SOURCE);
@@ -101,6 +117,8 @@
     }
     document.documentElement.dataset.theme = payload.theme || "system";
     document.documentElement.style.setProperty("--skimdown-font-size", String(payload.fontSize || 16) + "px");
+    applyReservedTrailingWidth(payload.reservedTrailingWidth);
+    closeActiveMermaidModal();
 
     const content = document.getElementById("content");
     const dirtyHtml = renderer().render(payload.markdown || "");
@@ -126,6 +144,42 @@
     notifyWhenRenderSettled(content, payload.renderID, mermaidTasks, restoreScrollY);
     installUserInteractionWatcher(payload.renderID);
     installScrollPositionListener(payload.renderID);
+    installActiveHeadingTracker(content, payload.renderID);
+  }
+
+  function setReservedTrailingWidth(value) {
+    applyReservedTrailingWidth(value);
+    updateAllTableScrollCues();
+    if (activeHeadingUpdateHandler) {
+      activeHeadingUpdateHandler();
+    }
+  }
+
+  function applyReservedTrailingWidth(value) {
+    const numericWidth = Number(value);
+    const width = Number.isFinite(numericWidth) ? Math.max(0, numericWidth) : 0;
+    document.documentElement.style.setProperty("--skimdown-reserved-trailing-width", width + "px");
+  }
+
+  function previewLayoutMetrics() {
+    const content = document.getElementById("content");
+    const viewportWidth = window.innerWidth || document.documentElement.clientWidth || 0;
+    if (!content) {
+      return {
+        contentLeft: 0,
+        contentRight: 0,
+        contentWidth: 0,
+        viewportWidth: viewportWidth
+      };
+    }
+
+    const rect = content.getBoundingClientRect();
+    return {
+      contentLeft: rect.left,
+      contentRight: rect.right,
+      contentWidth: rect.width,
+      viewportWidth: viewportWidth
+    };
   }
 
   function installScrollPositionListener(renderID) {
@@ -167,6 +221,228 @@
     window.addEventListener("touchstart", onInteract, { capture: true, once: true, passive: true });
     window.addEventListener("keydown", onInteract, { capture: true, once: true });
     window.addEventListener("mousedown", onInteract, { capture: true, once: true });
+  }
+
+  function tableOfContents() {
+    const content = document.getElementById("content");
+    if (!content) {
+      return [];
+    }
+
+    return headingElements(content).map(function (heading) {
+      return {
+        level: Number(heading.tagName.slice(1)),
+        title: (heading.textContent || "").trim(),
+        id: heading.id
+      };
+    }).filter(function (entry) {
+      return entry.title && entry.id;
+    });
+  }
+
+  function headingElements(content) {
+    return Array.from(content.querySelectorAll("h1, h2, h3, h4, h5, h6")).filter(function (heading) {
+      return Boolean(heading.id);
+    });
+  }
+
+  function installActiveHeadingTracker(content, renderID) {
+    teardownActiveHeadingTracker();
+    activeHeadingRenderID = renderID;
+    lastActiveHeadingID = null;
+
+    const headings = headingElements(content);
+    if (headings.length === 0) {
+      postActiveHeading(renderID, "");
+      return;
+    }
+
+    let positions = [];
+    let shouldRecalculate = false;
+
+    function recalculatePositions() {
+      positions = headings.map(function (heading) {
+        return {
+          id: heading.id,
+          top: heading.getBoundingClientRect().top + window.scrollY
+        };
+      });
+    }
+
+    function scheduleUpdate(recalculate) {
+      shouldRecalculate = shouldRecalculate || recalculate;
+      if (activeHeadingFrameRequest !== null) {
+        return;
+      }
+
+      activeHeadingFrameRequest = window.requestAnimationFrame(function () {
+        activeHeadingFrameRequest = null;
+        if (shouldRecalculate) {
+          recalculatePositions();
+          shouldRecalculate = false;
+        }
+        updateActiveHeading(renderID, positions);
+      });
+    }
+
+    activeHeadingScrollHandler = function () {
+      scheduleUpdate(false);
+    };
+    activeHeadingUpdateHandler = function () {
+      recalculatePositions();
+      updateActiveHeading(renderID, positions);
+    };
+    activeHeadingResizeHandler = function () {
+      scheduleUpdate(true);
+    };
+    activeHeadingUserInteractionHandler = function () {
+      clearProgrammaticActiveHeadingAndUpdate();
+    };
+
+    window.addEventListener("scroll", activeHeadingScrollHandler, { passive: true });
+    window.addEventListener("resize", activeHeadingResizeHandler);
+    window.addEventListener("wheel", activeHeadingUserInteractionHandler, { capture: true, passive: true });
+    window.addEventListener("touchstart", activeHeadingUserInteractionHandler, { capture: true, passive: true });
+    window.addEventListener("keydown", activeHeadingUserInteractionHandler, { capture: true });
+    window.addEventListener("mousedown", activeHeadingUserInteractionHandler, { capture: true });
+
+    if ("IntersectionObserver" in window) {
+      activeHeadingIntersectionObserver = new IntersectionObserver(function () {
+        scheduleUpdate(true);
+      }, {
+        root: null,
+        rootMargin: "-20% 0px -70% 0px",
+        threshold: [0, 1]
+      });
+      headings.forEach(function (heading) {
+        activeHeadingIntersectionObserver.observe(heading);
+      });
+    }
+
+    recalculatePositions();
+    updateActiveHeading(renderID, positions);
+  }
+
+  function teardownActiveHeadingTracker() {
+    if (activeHeadingIntersectionObserver) {
+      activeHeadingIntersectionObserver.disconnect();
+      activeHeadingIntersectionObserver = null;
+    }
+    if (activeHeadingScrollHandler) {
+      window.removeEventListener("scroll", activeHeadingScrollHandler);
+      activeHeadingScrollHandler = null;
+    }
+    activeHeadingUpdateHandler = null;
+    if (activeHeadingResizeHandler) {
+      window.removeEventListener("resize", activeHeadingResizeHandler);
+      activeHeadingResizeHandler = null;
+    }
+    if (activeHeadingUserInteractionHandler) {
+      window.removeEventListener("wheel", activeHeadingUserInteractionHandler, { capture: true });
+      window.removeEventListener("touchstart", activeHeadingUserInteractionHandler, { capture: true });
+      window.removeEventListener("keydown", activeHeadingUserInteractionHandler, { capture: true });
+      window.removeEventListener("mousedown", activeHeadingUserInteractionHandler, { capture: true });
+      activeHeadingUserInteractionHandler = null;
+    }
+    if (activeHeadingFrameRequest !== null) {
+      window.cancelAnimationFrame(activeHeadingFrameRequest);
+      activeHeadingFrameRequest = null;
+    }
+    clearProgrammaticActiveHeading();
+    activeHeadingRenderID = null;
+  }
+
+  function updateActiveHeading(renderID, positions) {
+    if (!positions || positions.length === 0) {
+      postActiveHeading(renderID, "");
+      return;
+    }
+
+    if (postProgrammaticActiveHeadingIfNeeded(renderID)) {
+      return;
+    }
+
+    const anchorY = window.scrollY + Math.min(window.innerHeight * 0.25, 160);
+    let low = 0;
+    let high = positions.length - 1;
+    let bestIndex = 0;
+    while (low <= high) {
+      const middle = Math.floor((low + high) / 2);
+      if (positions[middle].top <= anchorY) {
+        bestIndex = middle;
+        low = middle + 1;
+      } else {
+        high = middle - 1;
+      }
+    }
+    postActiveHeading(renderID, positions[bestIndex].id);
+  }
+
+  function setProgrammaticActiveHeading(renderID, headingID) {
+    if (renderID === null || renderID === undefined) {
+      clearProgrammaticActiveHeading();
+      return;
+    }
+    const target = document.getElementById(headingID || "");
+    if (!target) {
+      clearProgrammaticActiveHeading();
+      return;
+    }
+    programmaticActiveHeadingID = headingID;
+    programmaticActiveHeadingWasVisible = isElementInViewport(target);
+    postActiveHeading(renderID, headingID);
+  }
+
+  function clearProgrammaticActiveHeading() {
+    programmaticActiveHeadingID = null;
+    programmaticActiveHeadingWasVisible = false;
+  }
+
+  function clearProgrammaticActiveHeadingAndUpdate() {
+    const hadOverride = programmaticActiveHeadingID !== null;
+    clearProgrammaticActiveHeading();
+    if (hadOverride && activeHeadingUpdateHandler) {
+      activeHeadingUpdateHandler();
+    }
+  }
+
+  function postProgrammaticActiveHeadingIfNeeded(renderID) {
+    if (!programmaticActiveHeadingID) {
+      return false;
+    }
+
+    const target = document.getElementById(programmaticActiveHeadingID);
+    if (!target) {
+      clearProgrammaticActiveHeading();
+      return false;
+    }
+
+    const isVisible = isElementInViewport(target);
+    if (isVisible) {
+      programmaticActiveHeadingWasVisible = true;
+    } else if (programmaticActiveHeadingWasVisible) {
+      clearProgrammaticActiveHeading();
+      return false;
+    }
+
+    postActiveHeading(renderID, programmaticActiveHeadingID);
+    return true;
+  }
+
+  function isElementInViewport(element) {
+    const rect = element.getBoundingClientRect();
+    return rect.bottom > 0 && rect.top < window.innerHeight;
+  }
+
+  function postActiveHeading(renderID, headingID) {
+    const normalizedID = headingID || "";
+    if (normalizedID === lastActiveHeadingID) {
+      return;
+    }
+    lastActiveHeadingID = normalizedID;
+    if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.activeHeading) {
+      window.webkit.messageHandlers.activeHeading.postMessage({ renderID: renderID, headingID: normalizedID });
+    }
   }
 
   var ALERT_TYPES = {
@@ -356,12 +632,16 @@
       window.removeEventListener("resize", tableResizeHandler);
       tableResizeHandler = null;
     }
+    if (tableCueFrame !== null) {
+      window.cancelAnimationFrame(tableCueFrame);
+      tableCueFrame = null;
+    }
+    pendingTableCueWrappers.clear();
 
     const wrappers = Array.from(content.querySelectorAll(".table-scroll"));
     if (wrappers.length === 0) {
       return;
     }
-
     wrappers.forEach(function (wrapper) {
       const viewport = tableScrollViewport(wrapper);
       updateTableScrollCue(wrapper);
@@ -385,7 +665,7 @@
             }
           }
         });
-        wrappersToUpdate.forEach(updateTableScrollCue);
+        scheduleTableCueUpdates(wrappersToUpdate);
       });
 
       wrappers.forEach(function (wrapper) {
@@ -397,27 +677,49 @@
           tableResizeObserver.observe(table);
         }
       });
-    } else {
-      tableResizeHandler = function () {
-        wrappers.forEach(updateTableScrollCue);
-      };
-      window.addEventListener("resize", tableResizeHandler);
     }
 
-    window.requestAnimationFrame(function () {
-      wrappers.forEach(updateTableScrollCue);
+    tableResizeHandler = function () {
+      scheduleTableCueUpdates(wrappers);
+    };
+    window.addEventListener("resize", tableResizeHandler);
+
+    scheduleTableCueUpdates(wrappers);
+  }
+
+  function scheduleTableCueUpdates(wrappers) {
+    addPendingTableWrappers(pendingTableCueWrappers, wrappers);
+    if (pendingTableCueWrappers.size === 0 || tableCueFrame !== null) {
+      return;
+    }
+    tableCueFrame = window.requestAnimationFrame(function () {
+      tableCueFrame = null;
+      const wrappersToUpdate = Array.from(pendingTableCueWrappers);
+      pendingTableCueWrappers.clear();
+      wrappersToUpdate.forEach(updateTableScrollCue);
     });
+  }
+
+  function addPendingTableWrappers(target, wrappers) {
+    wrappers.forEach(function (wrapper) {
+      if (wrapper && wrapper.isConnected) {
+        target.add(wrapper);
+      }
+    });
+  }
+
+  function updateAllTableScrollCues() {
+    document.querySelectorAll(".table-scroll").forEach(updateTableScrollCue);
   }
 
   function updateTableScrollCue(wrapper) {
     const viewport = tableScrollViewport(wrapper);
-    const tolerance = 1;
     const maxScrollLeft = viewport.scrollWidth - viewport.clientWidth;
-    const isOverflowing = maxScrollLeft > tolerance;
+    const isOverflowing = maxScrollLeft > TABLE_SCROLL_TOLERANCE;
     const scrollLeft = Math.max(0, viewport.scrollLeft);
 
-    wrapper.classList.toggle("can-scroll-left", isOverflowing && scrollLeft > tolerance);
-    wrapper.classList.toggle("can-scroll-right", isOverflowing && scrollLeft < maxScrollLeft - tolerance);
+    wrapper.classList.toggle("can-scroll-left", isOverflowing && scrollLeft > TABLE_SCROLL_TOLERANCE);
+    wrapper.classList.toggle("can-scroll-right", isOverflowing && scrollLeft < maxScrollLeft - TABLE_SCROLL_TOLERANCE);
   }
 
   function tableScrollViewport(wrapper) {
@@ -448,19 +750,43 @@
       return [];
     }
 
-    const isDark = payload.theme === "dark" || (payload.theme === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches);
+    const isDark = typeof payload.themeIsDark === "boolean"
+      ? payload.themeIsDark
+      : (payload.theme === "dark" || (payload.theme === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches));
     // Match Mermaid's font-family and font-size to the body so diagram labels appear
     // the same size as the surrounding prose.
     const bodyStyle = window.getComputedStyle(document.body);
+    const rootStyle = window.getComputedStyle(document.documentElement);
+    const cssVar = function (name) {
+      const value = rootStyle.getPropertyValue(name);
+      return value ? value.trim() : "";
+    };
+    const mermaidVars = {
+      fontFamily: bodyStyle.fontFamily,
+      fontSize: bodyStyle.fontSize
+    };
+    // Feed the theme's CSS variables into Mermaid so its diagram colors match
+    // the surrounding page. Empty values fall back to Mermaid's built-in palette.
+    const bg = cssVar("--skimdown-bg");
+    const fg = cssVar("--skimdown-fg");
+    const subtle = cssVar("--skimdown-subtle");
+    const diagramLine = cssVar("--skimdown-diagram-line");
+    const border = cssVar("--skimdown-border");
+    if (bg) { mermaidVars.background = bg; }
+    if (subtle) { mermaidVars.primaryColor = subtle; }
+    if (fg) {
+      mermaidVars.primaryTextColor = fg;
+      mermaidVars.secondaryTextColor = fg;
+      mermaidVars.tertiaryTextColor = fg;
+    }
+    if (border) { mermaidVars.primaryBorderColor = border; }
+    if (diagramLine) { mermaidVars.lineColor = diagramLine; }
     window.mermaid.initialize({
       startOnLoad: false,
       theme: isDark ? "dark" : "default",
       securityLevel: "strict",
       fontFamily: bodyStyle.fontFamily,
-      themeVariables: {
-        fontFamily: bodyStyle.fontFamily,
-        fontSize: bodyStyle.fontSize
-      }
+      themeVariables: mermaidVars
     });
 
     const entries = [];
@@ -481,7 +807,7 @@
       diagram.textContent = source;
       viewport.appendChild(diagram);
       wrapper.appendChild(viewport);
-      wrapper.appendChild(buildMermaidToolbar(viewport));
+      wrapper.appendChild(buildMermaidToolbar(wrapper, viewport));
       code.parentElement.replaceWith(wrapper);
 
       initMermaidZoomPan(wrapper, viewport);
@@ -514,6 +840,7 @@
           // body font-size. The card uses overflow: hidden, and drag-to-pan handles
           // diagrams that overflow the card (see initMermaidOverflowWatcher).
           initMermaidOverflowWatcher(entry.wrapper, svg);
+          enableMermaidExpandButton(entry.wrapper);
         });
       });
     return [task];
@@ -582,7 +909,7 @@
     }
   }
 
-  function buildMermaidToolbar(viewport) {
+  function buildMermaidToolbar(container, viewport) {
     var toolbar = document.createElement("div");
     toolbar.className = "mermaid-toolbar";
 
@@ -604,48 +931,469 @@
     zoomReset.textContent = "Reset";
     zoomReset.setAttribute("aria-label", "Reset zoom");
 
+    var expand = document.createElement("button");
+    expand.type = "button";
+    expand.className = "mermaid-zoom-btn mermaid-expand";
+    expand.textContent = "Expand";
+    expand.setAttribute("aria-label", "Open Mermaid diagram in expanded pane");
+    expand.disabled = true;
+
     zoomIn.addEventListener("click", function () {
-      applyMermaidZoom(viewport, 0.25);
+      applyMermaidZoom(container, viewport, 0.25);
     });
     zoomOut.addEventListener("click", function () {
-      applyMermaidZoom(viewport, -0.25);
+      applyMermaidZoom(container, viewport, -0.25);
     });
     zoomReset.addEventListener("click", function () {
-      resetMermaidZoom(viewport);
+      resetMermaidZoom(container, viewport);
+    });
+    expand.addEventListener("click", function () {
+      openMermaidModal(container, expand);
     });
 
     toolbar.appendChild(zoomOut);
     toolbar.appendChild(zoomReset);
     toolbar.appendChild(zoomIn);
+    toolbar.appendChild(expand);
     return toolbar;
+  }
+
+  function enableMermaidExpandButton(container) {
+    var button = container.querySelector(".mermaid-expand");
+    if (button) {
+      button.disabled = false;
+    }
+  }
+
+  function openMermaidModal(container, openerElement) {
+    var sourceSVG = container.querySelector("svg");
+    if (!sourceSVG) {
+      return;
+    }
+
+    closeActiveMermaidModal();
+
+    var activeElement = document.activeElement;
+    var opener = openerElement && openerElement.focus
+      ? openerElement
+      : activeElement && activeElement !== document.body && activeElement.focus
+      ? activeElement
+      : container;
+    var modalID = "skimdown-mermaid-modal-" + (++mermaidModalSequence);
+    var modal = document.createElement("div");
+    modal.className = "mermaid-modal";
+    modal.tabIndex = -1;
+    modal.setAttribute("role", "dialog");
+    modal.setAttribute("aria-modal", "true");
+    modal.setAttribute("aria-labelledby", modalID + "-title");
+
+    var panel = document.createElement("div");
+    panel.className = "mermaid-modal-panel";
+
+    var header = document.createElement("div");
+    header.className = "mermaid-modal-header";
+
+    var title = document.createElement("div");
+    title.id = modalID + "-title";
+    title.className = "mermaid-modal-title";
+    title.textContent = "Mermaid diagram";
+
+    var controls = document.createElement("div");
+    controls.className = "mermaid-modal-controls";
+
+    var zoomOut = buildMermaidModalButton("\u2212", "Zoom out", "mermaid-modal-zoom-out");
+    var zoomReset = buildMermaidModalButton("Reset", "Reset zoom", "mermaid-modal-zoom-reset");
+    var zoomIn = buildMermaidModalButton("+", "Zoom in", "mermaid-modal-zoom-in");
+    var closeButton = buildMermaidModalButton("Close", "Close expanded Mermaid diagram", "mermaid-modal-close");
+
+    var frame = document.createElement("div");
+    frame.className = "mermaid-modal-frame";
+
+    var viewport = document.createElement("div");
+    viewport.className = "mermaid-modal-viewport";
+    var modalSVG = cloneMermaidSVGForModal(sourceSVG);
+    viewport.dataset.baseWidth = String(modalSVG.width);
+    viewport.dataset.baseHeight = String(modalSVG.height);
+    viewport.appendChild(modalSVG.svg);
+    frame.appendChild(viewport);
+
+    zoomOut.addEventListener("click", function () {
+      applyMermaidZoom(modal, viewport, -0.25);
+      resizeHandler();
+    });
+    zoomReset.addEventListener("click", function () {
+      refreshMermaidModalBaseline(frame, viewport);
+      resetMermaidZoom(modal, viewport);
+      resizeHandler();
+    });
+    zoomIn.addEventListener("click", function () {
+      applyMermaidZoom(modal, viewport, 0.25);
+      resizeHandler();
+    });
+    closeButton.addEventListener("click", closeModal);
+
+    controls.appendChild(zoomOut);
+    controls.appendChild(zoomReset);
+    controls.appendChild(zoomIn);
+    controls.appendChild(closeButton);
+    header.appendChild(title);
+    header.appendChild(controls);
+    panel.appendChild(header);
+    panel.appendChild(frame);
+    modal.appendChild(panel);
+
+    var resizeHandler = function () {
+      updateMermaidModalOverflow(modal, frame, viewport);
+    };
+    var backdropMouseDown = false;
+
+    function closeModal() {
+      if (!activeMermaidModal || activeMermaidModal.element !== modal) {
+        return;
+      }
+      endMermaidDrag();
+      window.removeEventListener("resize", resizeHandler);
+      modal.remove();
+      document.documentElement.classList.remove("skimdown-mermaid-modal-open");
+      document.body.classList.remove("skimdown-mermaid-modal-open");
+      activeMermaidModal = null;
+      restoreMermaidModalFocus(opener, container);
+    }
+
+    modal.addEventListener("mousedown", function (event) {
+      backdropMouseDown = event.target === modal;
+    });
+    modal.addEventListener("click", function (event) {
+      if (event.target === modal && backdropMouseDown) {
+        closeModal();
+      }
+      backdropMouseDown = false;
+    });
+    modal.addEventListener("keydown", function (event) {
+      handleMermaidModalKeydown(event, modal, closeModal);
+    });
+
+    activeMermaidModal = { element: modal, close: closeModal };
+    document.documentElement.classList.add("skimdown-mermaid-modal-open");
+    document.body.classList.add("skimdown-mermaid-modal-open");
+    document.body.appendChild(modal);
+
+    initMermaidZoomPan(modal, viewport, {
+      wheelTarget: frame,
+      preventPlainWheel: true,
+      alwaysAllowPan: true,
+      overflowClass: "mermaid-modal-overflowing"
+    });
+    window.addEventListener("resize", resizeHandler);
+    initializeMermaidModalZoom(modal, frame, viewport);
+    updateMermaidModalOverflow(modal, frame, viewport);
+    window.requestAnimationFrame(function () {
+      if (!activeMermaidModal || activeMermaidModal.element !== modal) {
+        return;
+      }
+      updateMermaidModalOverflow(modal, frame, viewport);
+      closeButton.focus();
+    });
+  }
+
+  function closeActiveMermaidModal() {
+    if (activeMermaidModal) {
+      activeMermaidModal.close();
+    }
+  }
+
+  function restoreMermaidModalFocus(opener, container) {
+    if (isRestorableMermaidFocusTarget(opener)) {
+      opener.focus();
+      if (document.activeElement === opener) {
+        return;
+      }
+    }
+    if (isRestorableMermaidFocusTarget(container)) {
+      container.focus();
+    }
+  }
+
+  function isRestorableMermaidFocusTarget(element) {
+    if (!element || typeof element.focus !== "function" || !document.contains(element)) {
+      return false;
+    }
+    if (element.disabled || element.getAttribute("aria-disabled") === "true") {
+      return false;
+    }
+    var style = window.getComputedStyle(element);
+    if (!style || style.display === "none" || style.visibility === "hidden") {
+      return false;
+    }
+    return element.getClientRects().length > 0;
+  }
+
+  function buildMermaidModalButton(text, ariaLabel, className) {
+    var button = document.createElement("button");
+    button.type = "button";
+    button.className = "mermaid-modal-button " + className;
+    button.textContent = text;
+    button.setAttribute("aria-label", ariaLabel);
+    return button;
+  }
+
+  function handleMermaidModalKeydown(event, modal, closeModal) {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      event.stopPropagation();
+      closeModal();
+      return;
+    }
+
+    if (event.key !== "Tab") {
+      return;
+    }
+
+    var focusable = mermaidModalFocusableElements(modal);
+    if (focusable.length === 0) {
+      event.preventDefault();
+      modal.focus();
+      return;
+    }
+
+    var first = focusable[0];
+    var last = focusable[focusable.length - 1];
+    if (document.activeElement === modal) {
+      event.preventDefault();
+      (event.shiftKey ? last : first).focus();
+    } else if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  }
+
+  function mermaidModalFocusableElements(modal) {
+    return Array.from(modal.querySelectorAll([
+      "button:not([disabled])",
+      "[href]",
+      "input:not([disabled])",
+      "select:not([disabled])",
+      "textarea:not([disabled])",
+      "[tabindex]:not([tabindex='-1'])"
+    ].join(","))).filter(function (element) {
+      return element.getAttribute("aria-hidden") !== "true";
+    });
+  }
+
+  function cloneMermaidSVGForModal(sourceSVG) {
+    var clone = sourceSVG.cloneNode(true);
+    var baseSize = mermaidSVGBaseSize(sourceSVG);
+    var suffix = "skimdown-modal-svg-" + (++mermaidModalSequence);
+    var elements = [clone].concat(Array.from(clone.querySelectorAll("*")));
+    var idMap = new Map();
+
+    elements.forEach(function (element) {
+      var id = element.getAttribute("id");
+      if (!id) {
+        return;
+      }
+      var newID = id + "-" + suffix;
+      idMap.set(id, newID);
+      element.setAttribute("id", newID);
+    });
+
+    if (idMap.size > 0) {
+      elements.forEach(function (element) {
+        Array.from(element.attributes || []).forEach(function (attribute) {
+          var remapped = remapMermaidSVGAttributeValue(attribute.name, attribute.value, idMap);
+          if (remapped !== attribute.value) {
+            element.setAttribute(attribute.name, remapped);
+          }
+        });
+        if (element.tagName && element.tagName.toLowerCase() === "style") {
+          element.textContent = remapMermaidSVGReferences(element.textContent || "", idMap);
+        }
+      });
+    }
+
+    clone.classList.add("mermaid-modal-svg");
+    normalizeMermaidModalSVG(clone, baseSize);
+    return { svg: clone, width: baseSize.width, height: baseSize.height };
+  }
+
+  function mermaidSVGBaseSize(svg) {
+    var viewBoxSize = mermaidSVGViewBoxSize(svg);
+    if (viewBoxSize) {
+      return viewBoxSize;
+    }
+
+    var attrWidth = parseSVGLength(svg.getAttribute("width"));
+    var attrHeight = parseSVGLength(svg.getAttribute("height"));
+    if (attrWidth && attrHeight) {
+      return { width: attrWidth, height: attrHeight };
+    }
+
+    try {
+      var bbox = svg.getBBox();
+      if (bbox && bbox.width > 0 && bbox.height > 0) {
+        return { width: bbox.width, height: bbox.height };
+      }
+    } catch (_) {}
+
+    var rect = svg.getBoundingClientRect();
+    if (rect.width > 0 && rect.height > 0) {
+      return { width: rect.width, height: rect.height };
+    }
+
+    return { width: 300, height: 150 };
+  }
+
+  function mermaidSVGViewBoxSize(svg) {
+    var viewBox = svg.getAttribute("viewBox");
+    if (!viewBox) {
+      return null;
+    }
+    var values = viewBox.trim().split(/[\s,]+/).map(Number);
+    if (values.length !== 4 || values.some(function (value) { return !Number.isFinite(value); })) {
+      return null;
+    }
+    var width = values[2];
+    var height = values[3];
+    if (width <= 0 || height <= 0) {
+      return null;
+    }
+    return { width: width, height: height };
+  }
+
+  function parseSVGLength(value) {
+    if (!value) {
+      return null;
+    }
+    var trimmed = String(value).trim();
+    if (trimmed.endsWith("%")) {
+      return null;
+    }
+    var number = parseFloat(trimmed);
+    return Number.isFinite(number) && number > 0 ? number : null;
+  }
+
+  function normalizeMermaidModalSVG(svg, baseSize) {
+    var width = Math.max(1, Math.round(baseSize.width * 100) / 100);
+    var height = Math.max(1, Math.round(baseSize.height * 100) / 100);
+
+    svg.setAttribute("width", String(width));
+    svg.setAttribute("height", String(height));
+    svg.style.width = width + "px";
+    svg.style.height = height + "px";
+    svg.style.maxWidth = "none";
+    svg.style.maxHeight = "none";
+  }
+
+  function remapMermaidSVGAttributeValue(name, value, idMap) {
+    if (name === "aria-labelledby" || name === "aria-describedby") {
+      return String(value).split(/\s+/).map(function (id) {
+        return idMap.get(id) || id;
+      }).join(" ");
+    }
+    return remapMermaidSVGReferences(value, idMap);
+  }
+
+  function remapMermaidSVGReferences(value, idMap) {
+    var next = value;
+    idMap.forEach(function (newID, oldID) {
+      var escapedID = escapeRegExp(oldID);
+      next = next.replace(new RegExp("url\\(\\s*#" + escapedID + "\\s*\\)", "g"), "url(#" + newID + ")");
+      next = next.replace(new RegExp("#" + escapedID + "(?![A-Za-z0-9_-])", "g"), "#" + newID);
+    });
+    return next;
+  }
+
+  function updateMermaidModalOverflow(modal, frame, viewport) {
+    var svg = viewport.querySelector("svg");
+    if (!svg) {
+      modal.classList.remove("mermaid-modal-overflowing");
+      return;
+    }
+    var svgRect = svg.getBoundingClientRect();
+    var frameRect = frame.getBoundingClientRect();
+    modal.classList.toggle(
+      "mermaid-modal-overflowing",
+      svgRect.width > frameRect.width + 1 || svgRect.height > frameRect.height + 1
+    );
+  }
+
+  function initializeMermaidModalZoom(modal, frame, viewport) {
+    refreshMermaidModalBaseline(frame, viewport);
+    resetMermaidZoom(modal, viewport);
+  }
+
+  function refreshMermaidModalBaseline(frame, viewport) {
+    var baseline = mermaidModalInitialZoom(frame, viewport);
+    viewport.dataset.zoomBaseline = String(baseline);
+    return baseline;
+  }
+
+  function mermaidModalInitialZoom(frame, viewport) {
+    var baseWidth = parseFloat(viewport.dataset.baseWidth) || 0;
+    var baseHeight = parseFloat(viewport.dataset.baseHeight) || 0;
+    if (baseWidth <= 0 || baseHeight <= 0) {
+      return 1;
+    }
+
+    var available = mermaidModalAvailableSize(frame);
+    if (available.width <= 0 || available.height <= 0) {
+      return 1;
+    }
+
+    var contain = Math.min(available.width / baseWidth, available.height / baseHeight);
+    if (!Number.isFinite(contain) || contain <= 0) {
+      return 1;
+    }
+    return Math.max(0.01, Math.floor(Math.min(contain, 3) * 100) / 100);
+  }
+
+  function mermaidModalAvailableSize(frame) {
+    var style = window.getComputedStyle(frame);
+    var horizontalPadding = parseFloat(style.paddingLeft) + parseFloat(style.paddingRight);
+    var verticalPadding = parseFloat(style.paddingTop) + parseFloat(style.paddingBottom);
+    return {
+      width: Math.max(0, frame.clientWidth - (Number.isFinite(horizontalPadding) ? horizontalPadding : 0)),
+      height: Math.max(0, frame.clientHeight - (Number.isFinite(verticalPadding) ? verticalPadding : 0))
+    };
   }
 
   function updateViewportTransform(viewport, zoom, px, py) {
     viewport.style.transform = "translate(" + px + "px, " + py + "px) scale(" + zoom + ")";
   }
 
-  function applyMermaidZoom(viewport, delta) {
+  function applyMermaidZoom(container, viewport, delta) {
     var current = parseFloat(viewport.dataset.zoom) || 1;
-    var next = Math.round(Math.min(Math.max(current + delta, 0.25), 4) * 100) / 100;
-    if (Math.abs(next - 1) < 0.05) { next = 1; }
-    if (next === 1) {
-      resetMermaidZoom(viewport);
+    var baseline = parseFloat(viewport.dataset.zoomBaseline) || 1;
+    var minZoom = Math.min(0.25, baseline);
+    var next = Math.round(Math.min(Math.max(current + delta, minZoom), 4) * 100) / 100;
+    if (Math.abs(next - baseline) < 0.05) { next = baseline; }
+    if (next === baseline) {
+      resetMermaidZoom(container, viewport);
       return;
     }
     viewport.dataset.zoom = String(next);
     updateViewportTransform(viewport, next, parseFloat(viewport.dataset.panX) || 0, parseFloat(viewport.dataset.panY) || 0);
-    // Only flag as "zoomed" when above 1x — drag-to-pan is gated on zoom > 1, so the
-    // grab cursor should not appear for zoom-out states (0.25x–0.95x) where panning
-    // is intentionally disabled.
-    viewport.closest(".mermaid-container").classList.toggle("mermaid-zoomed", next > 1);
+    if (container) {
+      container.classList.toggle("mermaid-zoomed", next > baseline);
+    }
   }
 
-  function resetMermaidZoom(viewport) {
-    viewport.dataset.zoom = "1";
+  function resetMermaidZoom(container, viewport) {
+    var baseline = parseFloat(viewport.dataset.zoomBaseline) || 1;
+    viewport.dataset.zoom = String(baseline);
     viewport.dataset.panX = "0";
     viewport.dataset.panY = "0";
-    viewport.style.transform = "";
-    viewport.closest(".mermaid-container").classList.remove("mermaid-zoomed");
+    if (baseline === 1) {
+      viewport.style.transform = "";
+    } else {
+      updateViewportTransform(viewport, baseline, 0, 0);
+    }
+    if (container) {
+      container.classList.remove("mermaid-zoomed");
+    }
   }
 
   var activeDragViewport = null;
@@ -677,19 +1425,34 @@
   document.addEventListener("mouseleave", endMermaidDrag);
   window.addEventListener("blur", endMermaidDrag);
 
-  function initMermaidZoomPan(container, viewport) {
-    container.addEventListener("wheel", function (e) {
-      if (!e.ctrlKey && !e.metaKey) { return; }
+  function initMermaidZoomPan(container, viewport, options) {
+    options = options || {};
+    var wheelTarget = options.wheelTarget || container;
+    var overflowClass = options.overflowClass || "mermaid-overflowing";
+    var preventPlainWheel = options.preventPlainWheel === true;
+    var alwaysAllowPan = options.alwaysAllowPan === true;
+
+    wheelTarget.addEventListener("wheel", function (e) {
+      if (!e.ctrlKey && !e.metaKey) {
+        if (preventPlainWheel) {
+          e.preventDefault();
+          e.stopPropagation();
+        }
+        return;
+      }
       e.preventDefault();
+      if (preventPlainWheel) {
+        e.stopPropagation();
+      }
       var delta = e.deltaY > 0 ? -0.1 : 0.1;
-      applyMermaidZoom(viewport, delta);
+      applyMermaidZoom(container, viewport, delta);
     }, { passive: false });
 
     viewport.addEventListener("mousedown", function (e) {
       if (e.button !== 0) { return; }
       var zoom = parseFloat(viewport.dataset.zoom) || 1;
       // Allow drag-to-pan when zoomed in OR when the diagram overflows the card.
-      if (zoom <= 1 && !container.classList.contains("mermaid-overflowing")) { return; }
+      if (!alwaysAllowPan && zoom <= 1 && !container.classList.contains(overflowClass)) { return; }
       e.preventDefault();
       activeDragViewport = viewport;
       viewport.classList.add("mermaid-dragging");
@@ -703,6 +1466,12 @@
 
   function decorateCodeBlocks(content) {
     content.querySelectorAll("pre > code").forEach(decorateCodeBlock);
+  }
+
+  function resetCodeCopyButton(button) {
+    button.textContent = "Copy";
+    button.setAttribute("aria-label", "Copy code");
+    button.classList.remove("code-copy-copied");
   }
 
   function decorateCodeBlock(code) {
@@ -725,9 +1494,24 @@
     const button = document.createElement("button");
     button.className = "code-copy";
     button.type = "button";
-    button.textContent = "Copy";
+    resetCodeCopyButton(button);
+    let feedbackResetTimer = null;
     button.addEventListener("click", function () {
       window.webkit.messageHandlers.copyCode.postMessage(code.textContent || "");
+      button.textContent = "Copied";
+      button.setAttribute("aria-label", "Copied code");
+      button.classList.add("code-copy-copied");
+      if (feedbackResetTimer !== null) {
+        window.clearTimeout(feedbackResetTimer);
+      }
+      const resetTimer = window.setTimeout(function () {
+        if (feedbackResetTimer !== resetTimer) {
+          return;
+        }
+        feedbackResetTimer = null;
+        resetCodeCopyButton(button);
+      }, CODE_COPY_FEEDBACK_RESET_MS);
+      feedbackResetTimer = resetTimer;
     });
     toolbar.appendChild(button);
     pre.appendChild(toolbar);
@@ -1049,6 +1833,7 @@
         match.classList.add("skimdown-search-current");
       });
       if (scrollToMatch) {
+        clearProgrammaticActiveHeadingAndUpdate();
         current[0].scrollIntoView({ block: "center" });
       }
     }
@@ -1063,6 +1848,7 @@
   }
 
   function scrollToAnchor(anchor) {
+    clearProgrammaticActiveHeadingAndUpdate();
     if (!anchor) {
       window.scrollTo({ top: 0, behavior: "smooth" });
       return;
@@ -1075,6 +1861,16 @@
       namedAnchorTarget(decoded);
     if (target) {
       target.scrollIntoView({ block: "start", behavior: "smooth" });
+    }
+  }
+
+  function scrollToElementID(elementID) {
+    const target = document.getElementById(elementID || "");
+    if (target) {
+      setProgrammaticActiveHeading(activeHeadingRenderID, target.id);
+      target.scrollIntoView({ block: "start", behavior: "smooth" });
+    } else {
+      clearProgrammaticActiveHeadingAndUpdate();
     }
   }
 
@@ -1193,9 +1989,13 @@
 
   window.skimdown = {
     render: render,
+    setReservedTrailingWidth: setReservedTrailingWidth,
+    previewLayoutMetrics: previewLayoutMetrics,
     performSearch: performSearch,
     nextSearch: nextSearch,
     previousSearch: previousSearch,
-    scrollToAnchor: scrollToAnchor
+    scrollToAnchor: scrollToAnchor,
+    scrollToElementID: scrollToElementID,
+    tableOfContents: tableOfContents
   };
 })();

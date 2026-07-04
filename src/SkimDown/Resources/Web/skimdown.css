@@ -1,6 +1,9 @@
 :root {
   color-scheme: light dark;
   --skimdown-font-size: 16px;
+  --skimdown-page-inline-padding: clamp(40px, 8vw, 120px);
+  --skimdown-reserved-trailing-width: 0px;
+  --skimdown-content-max-width: 92rem;
   --skimdown-bg: #fbfbfd;
   --skimdown-fg: #20242c;
   --skimdown-muted: #69707d;
@@ -8,11 +11,14 @@
   --skimdown-subtle: #f4f6f8;
   --skimdown-surface: rgba(255, 255, 255, 0.72);
   --skimdown-accent: #0a66d6;
+  --skimdown-diagram-line: #69707d;
   --skimdown-mark: #fff8c5;
   --skimdown-current-mark: #ffd33d;
+  --skimdown-z-modal: 1000;
 }
 
-:root[data-theme="dark"] {
+:root[data-theme="dark"],
+:root[data-theme="custom"][data-theme-type="dark"] {
   color-scheme: dark;
   --skimdown-bg: #0f1116;
   --skimdown-fg: #e8ebf1;
@@ -21,6 +27,7 @@
   --skimdown-subtle: #171b22;
   --skimdown-surface: rgba(255, 255, 255, 0.04);
   --skimdown-accent: #69a7ff;
+  --skimdown-diagram-line: #8b94a3;
   --skimdown-mark: #6e4f00;
   --skimdown-current-mark: #9e6a03;
 }
@@ -35,6 +42,7 @@
     --skimdown-subtle: #171b22;
     --skimdown-surface: rgba(255, 255, 255, 0.04);
     --skimdown-accent: #69a7ff;
+    --skimdown-diagram-line: #8b94a3;
     --skimdown-mark: #6e4f00;
     --skimdown-current-mark: #9e6a03;
   }
@@ -57,16 +65,25 @@ body {
 }
 
 body {
-  padding: 56px clamp(40px, 8vw, 120px) 96px;
+  padding:
+    56px
+    max(var(--skimdown-page-inline-padding), var(--skimdown-reserved-trailing-width))
+    96px
+    var(--skimdown-page-inline-padding);
 }
 
 #content {
-  max-width: 980px;
+  max-width: var(--skimdown-content-max-width);
   margin: 0 auto;
 }
 
 body.skimdown-restoring #content {
   visibility: hidden;
+}
+
+html.skimdown-mermaid-modal-open,
+body.skimdown-mermaid-modal-open {
+  overflow: hidden;
 }
 
 #content > :first-child {
@@ -89,6 +106,7 @@ h6 {
   line-height: 1.25;
   margin: 1.9em 0 0.72em;
   letter-spacing: -0.035em;
+  scroll-margin-top: min(25vh, 160px);
 }
 
 h1 {
@@ -199,6 +217,16 @@ pre code {
   color: var(--skimdown-fg);
   font: inherit;
   cursor: default;
+  transition:
+    background-color 120ms ease,
+    border-color 120ms ease,
+    color 120ms ease;
+}
+
+.code-copy-copied {
+  border-color: color-mix(in srgb, var(--skimdown-accent) 55%, var(--skimdown-border));
+  background: color-mix(in srgb, var(--skimdown-accent) 14%, var(--skimdown-bg));
+  color: var(--skimdown-accent);
 }
 
 .table-scroll {
@@ -410,10 +438,146 @@ tr:nth-child(even) td {
   background: var(--skimdown-border);
 }
 
+.mermaid-zoom-btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.mermaid-zoom-btn:disabled:hover {
+  background: var(--skimdown-surface);
+}
+
 .mermaid-zoom-btn.mermaid-zoom-reset {
   width: auto;
   padding: 0 8px;
   font-size: 11px;
+}
+
+.mermaid-zoom-btn.mermaid-expand {
+  width: auto;
+  padding: 0 8px;
+  font-size: 11px;
+}
+
+.mermaid-modal {
+  position: fixed;
+  inset: 0;
+  z-index: var(--skimdown-z-modal);
+  display: flex;
+  padding: clamp(14px, 3vw, 32px);
+  background: color-mix(in srgb, var(--skimdown-bg) 62%, transparent);
+  backdrop-filter: blur(10px);
+}
+
+.mermaid-modal:focus-visible {
+  outline: 2px solid var(--skimdown-accent);
+  outline-offset: -4px;
+}
+
+.mermaid-modal:focus:not(:focus-visible) {
+  outline: none;
+}
+
+.mermaid-modal-panel {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  border: 1px solid var(--skimdown-border);
+  border-radius: 16px;
+  background: var(--skimdown-bg);
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.28);
+}
+
+.mermaid-modal-header {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--skimdown-border);
+  background: color-mix(in srgb, var(--skimdown-surface) 82%, var(--skimdown-bg));
+}
+
+.mermaid-modal-title {
+  overflow: hidden;
+  color: var(--skimdown-fg);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mermaid-modal-controls {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 6px;
+  align-items: center;
+}
+
+.mermaid-modal-button {
+  min-width: 32px;
+  height: 30px;
+  border: 1px solid var(--skimdown-border);
+  border-radius: 7px;
+  padding: 0 9px;
+  background: var(--skimdown-surface);
+  color: var(--skimdown-fg);
+  font: inherit;
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.mermaid-modal-button:hover {
+  background: var(--skimdown-border);
+}
+
+.mermaid-modal-button:focus-visible {
+  outline: 2px solid var(--skimdown-accent);
+  outline-offset: 2px;
+}
+
+.mermaid-modal-frame {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  justify-content: center;
+  min-height: 0;
+  overflow: hidden;
+  padding: clamp(16px, 3vw, 32px);
+  background: var(--skimdown-surface);
+}
+
+.mermaid-modal-viewport {
+  flex: 0 0 auto;
+  transform-origin: center center;
+  transition: transform 0.1s ease;
+  will-change: transform;
+  cursor: grab;
+}
+
+.mermaid-modal-viewport.mermaid-dragging {
+  transition: none;
+}
+
+.mermaid-modal-overflowing .mermaid-modal-viewport,
+.mermaid-zoomed .mermaid-modal-viewport {
+  cursor: grab;
+}
+
+.mermaid-modal svg {
+  display: block;
+  max-width: none;
+  margin: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mermaid-modal-viewport {
+    transition: none;
+  }
 }
 
 .skimdown-search-match {
@@ -478,17 +642,27 @@ mark {
 .skimdown-alert-warning   .skimdown-alert-title { color: #9a6700; }
 .skimdown-alert-caution   .skimdown-alert-title { color: #cf222e; }
 
-:root[data-theme="dark"] .skimdown-alert-note  { border-left-color: #69a7ff; }
-:root[data-theme="dark"] .skimdown-alert-tip   { border-left-color: #3fb950; }
-:root[data-theme="dark"] .skimdown-alert-important { border-left-color: #a371f7; }
-:root[data-theme="dark"] .skimdown-alert-warning   { border-left-color: #d29922; }
-:root[data-theme="dark"] .skimdown-alert-caution   { border-left-color: #f85149; }
+:root[data-theme="dark"] .skimdown-alert-note,
+:root[data-theme="custom"][data-theme-type="dark"] .skimdown-alert-note  { border-left-color: #69a7ff; }
+:root[data-theme="dark"] .skimdown-alert-tip,
+:root[data-theme="custom"][data-theme-type="dark"] .skimdown-alert-tip   { border-left-color: #3fb950; }
+:root[data-theme="dark"] .skimdown-alert-important,
+:root[data-theme="custom"][data-theme-type="dark"] .skimdown-alert-important { border-left-color: #a371f7; }
+:root[data-theme="dark"] .skimdown-alert-warning,
+:root[data-theme="custom"][data-theme-type="dark"] .skimdown-alert-warning   { border-left-color: #d29922; }
+:root[data-theme="dark"] .skimdown-alert-caution,
+:root[data-theme="custom"][data-theme-type="dark"] .skimdown-alert-caution   { border-left-color: #f85149; }
 
-:root[data-theme="dark"] .skimdown-alert-note  .skimdown-alert-title { color: #69a7ff; }
-:root[data-theme="dark"] .skimdown-alert-tip   .skimdown-alert-title { color: #3fb950; }
-:root[data-theme="dark"] .skimdown-alert-important .skimdown-alert-title { color: #a371f7; }
-:root[data-theme="dark"] .skimdown-alert-warning   .skimdown-alert-title { color: #d29922; }
-:root[data-theme="dark"] .skimdown-alert-caution   .skimdown-alert-title { color: #f85149; }
+:root[data-theme="dark"] .skimdown-alert-note  .skimdown-alert-title,
+:root[data-theme="custom"][data-theme-type="dark"] .skimdown-alert-note  .skimdown-alert-title { color: #69a7ff; }
+:root[data-theme="dark"] .skimdown-alert-tip   .skimdown-alert-title,
+:root[data-theme="custom"][data-theme-type="dark"] .skimdown-alert-tip   .skimdown-alert-title { color: #3fb950; }
+:root[data-theme="dark"] .skimdown-alert-important .skimdown-alert-title,
+:root[data-theme="custom"][data-theme-type="dark"] .skimdown-alert-important .skimdown-alert-title { color: #a371f7; }
+:root[data-theme="dark"] .skimdown-alert-warning   .skimdown-alert-title,
+:root[data-theme="custom"][data-theme-type="dark"] .skimdown-alert-warning   .skimdown-alert-title { color: #d29922; }
+:root[data-theme="dark"] .skimdown-alert-caution   .skimdown-alert-title,
+:root[data-theme="custom"][data-theme-type="dark"] .skimdown-alert-caution   .skimdown-alert-title { color: #f85149; }
 
 @media (prefers-color-scheme: dark) {
   :root[data-theme="system"] .skimdown-alert-note  { border-left-color: #69a7ff; }

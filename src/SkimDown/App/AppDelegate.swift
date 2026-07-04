@@ -5,11 +5,16 @@ import UniformTypeIdentifiers
 final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenuItemValidation {
     let settingsStore = SettingsStore()
     let bookmarkStore = FolderBookmarkStore()
-    lazy var windowManager = WindowManager(settingsStore: settingsStore, bookmarkStore: bookmarkStore)
+    let colorSchemeStore = ColorSchemeStore()
+    lazy var windowManager = WindowManager(settingsStore: settingsStore, bookmarkStore: bookmarkStore, colorSchemeStore: colorSchemeStore)
     weak var recentMenu: NSMenu?
+    weak var themeMenu: NSMenu?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.regular)
+        // Load themes before restoring windows because a custom theme may be selected at launch.
+        colorSchemeStore.reload()
+        settingsStore.theme = colorSchemeStore.normalizedTheme(settingsStore.theme)
         NSApp.mainMenu = MainMenuBuilder.build(target: self)
 
         if let fileURL = Self.fileURLFromArguments() {
@@ -102,6 +107,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
     }
 
     func menuNeedsUpdate(_ menu: NSMenu) {
+        if menu === themeMenu {
+            MainMenuBuilder.populateThemeMenu(
+                menu,
+                target: self,
+                customThemes: colorSchemeStore.schemes,
+                currentTheme: settingsStore.theme
+            )
+            return
+        }
+
         guard menu === recentMenu else {
             return
         }
@@ -133,11 +148,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
             return controller?.selectedFileURL != nil
         case #selector(toggleSidebar(_:)):
             return controller != nil && !controller!.isSingleFile
+        case #selector(toggleTableOfContents(_:)):
+            menuItem.state = controller?.isTableOfContentsVisible == true ? .on : .off
+            return controller?.selectedFileURL != nil
         case #selector(swapSidebarPosition(_:)):
             menuItem.title = controller?.sidebarPosition == .right ? "Move Sidebar to Left" : "Move Sidebar to Right"
             return controller != nil && !controller!.isSingleFile
-        case #selector(zoomIn(_:)), #selector(zoomOut(_:)), #selector(actualSize(_:)), #selector(themeSystem(_:)), #selector(themeLight(_:)), #selector(themeDark(_:)):
+        case #selector(zoomIn(_:)), #selector(zoomOut(_:)), #selector(actualSize(_:)):
             return controller != nil
+        case #selector(themeSystem(_:)), #selector(themeLight(_:)), #selector(themeDark(_:)), #selector(themeCustom(_:)):
+            return true
+        case #selector(openThemesFolder(_:)), #selector(reloadThemes(_:)):
+            return true
         default:
             return true
         }
@@ -226,6 +248,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         windowManager.activeController?.toggleSidebar()
     }
 
+    @objc func toggleTableOfContents(_ sender: Any?) {
+        windowManager.activeController?.toggleTableOfContents()
+    }
+
     @objc func swapSidebarPosition(_ sender: Any?) {
         windowManager.activeController?.swapSidebarPosition()
     }
@@ -243,14 +269,43 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
     }
 
     @objc func themeSystem(_ sender: Any?) {
-        windowManager.activeController?.setTheme(.system)
+        windowManager.applyThemeToAllWindows(.system)
     }
 
     @objc func themeLight(_ sender: Any?) {
-        windowManager.activeController?.setTheme(.light)
+        windowManager.applyThemeToAllWindows(.light)
     }
 
     @objc func themeDark(_ sender: Any?) {
-        windowManager.activeController?.setTheme(.dark)
+        windowManager.applyThemeToAllWindows(.dark)
+    }
+
+    @objc func themeCustom(_ sender: Any?) {
+        guard let menuItem = sender as? NSMenuItem,
+              let id = menuItem.representedObject as? String else {
+            return
+        }
+                // Prevent selecting a theme that has disappeared from the store.
+        guard colorSchemeStore.scheme(id: id) != nil else {
+            NSSound.beep()
+            return
+        }
+        windowManager.applyThemeToAllWindows(.custom(id: id))
+    }
+
+    @objc func openThemesFolder(_ sender: Any?) {
+        colorSchemeStore.ensureDirectoryExists()
+        NSWorkspace.shared.open(colorSchemeStore.directoryURL)
+    }
+
+    @objc func reloadThemes(_ sender: Any?) {
+        colorSchemeStore.reload()
+        // Fall back to System across all windows if the selected theme was removed.
+        let normalizedTheme = colorSchemeStore.normalizedTheme(settingsStore.theme)
+        if normalizedTheme != settingsStore.theme {
+            windowManager.applyThemeToAllWindows(normalizedTheme)
+        } else {
+            windowManager.reapplyCurrentThemeToAllWindows()
+        }
     }
 }

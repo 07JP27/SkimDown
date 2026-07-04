@@ -4,16 +4,24 @@ import AppKit
 final class WindowManager {
     private let settingsStore: SettingsStore
     private let bookmarkStore: FolderBookmarkStore
+    private let colorSchemeStore: ColorSchemeStore
     private var controllers: [DocumentWindowController] = []
     private var isTerminating = false
 
-    init(settingsStore: SettingsStore, bookmarkStore: FolderBookmarkStore) {
+    init(settingsStore: SettingsStore, bookmarkStore: FolderBookmarkStore, colorSchemeStore: ColorSchemeStore) {
         self.settingsStore = settingsStore
         self.bookmarkStore = bookmarkStore
+        self.colorSchemeStore = colorSchemeStore
     }
 
     var activeController: DocumentWindowController? {
-        NSApp.keyWindow?.windowController as? DocumentWindowController
+        if let controller = NSApp.keyWindow?.windowController as? DocumentWindowController {
+            return controller
+        }
+        if let controller = NSApp.mainWindow?.windowController as? DocumentWindowController {
+            return controller
+        }
+        return controllers.last { $0.window?.isVisible == true }
     }
 
     func restoreOrCreateInitialWindow() {
@@ -58,7 +66,12 @@ final class WindowManager {
 
     @discardableResult
     func createWindow(initialFrame: CGRect? = nil) -> DocumentWindowController {
-        let controller = DocumentWindowController(settingsStore: settingsStore, bookmarkStore: bookmarkStore, windowManager: self)
+        let controller = DocumentWindowController(
+            settingsStore: settingsStore,
+            bookmarkStore: bookmarkStore,
+            colorSchemeStore: colorSchemeStore,
+            windowManager: self
+        )
         controllers.append(controller)
         if let initialFrame, let window = controller.window {
             // Apply the persisted frame before the window is shown so that
@@ -148,6 +161,25 @@ final class WindowManager {
         alert.informativeText = message
         alert.alertStyle = .warning
         alert.runModal()
+    }
+
+    /// Applies the same theme to all existing windows and redraws them.
+    /// Used when the selected custom theme disappears and must fall back.
+    func applyThemeToAllWindows(_ theme: AppTheme) {
+        let effectiveTheme = colorSchemeStore.normalizedTheme(theme)
+        settingsStore.theme = effectiveTheme
+        for controller in controllers {
+            controller.setTheme(effectiveTheme)
+        }
+    }
+
+    /// Reapplies the current `SettingsStore.theme` to all windows.
+    /// Used after Reload Themes when a custom theme's color definition changed.
+    func reapplyCurrentThemeToAllWindows() {
+        let theme = settingsStore.theme
+        for controller in controllers {
+            controller.setTheme(theme)
+        }
     }
 
     private func present(_ controller: DocumentWindowController, preserveOnScreenFrame: Bool = false) {
