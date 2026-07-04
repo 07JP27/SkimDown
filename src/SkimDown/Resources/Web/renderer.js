@@ -19,6 +19,7 @@
   let activeHeadingRenderID = null;
   let lastActiveHeadingID = null;
   let activeMermaidModal = null;
+  let currentRenderID = null;
   let mermaidModalSequence = 0;
   const IMAGE_READY_TIMEOUT_MS = 3000;
   const CODE_COPY_FEEDBACK_RESET_MS = 1500;
@@ -111,6 +112,8 @@
   }
 
   function render(payload) {
+    const renderID = Number(payload.renderID);
+    currentRenderID = Number.isFinite(renderID) ? renderID : null;
     const restoreScrollY = Number(payload.restoreScrollY) || 0;
     if (restoreScrollY > 0) {
       document.body.classList.add("skimdown-restoring");
@@ -980,6 +983,7 @@
       ? activeElement
       : container;
     var modalID = "skimdown-mermaid-modal-" + (++mermaidModalSequence);
+    var modalRenderID = currentRenderID;
     var modal = document.createElement("div");
     modal.className = "mermaid-modal";
     modal.tabIndex = -1;
@@ -1057,6 +1061,7 @@
       document.documentElement.classList.remove("skimdown-mermaid-modal-open");
       document.body.classList.remove("skimdown-mermaid-modal-open");
       activeMermaidModal = null;
+      postMermaidModalState(false, modalRenderID);
       restoreMermaidModalFocus(opener, container);
     }
 
@@ -1073,10 +1078,11 @@
       handleMermaidModalKeydown(event, modal, closeModal);
     });
 
-    activeMermaidModal = { element: modal, close: closeModal };
+    activeMermaidModal = { element: modal, close: closeModal, renderID: modalRenderID };
     document.documentElement.classList.add("skimdown-mermaid-modal-open");
     document.body.classList.add("skimdown-mermaid-modal-open");
     document.body.appendChild(modal);
+    postMermaidModalState(true, modalRenderID);
 
     initMermaidZoomPan(modal, viewport, {
       wheelTarget: frame,
@@ -1984,6 +1990,15 @@
   function postRenderReady(renderID) {
     if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.renderReady) {
       window.webkit.messageHandlers.renderReady.postMessage({ renderID: renderID });
+    }
+  }
+
+  function postMermaidModalState(isPresented, renderID) {
+    if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.mermaidModalState) {
+      window.webkit.messageHandlers.mermaidModalState.postMessage({
+        renderID: renderID,
+        isPresented: Boolean(isPresented)
+      });
     }
   }
 

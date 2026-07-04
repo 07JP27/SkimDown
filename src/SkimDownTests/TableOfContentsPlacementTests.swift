@@ -51,6 +51,78 @@ final class TableOfContentsPlacementTests: XCTestCase {
         XCTAssertEqual(leading, 0)
     }
 
+    func testTableOfContentsVisibilityShowsLoadedPaneWhenEnabled() {
+        let isVisible = TableOfContentsVisibility.shouldShowPane(
+            isSettingEnabled: true,
+            isWebViewVisible: true,
+            hasSelectedFile: true,
+            hasLoadedTableOfContents: true,
+            isMermaidModalPresented: false
+        )
+
+        XCTAssertTrue(isVisible)
+    }
+
+    func testTableOfContentsVisibilityHidesPaneWhileMermaidModalIsPresented() {
+        let isVisible = TableOfContentsVisibility.shouldShowPane(
+            isSettingEnabled: true,
+            isWebViewVisible: true,
+            hasSelectedFile: true,
+            hasLoadedTableOfContents: true,
+            isMermaidModalPresented: true
+        )
+
+        XCTAssertFalse(isVisible)
+    }
+
+    func testTableOfContentsVisibilityRequiresLoadedItems() {
+        let isVisible = TableOfContentsVisibility.shouldShowPane(
+            isSettingEnabled: true,
+            isWebViewVisible: true,
+            hasSelectedFile: true,
+            hasLoadedTableOfContents: false,
+            isMermaidModalPresented: false
+        )
+
+        XCTAssertFalse(isVisible)
+    }
+
+    func testTableOfContentsReserveWidthKeepsLoadedContentReserved() {
+        let shouldReserveWidth = TableOfContentsVisibility.shouldReserveTrailingWidth(
+            isSettingEnabled: true,
+            isWebViewVisible: true,
+            hasSelectedFile: true,
+            hasLoadedTableOfContents: true,
+            reserveWidthWhileLoading: false
+        )
+
+        XCTAssertTrue(shouldReserveWidth)
+    }
+
+    func testTableOfContentsReserveWidthCanReserveBeforeItemsLoad() {
+        let shouldReserveWidth = TableOfContentsVisibility.shouldReserveTrailingWidth(
+            isSettingEnabled: true,
+            isWebViewVisible: true,
+            hasSelectedFile: true,
+            hasLoadedTableOfContents: false,
+            reserveWidthWhileLoading: true
+        )
+
+        XCTAssertTrue(shouldReserveWidth)
+    }
+
+    func testTableOfContentsReserveWidthRequiresPreviewContext() {
+        let shouldReserveWidth = TableOfContentsVisibility.shouldReserveTrailingWidth(
+            isSettingEnabled: true,
+            isWebViewVisible: false,
+            hasSelectedFile: true,
+            hasLoadedTableOfContents: true,
+            reserveWidthWhileLoading: true
+        )
+
+        XCTAssertFalse(shouldReserveWidth)
+    }
+
     func testEstimatedContentRightFillsAvailableBodyWidthBeforeMaxWidth() {
         let contentRight = PreviewContentLayout.estimatedContentRight(
             containerWidth: 1_400,

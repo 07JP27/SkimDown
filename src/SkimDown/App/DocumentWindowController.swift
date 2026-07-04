@@ -31,6 +31,8 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Side
     private var scrollPositions: [URL: Double] = [:]
     private var isInitialLayoutComplete = false
     private var hasLoadedTableOfContents = false
+    private var isMermaidModalPresented = false
+    private var reservesTableOfContentsWidthWhileLoading = false
     private var isTableOfContentsMetricsRequestInFlight = false
     private var needsTableOfContentsMetricsRefresh = false
 
@@ -435,6 +437,10 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Side
         tableOfContentsViewController.setActiveHeadingID(headingID)
     }
 
+    func markdownWebView(_ webView: MarkdownWebView, didChangeMermaidModalPresentation isPresented: Bool) {
+        setMermaidModalPresentation(isPresented)
+    }
+
     func searchBarView(_ searchBarView: SearchBarView, didChangeQuery query: String, caseSensitive: Bool) {
         settings.isSearchCaseSensitive = caseSensitive
         settingsStore.isSearchCaseSensitive = caseSensitive
@@ -716,6 +722,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Side
             sidebarViewController.selectFile(fileURL)
             emptyStateView.isHidden = true
             markdownWebView.isHidden = false
+            resetMermaidModalPresentation()
             clearTableOfContents(reserveWidthWhileLoading: settings.isTableOfContentsVisible)
             markdownWebView.render(
                 markdown: markdown,
@@ -735,6 +742,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Side
             sidebarViewController.selectFile(fileURL)
             emptyStateView.isHidden = true
             markdownWebView.isHidden = false
+            resetMermaidModalPresentation()
             clearTableOfContents()
             markdownWebView.showError(
                 error.localizedDescription,
@@ -763,6 +771,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Side
         emptyStateView.configure(state)
         emptyStateView.isHidden = false
         markdownWebView.isHidden = true
+        resetMermaidModalPresentation()
         clearTableOfContents()
         setSearchBarVisible(false)
         if session == nil {
@@ -778,6 +787,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Side
                 return
             }
             self.hasLoadedTableOfContents = true
+            self.reservesTableOfContentsWidthWhileLoading = false
             self.tableOfContentsViewController.update(items: items)
             self.updateTableOfContentsHeight()
             self.updateTableOfContentsVisibility()
@@ -786,6 +796,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Side
 
     private func clearTableOfContents(reserveWidthWhileLoading: Bool = false) {
         hasLoadedTableOfContents = false
+        reservesTableOfContentsWidthWhileLoading = reserveWidthWhileLoading
         tableOfContentsViewController.update(items: [])
         tableOfContentsViewController.setActiveHeadingID(nil)
         updateTableOfContentsHeight()
@@ -804,14 +815,38 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Side
     }
 
     private func updateTableOfContentsVisibility(reserveWidthWhileLoading: Bool = false) {
-        let canShowTableOfContents = settings.isTableOfContentsVisible
-            && !markdownWebView.isHidden
-            && selectedFileURL != nil
-        let isVisible = canShowTableOfContents && hasLoadedTableOfContents
+        if reserveWidthWhileLoading {
+            reservesTableOfContentsWidthWhileLoading = true
+        }
+        let isVisible = TableOfContentsVisibility.shouldShowPane(
+            isSettingEnabled: settings.isTableOfContentsVisible,
+            isWebViewVisible: !markdownWebView.isHidden,
+            hasSelectedFile: selectedFileURL != nil,
+            hasLoadedTableOfContents: hasLoadedTableOfContents,
+            isMermaidModalPresented: isMermaidModalPresented
+        )
         tableOfContentsViewController.view.isHidden = !isVisible
-        let shouldReserveWidth = isVisible || (reserveWidthWhileLoading && canShowTableOfContents)
+        let shouldReserveWidth = TableOfContentsVisibility.shouldReserveTrailingWidth(
+            isSettingEnabled: settings.isTableOfContentsVisible,
+            isWebViewVisible: !markdownWebView.isHidden,
+            hasSelectedFile: selectedFileURL != nil,
+            hasLoadedTableOfContents: hasLoadedTableOfContents,
+            reserveWidthWhileLoading: reservesTableOfContentsWidthWhileLoading
+        )
         markdownWebView.setReservedTrailingWidth(shouldReserveWidth ? Self.tableOfContentsReservedTrailingWidth : 0)
         updateTableOfContentsPlacement()
+    }
+
+    private func setMermaidModalPresentation(_ isPresented: Bool) {
+        guard isMermaidModalPresented != isPresented else {
+            return
+        }
+        isMermaidModalPresented = isPresented
+        updateTableOfContentsVisibility()
+    }
+
+    private func resetMermaidModalPresentation() {
+        isMermaidModalPresented = false
     }
 
     private static var tableOfContentsReservedTrailingWidth: Double {
