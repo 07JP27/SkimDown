@@ -37,6 +37,7 @@ final class MarkdownWebView: NSView, WKScriptMessageHandler, WKNavigationDelegat
     }
 
     private static var webResourceCache: [String: String] = [:]
+    private static let previewResourceFailureMarker = "SkimDownPreviewResourceFailure"
     private static var resourceBundle: Bundle {
         // Use Bundle(for:) rather than Bundle.main so that the correct app
         // bundle is found even when the binary is invoked via a symlink from
@@ -165,6 +166,7 @@ final class MarkdownWebView: NSView, WKScriptMessageHandler, WKNavigationDelegat
                 let html = try Self.buildHTML(payload: payload, theme: theme, resolvedTheme: resolvedTheme, katexFontsURL: self.katexFontsURLString())
                 self.loadHTML(html, baseURL: baseURL, generation: generation, scrollY: effectiveScrollY > 0 ? effectiveScrollY : nil, completion: completion)
             } catch {
+                Self.reportPreviewResourceFailure(error)
                 self.loadFallbackErrorHTML(
                     message: "Preview resources could not be loaded.\n\(error.localizedDescription)",
                     theme: theme,
@@ -237,6 +239,7 @@ final class MarkdownWebView: NSView, WKScriptMessageHandler, WKNavigationDelegat
                 completion: completion
             )
         } catch {
+            Self.reportPreviewResourceFailure(error)
             loadFallbackErrorHTML(
                 message: "\(message)\n\n\(error.localizedDescription)",
                 theme: theme,
@@ -637,6 +640,14 @@ final class MarkdownWebView: NSView, WKScriptMessageHandler, WKNavigationDelegat
         } catch {
             throw WebResourceError.unreadable(relativePath, error)
         }
+    }
+
+    private static func reportPreviewResourceFailure(_ error: Error) {
+        let message = "\(previewResourceFailureMarker): \(error.localizedDescription)\n"
+        guard let data = message.data(using: .utf8) else {
+            return
+        }
+        try? FileHandle.standardError.write(contentsOf: data)
     }
 
     private func loadFallbackErrorHTML(
