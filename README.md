@@ -71,7 +71,9 @@ Detailed design documents are in [`design/`](design/).
 make build              # Debug build
 make test               # Run unit tests
 make run                # Build and launch the app
+make run-cli            # Build and run a temporary local skimdown command for this checkout
 make launch-check       # GUI smoke test (build + launch + verify on-screen window)
+make cli-launch-check   # CLI symlink smoke test for the local build
 make release            # Release build
 make notarize           # Release build + Apple notarization
 make dmg VERSION=0.1.0  # Release build + DMG packaging
@@ -80,6 +82,8 @@ make generate           # Regenerate .xcodeproj (after editing src/project.yml)
 make docs               # Start local documentation dev server
 make docs-build         # Build documentation site
 ```
+
+Use `make run-cli SKIMDOWN_TARGET=/path/to/folder-or-file.md` to verify the local Debug build through a temporary `skimdown` command without replacing `/Applications/SkimDown.app` or `/usr/local/bin/skimdown`.
 
 ### Code signing and notarization
 

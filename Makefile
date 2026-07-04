@@ -8,12 +8,14 @@ VERSION ?= 0.1.0
 DMG_PATH := build/SkimDown-$(VERSION).dmg
 NOTARY_ZIP := build/SkimDown-$(VERSION).zip
 DESTINATION := platform=macOS
+SKIMDOWN_TARGET ?= .
+CLI_CHECK_TARGET ?= samples/en/extended/math.md
 
 # Auto-load credentials for signing/notarization (gitignored).
 -include .env
 export APPLE_ID APPLE_TEAM_ID APPLE_APP_PASSWORD
 
-.PHONY: generate build test run launch-check release notarize dmg clean docs docs-build
+.PHONY: generate build test run run-cli launch-check cli-launch-check release notarize dmg clean docs docs-build
 
 generate:
 	cd $(PROJECT_DIR) && xcodegen generate
@@ -28,8 +30,14 @@ run: build
 	open $(DEBUG_APP)
 	osascript -e 'tell application id "dev.jp27.SkimDown" to activate'
 
+run-cli: build
+	sh scripts/run-local-cli.sh "$(DEBUG_APP)" "$(SKIMDOWN_TARGET)"
+
 launch-check: build
 	sh scripts/launch-smoke-test.sh "$(DEBUG_APP)"
+
+cli-launch-check: build
+	sh scripts/cli-launch-smoke-test.sh "$(DEBUG_APP)" "$(CLI_CHECK_TARGET)"
 
 release: generate
 	xcodebuild -project $(PROJECT) -scheme $(SCHEME) -configuration Release -destination '$(DESTINATION)' -derivedDataPath $(DERIVED_DATA) build
