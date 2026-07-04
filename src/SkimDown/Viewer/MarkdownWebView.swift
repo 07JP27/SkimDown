@@ -16,6 +16,7 @@ protocol MarkdownWebViewDelegate: AnyObject {
     func markdownWebView(_ webView: MarkdownWebView, didRequestLink href: String)
     func markdownWebViewDidChangeEffectiveAppearance(_ webView: MarkdownWebView)
     func markdownWebView(_ webView: MarkdownWebView, didChangeActiveHeadingID headingID: String?)
+    func markdownWebView(_ webView: MarkdownWebView, didChangeMermaidModalPresentation isPresented: Bool)
 }
 
 @MainActor
@@ -45,6 +46,7 @@ final class MarkdownWebView: NSView, WKScriptMessageHandler, WKNavigationDelegat
         case userInteracted
         case scrollPosition
         case activeHeading
+        case mermaidModalState
     }
 
     private struct PendingNavigation {
@@ -349,6 +351,14 @@ final class MarkdownWebView: NSView, WKScriptMessageHandler, WKNavigationDelegat
             }
             let headingID = (body["headingID"] as? String).flatMap { $0.isEmpty ? nil : $0 }
             delegate?.markdownWebView(self, didChangeActiveHeadingID: headingID)
+        case .mermaidModalState:
+            guard let body = message.body as? [String: Any],
+                  let renderID = Self.intValue(body["renderID"]),
+                  renderID == renderGeneration,
+                  let isPresented = Self.boolValue(body["isPresented"]) else {
+                return
+            }
+            delegate?.markdownWebView(self, didChangeMermaidModalPresentation: isPresented)
         }
     }
 
@@ -723,6 +733,16 @@ final class MarkdownWebView: NSView, WKScriptMessageHandler, WKNavigationDelegat
         }
         if let number = value as? NSNumber {
             return number.doubleValue
+        }
+        return nil
+    }
+
+    private static func boolValue(_ value: Any?) -> Bool? {
+        if let bool = value as? Bool {
+            return bool
+        }
+        if let number = value as? NSNumber {
+            return number.boolValue
         }
         return nil
     }

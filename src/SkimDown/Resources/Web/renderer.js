@@ -19,6 +19,7 @@
   let activeHeadingRenderID = null;
   let lastActiveHeadingID = null;
   let activeMermaidModal = null;
+  let currentRenderID = null;
   let mermaidModalSequence = 0;
   const IMAGE_READY_TIMEOUT_MS = 3000;
   const CODE_COPY_FEEDBACK_RESET_MS = 1500;
@@ -111,6 +112,8 @@
   }
 
   function render(payload) {
+    const renderID = Number(payload.renderID);
+    currentRenderID = Number.isFinite(renderID) ? renderID : null;
     const restoreScrollY = Number(payload.restoreScrollY) || 0;
     if (restoreScrollY > 0) {
       document.body.classList.add("skimdown-restoring");
@@ -118,7 +121,7 @@
     document.documentElement.dataset.theme = payload.theme || "system";
     document.documentElement.style.setProperty("--skimdown-font-size", String(payload.fontSize || 16) + "px");
     applyReservedTrailingWidth(payload.reservedTrailingWidth);
-    closeActiveMermaidModal();
+    closeActiveMermaidModal(currentRenderID);
 
     const content = document.getElementById("content");
     const dirtyHtml = renderer().render(payload.markdown || "");
@@ -980,6 +983,7 @@
       ? activeElement
       : container;
     var modalID = "skimdown-mermaid-modal-" + (++mermaidModalSequence);
+    var modalRenderID = currentRenderID;
     var modal = document.createElement("div");
     modal.className = "mermaid-modal";
     modal.tabIndex = -1;
@@ -1030,7 +1034,9 @@
       applyMermaidZoom(modal, viewport, 0.25);
       resizeHandler();
     });
-    closeButton.addEventListener("click", closeModal);
+    closeButton.addEventListener("click", function () {
+      closeModal();
+    });
 
     controls.appendChild(zoomOut);
     controls.appendChild(zoomReset);
@@ -1047,7 +1053,7 @@
     };
     var backdropMouseDown = false;
 
-    function closeModal() {
+    function closeModal(renderIDOverride) {
       if (!activeMermaidModal || activeMermaidModal.element !== modal) {
         return;
       }
@@ -1057,6 +1063,7 @@
       document.documentElement.classList.remove("skimdown-mermaid-modal-open");
       document.body.classList.remove("skimdown-mermaid-modal-open");
       activeMermaidModal = null;
+      postMermaidModalState(false, renderIDOverride !== undefined ? renderIDOverride : modalRenderID);
       restoreMermaidModalFocus(opener, container);
     }
 
@@ -1077,6 +1084,7 @@
     document.documentElement.classList.add("skimdown-mermaid-modal-open");
     document.body.classList.add("skimdown-mermaid-modal-open");
     document.body.appendChild(modal);
+    postMermaidModalState(true, modalRenderID);
 
     initMermaidZoomPan(modal, viewport, {
       wheelTarget: frame,
@@ -1096,9 +1104,9 @@
     });
   }
 
-  function closeActiveMermaidModal() {
+  function closeActiveMermaidModal(renderIDOverride) {
     if (activeMermaidModal) {
-      activeMermaidModal.close();
+      activeMermaidModal.close(renderIDOverride);
     }
   }
 
@@ -1984,6 +1992,15 @@
   function postRenderReady(renderID) {
     if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.renderReady) {
       window.webkit.messageHandlers.renderReady.postMessage({ renderID: renderID });
+    }
+  }
+
+  function postMermaidModalState(isPresented, renderID) {
+    if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.mermaidModalState) {
+      window.webkit.messageHandlers.mermaidModalState.postMessage({
+        renderID: renderID,
+        isPresented: Boolean(isPresented)
+      });
     }
   }
 

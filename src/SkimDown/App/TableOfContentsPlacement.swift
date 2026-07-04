@@ -17,6 +17,47 @@ enum TableOfContentsPlacement {
     }
 }
 
+enum TableOfContentsVisibility {
+    static func shouldShowPane(
+        isSettingEnabled: Bool,
+        isWebViewVisible: Bool,
+        hasSelectedFile: Bool,
+        hasLoadedTableOfContents: Bool,
+        isMermaidModalPresented: Bool
+    ) -> Bool {
+        canShowTableOfContents(
+            isSettingEnabled: isSettingEnabled,
+            isWebViewVisible: isWebViewVisible,
+            hasSelectedFile: hasSelectedFile
+        )
+        && hasLoadedTableOfContents
+        && !isMermaidModalPresented
+    }
+
+    static func shouldReserveTrailingWidth(
+        isSettingEnabled: Bool,
+        isWebViewVisible: Bool,
+        hasSelectedFile: Bool,
+        hasLoadedTableOfContents: Bool,
+        reserveWidthWhileLoading: Bool
+    ) -> Bool {
+        canShowTableOfContents(
+            isSettingEnabled: isSettingEnabled,
+            isWebViewVisible: isWebViewVisible,
+            hasSelectedFile: hasSelectedFile
+        )
+        && (hasLoadedTableOfContents || reserveWidthWhileLoading)
+    }
+
+    private static func canShowTableOfContents(
+        isSettingEnabled: Bool,
+        isWebViewVisible: Bool,
+        hasSelectedFile: Bool
+    ) -> Bool {
+        isSettingEnabled && isWebViewVisible && hasSelectedFile
+    }
+}
+
 enum PreviewContentLayout {
     private static let minimumInlinePadding: CGFloat = 40
     private static let preferredInlinePaddingRatio: CGFloat = 0.08
