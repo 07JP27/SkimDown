@@ -30,6 +30,14 @@ final class MarkdownWebView: NSView, WKScriptMessageHandler, WKNavigationDelegat
     }
 
     private static var webResourceCache: [String: String] = [:]
+    private static var resourceBundle: Bundle {
+        // Use Bundle(for:) rather than Bundle.main so that the correct app
+        // bundle is found even when the binary is invoked via a symlink from
+        // outside the .app bundle structure (e.g. /usr/local/bin/skimdown).
+        // Bundle.main resolves from the process executable path which may be
+        // the symlink, while Bundle(for:) uses the loaded Mach-O image path.
+        Bundle(for: MarkdownWebView.self)
+    }
 
     private enum ScriptMessage: String, CaseIterable {
         case linkClick
@@ -177,10 +185,11 @@ final class MarkdownWebView: NSView, WKScriptMessageHandler, WKNavigationDelegat
     func showError(_ message: String, theme: AppTheme, fontSize: Double, completion: (() -> Void)? = nil) {
         let generation = advanceRenderGeneration()
         applyNativeAppearance(theme)
+        let bundleURL = Self.resourceBundle.bundleURL
         let payload = Self.renderPayload(
             markdown: "> **Error**\\n>\\n> \(message)",
-            baseURL: Bundle.main.bundleURL,
-            rootURL: Bundle.main.bundleURL,
+            baseURL: bundleURL,
+            rootURL: bundleURL,
             theme: theme,
             fontSize: fontSize,
             generation: generation,
@@ -189,7 +198,7 @@ final class MarkdownWebView: NSView, WKScriptMessageHandler, WKNavigationDelegat
         do {
             loadHTML(
                 try Self.buildHTML(payload: payload, theme: theme, katexFontsURL: katexFontsURLString()),
-                baseURL: Bundle.main.bundleURL,
+                baseURL: bundleURL,
                 generation: generation,
                 scrollY: nil,
                 completion: completion
@@ -199,7 +208,7 @@ final class MarkdownWebView: NSView, WKScriptMessageHandler, WKNavigationDelegat
                 message: "\(message)\n\n\(error.localizedDescription)",
                 theme: theme,
                 fontSize: fontSize,
-                baseURL: Bundle.main.bundleURL,
+                baseURL: bundleURL,
                 generation: generation,
                 completion: completion
             )
@@ -462,12 +471,7 @@ final class MarkdownWebView: NSView, WKScriptMessageHandler, WKNavigationDelegat
             return cached
         }
 
-        // Use Bundle(for:) rather than Bundle.main so that the correct app
-        // bundle is found even when the binary is invoked via a symlink from
-        // outside the .app bundle structure (e.g. /usr/local/bin/skimdown).
-        // Bundle.main resolves from the process executable path which may be
-        // the symlink, while Bundle(for:) uses the loaded Mach-O image path.
-        guard let url = Bundle(for: MarkdownWebView.self).resourceURL?.appendingPathComponent("Web").appendingPathComponent(relativePath) else {
+        guard let url = resourceBundle.resourceURL?.appendingPathComponent("Web").appendingPathComponent(relativePath) else {
             throw WebResourceError.missing(relativePath)
         }
 
@@ -532,7 +536,7 @@ final class MarkdownWebView: NSView, WKScriptMessageHandler, WKNavigationDelegat
     }
 
     private func katexFontsURLString() -> String {
-        guard let url = Bundle(for: MarkdownWebView.self).resourceURL?.appendingPathComponent("Web/vendor/katex/fonts") else {
+        guard let url = Self.resourceBundle.resourceURL?.appendingPathComponent("Web/vendor/katex/fonts") else {
             return ""
         }
         return url.absoluteString.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
