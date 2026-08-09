@@ -13,10 +13,16 @@ layout: home
 <span>完全ローカル動作</span>
 </div>
 <div class="sd-actions">
+<div class="sd-primary-action">
 <a class="sd-button sd-button-primary" href="/ja/installation">はじめる</a>
-<a class="sd-button sd-button-secondary" href="https://apps.microsoft.com/detail/9nhtzmm0xmmf?hl=en-US&amp;gl=JP">Windows 版を見る</a>
+<p class="sd-primary-meta">対応 OS：macOS 26 以降</p>
 </div>
-<p class="sd-trust-line"><span>macOS 26+</span><span>コミュニティ提供の Windows 版</span></p>
+<p class="sd-community-label">コミュニティ版</p>
+<div class="sd-community-actions">
+<a class="sd-button sd-button-secondary" href="https://apps.microsoft.com/detail/9nhtzmm0xmmf?hl=en-US&amp;gl=JP"><span>Windows 版</span><span class="sd-link-arrow" aria-hidden="true">↗</span></a>
+<a class="sd-button sd-button-secondary" href="https://github.com/runceel/SkimDownForGitHubCopilotApp/"><span>GitHub Copilot App 版</span><span class="sd-link-arrow" aria-hidden="true">↗</span></a>
+</div>
+</div>
 </div>
 <div class="sd-visual">
 <figure class="sd-screenshot-frame">
@@ -46,8 +52,15 @@ layout: home
 
 <section class="sd-final">
 <div class="sd-actions">
+<div class="sd-primary-action">
 <a class="sd-button sd-button-primary" href="/ja/installation">はじめる</a>
-<a class="sd-button sd-button-secondary" href="https://apps.microsoft.com/detail/9nhtzmm0xmmf?hl=en-US&amp;gl=JP">Windows 版を見る</a>
+<p class="sd-primary-meta">対応 OS：macOS 26 以降</p>
+</div>
+<p class="sd-community-label">コミュニティ版</p>
+<div class="sd-community-actions">
+<a class="sd-button sd-button-secondary" href="https://apps.microsoft.com/detail/9nhtzmm0xmmf?hl=en-US&amp;gl=JP"><span>Windows 版</span><span class="sd-link-arrow" aria-hidden="true">↗</span></a>
+<a class="sd-button sd-button-secondary" href="https://github.com/runceel/SkimDownForGitHubCopilotApp/"><span>GitHub Copilot App 版</span><span class="sd-link-arrow" aria-hidden="true">↗</span></a>
+</div>
 </div>
 </section>
 </section>

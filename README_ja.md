@@ -24,6 +24,9 @@ SkimDown は、AI エージェントや開発ツール、チームが生み出�
 >
 > **Windows で使いたいですか？**
 > コミュニティ提供の Windows 版は [Microsoft Store](https://apps.microsoft.com/detail/9nhtzmm0xmmf?hl=en-US&gl=JP) から入手できます。ソースコードは [`runceel/SkimDownForWindows`](https://github.com/runceel/SkimDownForWindows) にあります。
+>
+> **GitHub Copilot app で使いたいですか？**
+> コミュニティ提供の canvas 拡張 [SkimDown for GitHub Copilot App](https://github.com/runceel/SkimDownForGitHubCopilotApp/) が、macOS 版とは別に公開されています。インストール方法はリポジトリを、機能の詳細は[紹介記事](https://zenn.dev/microsoft/articles/skimdown-for-github-copilot-app)をご覧ください。
 
 ## ハイライト
 

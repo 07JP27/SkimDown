@@ -26,6 +26,9 @@ Open a folder, and SkimDown shows only the Markdown files in a sidebar tree and 
 >
 > **On Windows?**
 > A community-provided Windows version is available from the [Microsoft Store](https://apps.microsoft.com/detail/9nhtzmm0xmmf?hl=en-US&gl=JP), with source in [`runceel/SkimDownForWindows`](https://github.com/runceel/SkimDownForWindows).
+>
+> **Using the GitHub Copilot app?**
+> The community-provided [SkimDown for GitHub Copilot App](https://github.com/runceel/SkimDownForGitHubCopilotApp/) canvas extension is available separately from this macOS app. See the repository for installation instructions and [the introduction](https://zenn.dev/microsoft/articles/skimdown-for-github-copilot-app) for details.
 
 ## Highlights
 

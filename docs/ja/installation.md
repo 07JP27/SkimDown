@@ -20,6 +20,15 @@ macOS 版とは別に、コミュニティ提供の Windows 版が公開され�
 
 Windows 版のリリースとサポートは Windows 版リポジトリで扱われます。
 
+## コミュニティ提供の GitHub Copilot App 版
+
+macOS 版とは別に、コミュニティ提供の GitHub Copilot app canvas 拡張が公開されています：
+
+- [SkimDown for GitHub Copilot App をインストール](https://github.com/runceel/SkimDownForGitHubCopilotApp/)
+- [機能の詳細を紹介記事で見る](https://zenn.dev/microsoft/articles/skimdown-for-github-copilot-app)
+
+GitHub Copilot App 版のリリースとサポートは macOS 版とは別に扱われます。
+
 ## 検疫属性の解除
 
 「Appleは、"SkimDown"にMacに損害を与えたり、プライバシーを侵害する可能性のあるマルウェアが含まれていないことを検証できませんでした。」という警告が表示された場合は、**ターミナル**で以下のコマンドを実行して検疫属性を解除してください：

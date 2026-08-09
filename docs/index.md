@@ -13,10 +13,16 @@ layout: home
 <span>Fully local, no network</span>
 </div>
 <div class="sd-actions">
+<div class="sd-primary-action">
 <a class="sd-button sd-button-primary" href="/installation">Start reading</a>
-<a class="sd-button sd-button-secondary" href="https://apps.microsoft.com/detail/9nhtzmm0xmmf?hl=en-US&amp;gl=JP">Windows version</a>
+<p class="sd-primary-meta">Requires macOS 26+</p>
 </div>
-<p class="sd-trust-line"><span>macOS 26+</span><span>Community Windows version</span></p>
+<p class="sd-community-label">Community versions</p>
+<div class="sd-community-actions">
+<a class="sd-button sd-button-secondary" href="https://apps.microsoft.com/detail/9nhtzmm0xmmf?hl=en-US&amp;gl=JP"><span>Windows version</span><span class="sd-link-arrow" aria-hidden="true">↗</span></a>
+<a class="sd-button sd-button-secondary" href="https://github.com/runceel/SkimDownForGitHubCopilotApp/"><span>GitHub Copilot App</span><span class="sd-link-arrow" aria-hidden="true">↗</span></a>
+</div>
+</div>
 </div>
 <div class="sd-visual">
 <figure class="sd-screenshot-frame">
@@ -46,8 +52,15 @@ layout: home
 
 <section class="sd-final">
 <div class="sd-actions">
+<div class="sd-primary-action">
 <a class="sd-button sd-button-primary" href="/installation">Start reading</a>
-<a class="sd-button sd-button-secondary" href="https://apps.microsoft.com/detail/9nhtzmm0xmmf?hl=en-US&amp;gl=JP">Windows version</a>
+<p class="sd-primary-meta">Requires macOS 26+</p>
+</div>
+<p class="sd-community-label">Community versions</p>
+<div class="sd-community-actions">
+<a class="sd-button sd-button-secondary" href="https://apps.microsoft.com/detail/9nhtzmm0xmmf?hl=en-US&amp;gl=JP"><span>Windows version</span><span class="sd-link-arrow" aria-hidden="true">↗</span></a>
+<a class="sd-button sd-button-secondary" href="https://github.com/runceel/SkimDownForGitHubCopilotApp/"><span>GitHub Copilot App</span><span class="sd-link-arrow" aria-hidden="true">↗</span></a>
+</div>
 </div>
 </section>
 </section>
