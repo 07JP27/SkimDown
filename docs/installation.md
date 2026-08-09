@@ -20,6 +20,15 @@ A community-provided Windows version is available separately from this macOS app
 
 Windows releases and support are handled in the Windows repository.
 
+## Community GitHub Copilot App Version
+
+A community-provided GitHub Copilot app canvas extension is also available separately from this macOS app:
+
+- [Install SkimDown for GitHub Copilot App](https://github.com/runceel/SkimDownForGitHubCopilotApp/)
+- [Read the introduction](https://zenn.dev/microsoft/articles/skimdown-for-github-copilot-app)
+
+The GitHub Copilot App version is released and supported separately from this macOS app.
+
 ## Removing the Quarantine Attribute
 
 If you see the warning *"Apple could not verify 'SkimDown' is free of malware that may harm your Mac or compromise your privacy"*, run the following command in **Terminal** to remove the quarantine attribute:
