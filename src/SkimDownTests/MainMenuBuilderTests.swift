@@ -6,7 +6,7 @@ import XCTest
 final class MainMenuBuilderTests: XCTestCase {
     func testToggleSidebarUsesCommandBShortcut() throws {
         let menu = MainMenuBuilder.build(target: AppDelegate())
-        let viewMenu = try XCTUnwrap(menu.item(withTitle: "View")?.submenu)
+        let viewMenu = try XCTUnwrap(menu.items.first { $0.submenu?.title == "View" }?.submenu)
         let toggleSidebar = try XCTUnwrap(viewMenu.item(withTitle: "Toggle Sidebar"))
 
         XCTAssertEqual(toggleSidebar.keyEquivalent, "b")
