@@ -136,8 +136,7 @@
     const entries = [];
     let current = null;
 
-    String(frontMatter || "").split(/\r?\n/).forEach(function (line) {
-      line = line.replace(/\r$/, "");
+    String(frontMatter || "").replace(/\r\n?/g, "\n").split("\n").forEach(function (line) {
       if (!line.trim() || line.trim().startsWith("#")) {
         return;
       }
@@ -164,7 +163,12 @@
 
       const continuationMatch = line.match(/^[ \t]+(.*)$/);
       if (continuationMatch) {
-        current.values.push(continuationMatch[1].trim());
+        const continuation = continuationMatch[1].trim();
+        if (current.values.length === 0) {
+          current.values.push(continuation);
+        } else {
+          current.values[current.values.length - 1] += "\n" + continuation;
+        }
       }
     });
 
