@@ -156,7 +156,15 @@
       }
 
       const itemMatch = line.match(/^[ \t]*-[ \t]+(.*)$/);
-      current.values.push((itemMatch ? itemMatch[1] : line).trim());
+      if (itemMatch) {
+        current.values.push(itemMatch[1].trim());
+        return;
+      }
+
+      const continuationMatch = line.match(/^[ \t]+(.*)$/);
+      if (continuationMatch) {
+        current.values.push(continuationMatch[1].trim());
+      }
     });
 
     return entries.filter(function (entry) {
@@ -172,7 +180,7 @@
   function prependFrontMatter(content, frontMatter) {
     const entries = frontMatterEntries(frontMatter);
     if (entries.length === 0) {
-      return;
+      return false;
     }
 
     const container = document.createElement("div");
@@ -194,6 +202,7 @@
     table.appendChild(body);
     container.appendChild(table);
     content.insertBefore(container, content.firstChild);
+    return true;
   }
 
   function render(payload) {
