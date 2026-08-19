@@ -119,12 +119,19 @@
     }
 
     const rest = source.slice(opening[0].length);
-    const closing = rest.match(/(?:^|\r?\n)---[ \t]*(?:\r?\n|$)/);
+    const closing = rest.match(/^---[ \t]*(?:\r?\n|$)/m);
     if (!closing) {
       return { frontMatter: null, markdown: source };
     }
 
-    const frontMatter = rest.slice(0, closing.index);
+    let frontMatterEnd = closing.index;
+    if (frontMatterEnd > 0 && rest.charAt(frontMatterEnd - 1) === "\n") {
+      frontMatterEnd -= 1;
+      if (frontMatterEnd > 0 && rest.charAt(frontMatterEnd - 1) === "\r") {
+        frontMatterEnd -= 1;
+      }
+    }
+    const frontMatter = rest.slice(0, frontMatterEnd);
     const markdownStart = closing.index + closing[0].length;
     return {
       frontMatter: frontMatter,
