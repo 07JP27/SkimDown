@@ -111,6 +111,112 @@
       .replace(/'/g, "&#39;");
   }
 
+  function extractFrontMatter(markdown) {
+    const source = String(markdown || "");
+    const opening = source.match(/^\uFEFF?---[ \t]*(?:\r?\n|$)/);
+    if (!opening) {
+      return { frontMatter: null, markdown: source };
+    }
+
+    const rest = source.slice(opening[0].length);
+    const closing = rest.match(/^---[ \t]*(?:\r?\n|$)/m);
+    if (!closing) {
+      return { frontMatter: null, markdown: source };
+    }
+
+    let frontMatterEnd = closing.index;
+    if (frontMatterEnd > 0 && rest.charAt(frontMatterEnd - 1) === "\n") {
+      frontMatterEnd -= 1;
+      if (frontMatterEnd > 0 && rest.charAt(frontMatterEnd - 1) === "\r") {
+        frontMatterEnd -= 1;
+      }
+    }
+    const frontMatter = rest.slice(0, frontMatterEnd);
+    const markdownStart = closing.index + closing[0].length;
+    return {
+      frontMatter: frontMatter,
+      markdown: rest.slice(markdownStart)
+    };
+  }
+
+  function frontMatterEntries(frontMatter) {
+    const entries = [];
+    let current = null;
+
+    String(frontMatter || "").replace(/\r\n?/g, "\n").split("\n").forEach(function (line) {
+      if (!line.trim() || line.trim().startsWith("#")) {
+        return;
+      }
+
+      const keyMatch = line.match(/^([A-Za-z0-9_.-][^:]*):(?:[ \t]*(.*))?$/);
+      if (keyMatch) {
+        current = {
+          key: keyMatch[1].trim(),
+          values: keyMatch[2] ? [keyMatch[2].trim()] : []
+        };
+        entries.push(current);
+        return;
+      }
+
+      if (!current) {
+        return;
+      }
+
+      const itemMatch = line.match(/^[ \t]*-(?:[ \t]+(.*))?$/);
+      if (itemMatch) {
+        current.values.push((itemMatch[1] || "").trim());
+        return;
+      }
+
+      const continuationMatch = line.match(/^[ \t]+(.*)$/);
+      if (continuationMatch) {
+        const continuation = continuationMatch[1].trim();
+        if (current.values.length === 0) {
+          current.values.push(continuation);
+        } else {
+          current.values[current.values.length - 1] += "\n" + continuation;
+        }
+      }
+    });
+
+    return entries.filter(function (entry) {
+      return entry.key;
+    }).map(function (entry) {
+      return {
+        key: entry.key,
+        value: entry.values.filter(Boolean).join("\n")
+      };
+    });
+  }
+
+  function prependFrontMatter(content, frontMatter) {
+    const entries = frontMatterEntries(frontMatter);
+    if (entries.length === 0) {
+      return false;
+    }
+
+    const container = document.createElement("div");
+    container.className = "skimdown-frontmatter";
+
+    const table = document.createElement("table");
+    const body = document.createElement("tbody");
+    entries.forEach(function (entry) {
+      const row = document.createElement("tr");
+      const key = document.createElement("th");
+      const value = document.createElement("td");
+      key.scope = "row";
+      key.textContent = entry.key;
+      value.textContent = entry.value;
+      row.appendChild(key);
+      row.appendChild(value);
+      body.appendChild(row);
+    });
+    table.appendChild(body);
+    container.appendChild(table);
+    content.insertBefore(container, content.firstChild);
+    return true;
+  }
+
   function render(payload) {
     const renderID = Number(payload.renderID);
     currentRenderID = Number.isFinite(renderID) ? renderID : null;
@@ -124,11 +230,15 @@
     closeActiveMermaidModal(currentRenderID);
 
     const content = document.getElementById("content");
-    const dirtyHtml = renderer().render(payload.markdown || "");
+    const parsedMarkdown = extractFrontMatter(payload.markdown || "");
+    const dirtyHtml = renderer().render(parsedMarkdown.markdown);
     content.innerHTML = window.DOMPurify.sanitize(dirtyHtml, {
       FORBID_TAGS: ["script", "iframe", "object", "embed", "style"],
       ALLOW_DATA_ATTR: false
     });
+    if (parsedMarkdown.frontMatter !== null) {
+      prependFrontMatter(content, parsedMarkdown.frontMatter);
+    }
 
     assignHeadingAnchorIDs(content);
     convertAlerts(content);
@@ -605,7 +715,7 @@
 
   function wrapTables(content) {
     content.querySelectorAll("table").forEach(function (table) {
-      if (isWrappedTable(table)) {
+      if (isWrappedTable(table) || table.closest(".skimdown-frontmatter")) {
         return;
       }
       const wrapper = document.createElement("div");

@@ -341,6 +341,25 @@ tr:nth-child(even) td {
   background: color-mix(in srgb, var(--skimdown-subtle) 55%, transparent);
 }
 
+.skimdown-frontmatter {
+  margin-bottom: 1.15em;
+}
+
+.skimdown-frontmatter table {
+  width: auto;
+  max-width: 100%;
+  margin-bottom: 0;
+}
+
+.skimdown-frontmatter th {
+  text-align: left;
+  white-space: nowrap;
+}
+
+.skimdown-frontmatter td {
+  white-space: pre-wrap;
+}
+
 .task-list-item {
   list-style: none;
 }
