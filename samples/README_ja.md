@@ -49,6 +49,7 @@ SkimDown は以下の記法をサポートしています。各リンクから�
 | ダイアグラム（Mermaid） | [mermaid.md](ja/extended/mermaid.md) |
 | HTML 要素 | [html-elements.md](ja/extended/html-elements.md) |
 | カラーコードプレビュー | [color-codes.md](ja/extended/color-codes.md) |
+| YAML フロントマター | [front-matter.md](ja/extended/front-matter.md) |
 
 ### その他
 

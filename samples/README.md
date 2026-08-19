@@ -49,6 +49,7 @@ SkimDown supports the following syntax. Click each link to see a sample.
 | Diagrams (Mermaid) | [mermaid.md](en/extended/mermaid.md) |
 | HTML elements | [html-elements.md](en/extended/html-elements.md) |
 | Color code previews | [color-codes.md](en/extended/color-codes.md) |
+| YAML front matter | [front-matter.md](en/extended/front-matter.md) |
 
 ### Miscellaneous
 
