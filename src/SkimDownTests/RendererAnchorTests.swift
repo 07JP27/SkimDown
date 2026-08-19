@@ -4,6 +4,55 @@ import XCTest
 
 final class RendererAnchorTests: XCTestCase {
     @MainActor
+    func testRendererDisplaysYamlFrontMatterAsMetadataTable() async throws {
+        let webView = try await renderMarkdown(
+            """
+            ---
+            title: SkimDown
+            tags:
+              - markdown
+              - preview
+            draft: false
+            ---
+
+            # Body
+
+            Rendered content.
+            """,
+            includeStyles: true
+        )
+
+        let resultJSON = try await evaluateStringJavaScript(
+            """
+            JSON.stringify({
+              rows: Array.from(document.querySelectorAll('.skimdown-frontmatter tbody tr')).map(function (row) {
+                return [
+                  row.querySelector('th').textContent,
+                  row.querySelector('td').textContent
+                ];
+              }),
+              firstElementClass: document.getElementById('content').firstElementChild.className,
+              headingText: document.querySelector('h1').textContent,
+              rawDelimitersVisible: document.getElementById('content').textContent.indexOf('---') !== -1,
+              wrappedFrontMatterTables: document.querySelectorAll('.skimdown-frontmatter .table-scroll').length
+            })
+            """,
+            in: webView
+        )
+        let result = try JSONDecoder().decode(FrontMatterRenderResult.self, from: Data(resultJSON.utf8))
+
+        XCTAssertEqual(result.rows, [
+            ["title", "SkimDown"],
+            ["tags", "markdown\npreview"],
+            ["draft", "false"]
+        ])
+        XCTAssertEqual(result.firstElementClass, "skimdown-frontmatter")
+        XCTAssertEqual(result.headingText, "Body")
+        XCTAssertFalse(result.rawDelimitersVisible)
+        XCTAssertEqual(result.wrappedFrontMatterTables, 0)
+    }
+
+    @MainActor
     func testRendererDecoratesInlineColorCodes() async throws {
         let webView = try await renderMarkdown(
             """
@@ -1148,6 +1197,14 @@ private enum RendererAnchorTestError: Error {
     case invalidJSON
     case invalidScriptResult
     case scriptEvaluationFailed(String)
+}
+
+private struct FrontMatterRenderResult: Decodable {
+    let rows: [[String]]
+    let firstElementClass: String
+    let headingText: String
+    let rawDelimitersVisible: Bool
+    let wrappedFrontMatterTables: Int
 }
 
 private struct ColorCodePreviewResult: Decodable {
