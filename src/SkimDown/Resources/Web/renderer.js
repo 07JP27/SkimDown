@@ -137,6 +137,7 @@
     let current = null;
 
     String(frontMatter || "").split(/\r?\n/).forEach(function (line) {
+      line = line.replace(/\r$/, "");
       if (!line.trim() || line.trim().startsWith("#")) {
         return;
       }
