@@ -162,9 +162,9 @@
         return;
       }
 
-      const itemMatch = line.match(/^[ \t]*-[ \t]+(.*)$/);
+      const itemMatch = line.match(/^[ \t]*-(?:[ \t]+(.*))?$/);
       if (itemMatch) {
-        current.values.push(itemMatch[1].trim());
+        current.values.push((itemMatch[1] || "").trim());
         return;
       }
 
