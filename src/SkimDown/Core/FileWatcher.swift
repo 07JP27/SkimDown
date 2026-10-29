@@ -79,7 +79,7 @@ protocol FileWatchEventSource: AnyObject, Sendable {
     func stop()
 }
 
-private final class FSEventsFileWatchEventSource: FileWatchEventSource, @unchecked Sendable {
+final class FSEventsFileWatchEventSource: FileWatchEventSource, @unchecked Sendable {
     private final class CallbackBox {
         let onEvent: ([URL]) -> Void
 

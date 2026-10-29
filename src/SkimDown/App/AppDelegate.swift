@@ -151,6 +151,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         case #selector(toggleTableOfContents(_:)):
             menuItem.state = controller?.isTableOfContentsVisible == true ? .on : .off
             return controller?.selectedFileURL != nil
+        case #selector(toggleGitChanges(_:)):
+            menuItem.state = settingsStore.isGitChangesVisible ? .on : .off
+            return true
         case #selector(swapSidebarPosition(_:)):
             menuItem.title = controller?.sidebarPosition == .right ? "Move Sidebar to Left" : "Move Sidebar to Right"
             return controller != nil && !controller!.isSingleFile
@@ -250,6 +253,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
 
     @objc func toggleTableOfContents(_ sender: Any?) {
         windowManager.activeController?.toggleTableOfContents()
+    }
+
+    @objc func toggleGitChanges(_ sender: Any?) {
+        windowManager.setGitChangesVisibleInAllWindows(!settingsStore.isGitChangesVisible)
     }
 
     @objc func swapSidebarPosition(_ sender: Any?) {

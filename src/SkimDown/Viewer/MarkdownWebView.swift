@@ -142,6 +142,7 @@ final class MarkdownWebView: NSView, WKScriptMessageHandler, WKNavigationDelegat
         fontSize: Double,
         preserveScrollPosition: Bool = false,
         restoreScrollY: Double? = nil,
+        gitDiffHunks: [LineDiffHunk]? = nil,
         completion: (() -> Void)? = nil
     ) {
         let generation = advanceRenderGeneration()
@@ -162,7 +163,8 @@ final class MarkdownWebView: NSView, WKScriptMessageHandler, WKNavigationDelegat
                 fontSize: fontSize,
                 generation: generation,
                 restoreScrollY: effectiveScrollY,
-                reservedTrailingWidth: reservedTrailingWidth
+                reservedTrailingWidth: reservedTrailingWidth,
+                gitDiffHunks: gitDiffHunks
             )
             do {
                 let html = try Self.buildHTML(payload: payload, theme: theme, resolvedTheme: resolvedTheme, katexFontsURL: self.katexFontsURLString())
@@ -612,10 +614,11 @@ final class MarkdownWebView: NSView, WKScriptMessageHandler, WKNavigationDelegat
         fontSize: Double,
         generation: Int,
         restoreScrollY: Double,
-        reservedTrailingWidth: Double
+        reservedTrailingWidth: Double,
+        gitDiffHunks: [LineDiffHunk]? = nil
     ) -> [String: Any] {
         let themeIsDark = isEffectiveThemeDark(theme, resolvedTheme: resolvedTheme)
-        return [
+        var payload: [String: Any] = [
             "markdown": markdown,
             "baseURL": baseURL.absoluteString,
             "rootURL": directoryURLString(for: rootURL),
@@ -626,6 +629,24 @@ final class MarkdownWebView: NSView, WKScriptMessageHandler, WKNavigationDelegat
             "renderID": generation,
             "restoreScrollY": restoreScrollY,
             "reservedTrailingWidth": reservedTrailingWidth
+        ]
+        if let gitDiffHunks, !gitDiffHunks.isEmpty {
+            payload["gitDiff"] = gitDiffPayload(gitDiffHunks)
+        }
+        return payload
+    }
+
+    static func gitDiffPayload(_ hunks: [LineDiffHunk]) -> [String: Any] {
+        [
+            "hunks": hunks.map { hunk in
+                [
+                    "newStart": hunk.newStart,
+                    "newCount": hunk.newCount,
+                    "oldStart": hunk.oldStart,
+                    "oldCount": hunk.oldCount,
+                    "oldLines": hunk.oldLines
+                ] as [String: Any]
+            }
         ]
     }
 

@@ -45,4 +45,5 @@ See [`samples/README.md`](https://github.com/07JP27/SkimDown/blob/main/samples/R
 - [Color theme](./usage/color-schemes.md)
 - [Search](./usage/search.md)
 - [Live reload](./usage/reload.md)
+- [Git changes](./usage/git-changes.md)
 - [Security model](./security.md)

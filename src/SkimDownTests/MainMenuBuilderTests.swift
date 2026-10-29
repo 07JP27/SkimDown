@@ -15,4 +15,17 @@ final class MainMenuBuilderTests: XCTestCase {
         XCTAssertFalse(toggleSidebar.keyEquivalentModifierMask.contains(.option))
         XCTAssertFalse(toggleSidebar.keyEquivalentModifierMask.contains(.control))
     }
+
+    func testShowGitChangesUsesShiftCommandDShortcut() throws {
+        let menu = MainMenuBuilder.build(target: AppDelegate())
+        let viewMenu = try XCTUnwrap(menu.items.first { $0.submenu?.title == "View" }?.submenu)
+        let showGitChanges = try XCTUnwrap(viewMenu.item(withTitle: "Show Git Changes"))
+
+        XCTAssertEqual(showGitChanges.action, #selector(AppDelegate.toggleGitChanges(_:)))
+        XCTAssertEqual(showGitChanges.keyEquivalent.lowercased(), "d")
+        XCTAssertTrue(showGitChanges.keyEquivalentModifierMask.contains(.command))
+        XCTAssertTrue(showGitChanges.keyEquivalentModifierMask.contains(.shift))
+        XCTAssertFalse(showGitChanges.keyEquivalentModifierMask.contains(.option))
+        XCTAssertFalse(showGitChanges.keyEquivalentModifierMask.contains(.control))
+    }
 }

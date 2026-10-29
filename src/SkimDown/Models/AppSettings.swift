@@ -55,4 +55,5 @@ struct AppSettings: Equatable {
     var theme: AppTheme = .system
     var fontSize: Double = 16
     var isSearchCaseSensitive: Bool = false
+    var isGitChangesVisible: Bool = false
 }

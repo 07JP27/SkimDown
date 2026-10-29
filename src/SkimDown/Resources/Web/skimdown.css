@@ -14,6 +14,9 @@
   --skimdown-diagram-line: #69707d;
   --skimdown-mark: #fff8c5;
   --skimdown-current-mark: #ffd33d;
+  --skimdown-git-added: #1a7f37;
+  --skimdown-git-modified: #9a6700;
+  --skimdown-git-deleted: #cf222e;
   --skimdown-z-modal: 1000;
 }
 
@@ -30,6 +33,9 @@
   --skimdown-diagram-line: #8b94a3;
   --skimdown-mark: #6e4f00;
   --skimdown-current-mark: #9e6a03;
+  --skimdown-git-added: #3fb950;
+  --skimdown-git-modified: #d29922;
+  --skimdown-git-deleted: #f85149;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -45,6 +51,9 @@
     --skimdown-diagram-line: #8b94a3;
     --skimdown-mark: #6e4f00;
     --skimdown-current-mark: #9e6a03;
+    --skimdown-git-added: #3fb950;
+    --skimdown-git-modified: #d29922;
+    --skimdown-git-deleted: #f85149;
   }
 }
 
@@ -695,4 +704,118 @@ mark {
   :root[data-theme="system"] .skimdown-alert-important .skimdown-alert-title { color: #a371f7; }
   :root[data-theme="system"] .skimdown-alert-warning   .skimdown-alert-title { color: #d29922; }
   :root[data-theme="system"] .skimdown-alert-caution   .skimdown-alert-title { color: #f85149; }
+}
+
+/* --- Git changes --- */
+/* Bars live in one gutter column left of #content (laid out by renderer.js),
+   so they line up regardless of block type or nesting depth. */
+.skimdown-git-diff {
+  position: relative;
+}
+
+.skimdown-git-gutter {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+
+.skimdown-git-gutter-bar {
+  position: absolute;
+  left: -16px;
+  width: 3px;
+  border-radius: 1.5px;
+  background: var(--skimdown-git-color);
+}
+
+.skimdown-git-gutter-added {
+  --skimdown-git-color: var(--skimdown-git-added);
+}
+
+.skimdown-git-gutter-modified {
+  --skimdown-git-color: var(--skimdown-git-modified);
+}
+
+.skimdown-git-gutter-deleted {
+  --skimdown-git-color: var(--skimdown-git-deleted);
+}
+
+.skimdown-git-added {
+  --skimdown-git-color: var(--skimdown-git-added);
+}
+
+.skimdown-git-modified {
+  --skimdown-git-color: var(--skimdown-git-modified);
+}
+
+:is(.skimdown-git-added, .skimdown-git-modified):where(:not(tr, pre, hr, .mermaid-container)) {
+  border-radius: 2px;
+  background-color: color-mix(in srgb, var(--skimdown-git-color) 8%, transparent);
+}
+
+pre:is(.skimdown-git-added, .skimdown-git-modified) {
+  background: color-mix(in srgb, var(--skimdown-git-color) 8%, var(--skimdown-subtle));
+}
+
+.mermaid-container:is(.skimdown-git-added, .skimdown-git-modified) {
+  background: color-mix(in srgb, var(--skimdown-git-color) 8%, var(--skimdown-surface));
+}
+
+hr:is(.skimdown-git-added, .skimdown-git-modified) {
+  background: var(--skimdown-git-color);
+}
+
+tr:is(.skimdown-git-added, .skimdown-git-modified) > :is(th, td) {
+  background: color-mix(in srgb, var(--skimdown-git-color) 10%, transparent);
+}
+
+.skimdown-git-marker {
+  --skimdown-git-color: var(--skimdown-git-deleted);
+  margin: 0 0 0.6em;
+  padding: 0.2em 0.7em;
+  border: 0;
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--skimdown-git-color) 8%, transparent);
+  font-size: 0.86em;
+}
+
+.skimdown-git-marker-modified {
+  --skimdown-git-color: var(--skimdown-git-modified);
+}
+
+.skimdown-git-marker > summary {
+  color: var(--skimdown-git-color);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.skimdown-git-previous {
+  margin: 0.4em 0 0.3em;
+  padding: 0.6em 0.8em;
+  border: 0;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--skimdown-git-deleted) 7%, var(--skimdown-subtle));
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.92em;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* Marker list items must not advance ordered-list numbering. */
+li.skimdown-git-marker-item {
+  display: block;
+  list-style: none;
+}
+
+tr.skimdown-git-marker-row > td {
+  padding: 4px 8px;
+  border-color: var(--skimdown-border);
+  background: transparent;
+}
+
+tr.skimdown-git-marker-row .skimdown-git-marker {
+  margin: 0;
 }

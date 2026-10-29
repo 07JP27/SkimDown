@@ -12,6 +12,12 @@ Recent folders and the last opened folder reopen automatically because SkimDown 
 
 SkimDown does not edit, save, export, print, or modify Markdown files. It is built for reading and navigation only — it does not write back to the Markdown files it opens.
 
+## Git changes
+
+When `View > Show Git Changes` is on and the opened folder is the root of a Git working tree, SkimDown runs the system `/usr/bin/git` to compare files with `HEAD`. It only uses read-only commands (`rev-parse`, `ls-tree`, `ls-files`, `cat-file`, `check-ignore`). It does not use `git status` or `git diff`, which can run programs configured by a repository, and it disables fsmonitor, lazy fetching of missing objects, and optional locks. Git never contacts a remote and nothing in the repository is changed.
+
+To keep the preview up to date, SkimDown reads and watches the repository's git directory, which can be outside the opened folder for linked worktrees and submodules. Git is not run while the setting is off or for folders that are not a working-tree root.
+
 ## Local file boundaries
 
 Relative Markdown links and local images are resolved only when the target stays inside the folder you opened. SkimDown does not use a Markdown file to browse arbitrary local files outside that folder.

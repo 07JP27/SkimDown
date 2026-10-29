@@ -24,6 +24,8 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Side
     private var tableOfContentsLeadingConstraint: NSLayoutConstraint!
     private var session: FolderSession?
     private var fileWatcher = FileWatcher()
+    private let gitChangeTracker = GitChangeTracker()
+    private var markdownRenderRequestID = 0
     private var settings: AppSettings
     private(set) var currentFolderBookmarkData: Data?
     private var isSingleFileMode = false
@@ -107,6 +109,9 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Side
         markdownWebView.delegate = self
         searchBarView.delegate = self
         searchBarView.isCaseSensitive = settings.isSearchCaseSensitive
+        gitChangeTracker.onRepositoryChange = { [weak self] in
+            self?.gitRepositoryDidChange()
+        }
 
         configureContentView()
         configureSplitView()
@@ -140,6 +145,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Side
     func windowWillClose(_ notification: Notification) {
         NotificationCenter.default.removeObserver(self)
         fileWatcher.stop()
+        gitChangeTracker.stop()
         windowManager?.controllerDidClose(self)
     }
 
@@ -185,6 +191,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Side
             settingsStore.recordRecentFolderBookmark(bookmark)
             try loadFolder(folderURL: folderURL, preferredSelection: nil)
             isSingleFileMode = false
+            refreshGitStatuses()
             if let saved = savedSidebarVisible {
                 settings.isSidebarVisible = saved
                 settingsStore.isSidebarVisible = saved
@@ -216,6 +223,8 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Side
         savedSidebarVisible = savedSidebarVisible ?? settings.isSidebarVisible
         settings.isSidebarVisible = false
         sidebarItem.isCollapsed = true
+        sidebarViewController.setGitStatuses([:])
+        updateGitTracking()
 
         performSelectFile(
             canonicalFile,
@@ -369,6 +378,16 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Side
         settings.theme = effectiveTheme
         settingsStore.theme = effectiveTheme
         applyWindowAppearance(effectiveTheme)
+        reloadSelectedMarkdown(preserveScrollPosition: true)
+    }
+
+    func setGitChangesVisible(_ isVisible: Bool) {
+        guard settings.isGitChangesVisible != isVisible else {
+            return
+        }
+        settings.isGitChangesVisible = isVisible
+        updateGitTracking()
+        refreshGitStatuses()
         reloadSelectedMarkdown(preserveScrollPosition: true)
     }
 
@@ -604,12 +623,14 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Side
         session = FolderSession(folderURL: folderURL, treeItems: treeItems, markdownFiles: markdownFiles, selectedFileURL: selectedFile)
         window?.title = "\(folderURL.lastPathComponent) \u{2014} SkimDown"
 
+        sidebarViewController.setGitStatuses([:])
         sidebarViewController.update(
             folderName: folderURL.skimdownDisplayName,
             markdownCount: markdownFiles.count,
             treeItems: treeItems,
             expandedPaths: settingsStore.expandedTreeItemRelativePaths(for: folderURL)
         )
+        updateGitTracking()
 
         if let selectedFile {
             selectFile(selectedFile, anchor: nil)
@@ -671,6 +692,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Side
                 treeItems: treeItems,
                 expandedPaths: settingsStore.expandedTreeItemRelativePaths(for: folderURL)
             )
+            refreshGitStatuses()
 
             if let stillSelected {
                 selectFile(stillSelected, anchor: nil, preserveScrollPosition: true)
@@ -724,20 +746,34 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Side
             markdownWebView.isHidden = false
             resetMermaidModalPresentation()
             clearTableOfContents(reserveWidthWhileLoading: settings.isTableOfContentsVisible)
-            markdownWebView.render(
-                markdown: markdown,
-                currentFileURL: fileURL,
-                rootFolderURL: session.folderURL,
-                theme: settings.theme,
-                resolvedTheme: colorSchemeStore.resolvedTheme(for: settings.theme),
-                fontSize: settings.fontSize,
-                preserveScrollPosition: shouldPreserveScrollPosition,
-                restoreScrollY: restoreScrollY
-            ) { [weak self] in
-                self?.completeMarkdownRender(anchor: anchor, preservesViewport: preservesViewport)
-                self?.refreshTableOfContents(for: canonicalFileURL)
+            let requestID = beginMarkdownRenderRequest()
+            let rootFolderURL = session.folderURL
+            let render: @MainActor @Sendable ([LineDiffHunk]?) -> Void = { [weak self] gitDiffHunks in
+                guard let self, self.markdownRenderRequestID == requestID else {
+                    return
+                }
+                self.markdownWebView.render(
+                    markdown: markdown,
+                    currentFileURL: fileURL,
+                    rootFolderURL: rootFolderURL,
+                    theme: self.settings.theme,
+                    resolvedTheme: self.colorSchemeStore.resolvedTheme(for: self.settings.theme),
+                    fontSize: self.settings.fontSize,
+                    preserveScrollPosition: shouldPreserveScrollPosition,
+                    restoreScrollY: restoreScrollY,
+                    gitDiffHunks: gitDiffHunks
+                ) { [weak self] in
+                    self?.completeMarkdownRender(anchor: anchor, preservesViewport: preservesViewport)
+                    self?.refreshTableOfContents(for: canonicalFileURL)
+                }
+            }
+            if gitChangeTracker.isActive {
+                gitChangeTracker.diffHunks(fileURL: canonicalFileURL, markdown: markdown, completion: render)
+            } else {
+                render(nil)
             }
         } catch {
+            beginMarkdownRenderRequest()
             session.selectedFileURL = fileURL.skimdownCanonicalFileURL
             sidebarViewController.selectFile(fileURL)
             emptyStateView.isHidden = true
@@ -751,6 +787,38 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Side
                 fontSize: settings.fontSize
             )
         }
+    }
+
+    /// Invalidates renders that are still waiting for Git diff results.
+    @discardableResult
+    private func beginMarkdownRenderRequest() -> Int {
+        markdownRenderRequestID += 1
+        return markdownRenderRequestID
+    }
+
+    private func updateGitTracking() {
+        if settings.isGitChangesVisible, let session {
+            gitChangeTracker.start(folderURL: session.folderURL)
+        } else {
+            gitChangeTracker.stop()
+        }
+    }
+
+    private func refreshGitStatuses() {
+        guard gitChangeTracker.isActive, !isSingleFileMode, let session else {
+            sidebarViewController.setGitStatuses([:])
+            return
+        }
+        let folderURL = session.folderURL
+        let relativePaths = session.markdownFiles.compactMap { PathSecurity.relativePath(for: $0, in: folderURL) }
+        gitChangeTracker.fileStatuses(relativePaths: relativePaths) { [weak self] statuses in
+            self?.sidebarViewController.setGitStatuses(statuses)
+        }
+    }
+
+    private func gitRepositoryDidChange() {
+        refreshGitStatuses()
+        reloadSelectedMarkdown(preserveScrollPosition: true)
     }
 
     private func reloadSelectedMarkdown(preserveScrollPosition: Bool = false) {
@@ -768,6 +836,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Side
     }
 
     private func showEmptyState(_ state: EmptyStateView.State) {
+        beginMarkdownRenderRequest()
         emptyStateView.configure(state)
         emptyStateView.isHidden = false
         markdownWebView.isHidden = true

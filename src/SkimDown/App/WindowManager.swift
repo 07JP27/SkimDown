@@ -173,6 +173,14 @@ final class WindowManager {
         }
     }
 
+    /// Git change display is an app-wide setting, so every window follows the toggle.
+    func setGitChangesVisibleInAllWindows(_ isVisible: Bool) {
+        settingsStore.isGitChangesVisible = isVisible
+        for controller in controllers {
+            controller.setGitChangesVisible(isVisible)
+        }
+    }
+
     /// Reapplies the current `SettingsStore.theme` to all windows.
     /// Used after Reload Themes when a custom theme's color definition changed.
     func reapplyCurrentThemeToAllWindows() {

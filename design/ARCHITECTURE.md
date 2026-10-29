@@ -73,6 +73,11 @@ ZoomacItに合わせて、`project.yml` と生成済み `.xcodeproj` はどち�
 | `LinkRouter` | アンカー、相対Markdown、外部リンクを振り分ける |
 | `SettingsStore` | `UserDefaults` による軽量設定保存 |
 | `ColorSchemeStore` | `~/Library/Application Support/SkimDown/Themes/` の VS Code 互換 JSON テーマを読み込み・解決する |
+| `GitRepository` | 作業ツリーのルート判定、`HEAD` スナップショット、blob 取得、ignore 判定を読み取り専用の git コマンドで行う |
+| `GitChangeTracker` | ウィンドウごとに git 呼び出しを専用キューで実行し、ファイル状態と行差分をメインスレッドへ返す |
+| `GitReferenceWatcher` | gitDir / commonDir の `HEAD`、index、refs、`packed-refs` の変化を監視する |
+| `LineDiff` | `HEAD` 版と作業ファイルの行差分を hunk にまとめる |
+| `GitTreeDecoration` | サイドバーの `M` / `U` / `A` バッジ、色、フォルダ状態の集約 |
 
 ## Markdown描画
 
@@ -121,6 +126,27 @@ Open Folder
 
 ファイル変更時は `FileWatcher` がイベントを受け、短くdebounceしてから必要最小限の再走査または再描画を行う。
 
+### Git 差分表示
+
+`View > Show Git Changes` がオンで、開いたフォルダ直下に `.git` がある場合だけ動く。
+
+```text
+GitChangeTracker.start(folder)
+  -> (gitキュー) GitRepository.open: rev-parse でルート一致を確認
+  -> GitReferenceWatcher で gitDir / commonDir を監視
+ファイル選択
+  -> Markdown読み込み
+  -> (gitキュー) HEAD スナップショット (ls-tree / ls-files) と blob (cat-file) から比較元を決める
+  -> LineDiff で hunk を作る
+  -> MarkdownWebView の payload に gitDiff を追加 (差分がある場合だけ)
+  -> renderer.js が markdown-it のトークン map でブロックにクラスを付け、変更前マーカーを挿入
+  -> 連続する同じ状態のブロックをランにまとめ、#content 左外側のガター列にバーを配置 (#content の ResizeObserver で再配置)
+フォルダ再走査 / refs・index の変化
+  -> 作業ファイルの blob ハッシュと HEAD の oid を比べてサイドバーの状態を更新
+```
+
+`gitDiff` がない場合、描画処理は従来と同じ。
+
 ## セキュリティ境界
 
 - 通常配布のmacOSアプリとして提供し、App Sandboxは採用しない
@@ -131,6 +157,11 @@ Open Folder
 - 外部画像のためにネットワーク読み込みは許可する
 - 外部リンクはアプリ内で開かず、既定ブラウザへ渡す
 - Hardened Runtime を有効にし、Release entitlements は `com.apple.security.get-task-allow=false` のみとする
+- 例外: Git 差分表示がオンでフォルダが作業ツリーのルートの場合だけ、`/usr/bin/git` を読み取り専用のコマンド (`rev-parse`、`ls-tree`、`ls-files --cached`、`cat-file blob`、`check-ignore`) で実行する
+  - `git status` / `git diff` は使わない (fsmonitor、clean/process フィルター、外部 diff 経由で任意のコマンドが実行される恐れがあるため)
+  - `-c core.fsmonitor=false` を付け、環境変数は最小限にする (継承した `GIT_*` は渡さない)。`GIT_NO_LAZY_FETCH=1`、`GIT_OPTIONAL_LOCKS=0`、`GIT_TERMINAL_PROMPT=0` を設定し、タイムアウトを設ける
+  - 起動前に `xcode-select -p` で developer tools を確認し、インストールを促すダイアログを出さない
+  - worktree / サブモジュールでは、開いたフォルダ外にある gitDir / commonDir を git 経由で読み取り、FSEvents で監視する
 
 ## パフォーマンス方針
 
@@ -152,6 +183,7 @@ Open Folder
 - サイドバー位置、表示状態、幅
 - テーマ、フォントサイズ
 - 本文検索の大文字小文字設定
+- Git 差分表示のオン/オフ
 
 ## ビルド構成
 
@@ -182,5 +214,9 @@ MVPではUIよりもロジックをテストする。
 | `LinkResolverTests` | アンカー、相対Markdown、外部リンクの分類 |
 | `SecurityBoundaryTests` | フォルダ外ローカル参照の拒否 |
 | `SettingsStoreTests` | デフォルト値、保存、復元 |
+| `LineDiffTests` | 挿入、削除、置換、CRLF、BOM、空の比較元 |
+| `GitRepositoryTests` | 一時リポジトリでのルート判定、worktree、unborn HEAD、modified / untracked / added / ignored、blob 取得、refs 監視の対象判定 |
+| `GitTreeDecorationTests` | フォルダ状態の集約、バッジ |
+| `RendererGitDiffTests` | ブロックのクラス付け、削除・変更前マーカー、検索の除外、`gitDiff` なしで従来どおり |
 
 UI自動テストはMVP外。リリース前の手動確認手順をdocsにまとめる。

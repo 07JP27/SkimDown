@@ -62,6 +62,9 @@ enum MainMenuBuilder {
         let tableOfContentsItem = menuItem("Toggle Table of Contents", action: #selector(AppDelegate.toggleTableOfContents(_:)), key: "t", target: target)
         tableOfContentsItem.keyEquivalentModifierMask = [.command, .option]
         viewMenu.addItem(tableOfContentsItem)
+        let gitChangesItem = menuItem("Show Git Changes", action: #selector(AppDelegate.toggleGitChanges(_:)), key: "D", target: target)
+        gitChangesItem.keyEquivalentModifierMask = [.command, .shift]
+        viewMenu.addItem(gitChangesItem)
         viewMenu.addItem(menuItem("Move Sidebar to Right", action: #selector(AppDelegate.swapSidebarPosition(_:)), key: "", target: target))
         viewMenu.addItem(.separator())
 

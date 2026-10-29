@@ -11,6 +11,7 @@ final class SettingsStoreTests: XCTestCase {
 
         let store = SettingsStore(defaults: defaults)
         XCTAssertEqual(store.settings, AppSettings())
+        XCTAssertFalse(store.isGitChangesVisible)
 
         store.sidebarPosition = .right
         store.isSidebarVisible = false
@@ -19,6 +20,7 @@ final class SettingsStoreTests: XCTestCase {
         store.theme = .dark
         store.fontSize = 18
         store.isSearchCaseSensitive = true
+        store.isGitChangesVisible = true
 
         let reloaded = SettingsStore(defaults: defaults)
         XCTAssertEqual(reloaded.sidebarPosition, .right)
@@ -28,6 +30,7 @@ final class SettingsStoreTests: XCTestCase {
         XCTAssertEqual(reloaded.theme, .dark)
         XCTAssertEqual(reloaded.fontSize, 18)
         XCTAssertTrue(reloaded.isSearchCaseSensitive)
+        XCTAssertTrue(reloaded.isGitChangesVisible)
     }
 
     func testSettingsAggregatePersistsTableOfContentsVisibility() throws {

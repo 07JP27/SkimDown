@@ -45,4 +45,5 @@ SkimDownは読み取り専用です。Markdown編集、コメント、エクス�
 - [カラーテーマ](./usage/color-schemes.md)
 - [検索](./usage/search.md)
 - [自動更新](./usage/reload.md)
+- [Git差分表示](./usage/git-changes.md)
 - [セキュリティモデル](./security.md)

@@ -39,6 +39,7 @@ Open a folder, and SkimDown shows only the Markdown files in a sidebar tree and 
 - Read-only `WKWebView` preview with bundled rendering assets (no CDN required)
 - In-document search for the current file
 - Live reload — Markdown add / delete / rename / update events refresh the tree and preview
+- Optional Git changes view (**View → Show Git Changes**, **⇧⌘D**) — highlights blocks changed since `HEAD` in the preview and marks changed files in the tree
 - Persists sidebar position, visibility, width, theme, font size, recent folders, last selected file, and tree expansion state
 - Local-only — no telemetry, no Markdown text leaves your machine
 
