@@ -22,6 +22,9 @@ final class SidebarViewController: NSViewController, NSOutlineViewDataSource, NS
     private var isProgrammaticSelection = false
     private var isRestoringExpansion = false
     private var pendingSelectedFileURL: URL?
+    private var fileGitStatuses: [String: GitFileStatus] = [:]
+    private var folderGitStatuses: [String: GitFileStatus] = [:]
+    private static let gitBadgeIdentifier = NSUserInterfaceItemIdentifier("GitBadge")
 
     override func loadView() {
         let rootView = FolderDropVisualEffectView()
@@ -109,6 +112,25 @@ final class SidebarViewController: NSViewController, NSOutlineViewDataSource, NS
         self.expandedPaths = expandedPaths
         outlineView.reloadData()
         restoreExpandedItems()
+    }
+
+    /// Updates Git decorations keyed by tree-relative file path. Only visible rows are
+    /// redrawn so selection and expansion state are preserved.
+    func setGitStatuses(_ statuses: [String: GitFileStatus]) {
+        guard statuses != fileGitStatuses else {
+            return
+        }
+        fileGitStatuses = statuses
+        folderGitStatuses = GitTreeDecoration.folderStatuses(for: statuses)
+
+        let visibleRows = outlineView.rows(in: outlineView.visibleRect)
+        for row in visibleRows.location..<NSMaxRange(visibleRows) {
+            guard let item = outlineView.item(atRow: row) as? MarkdownTreeItem,
+                  let cell = outlineView.view(atColumn: 0, row: row, makeIfNecessary: false) as? NSTableCellView else {
+                continue
+            }
+            configure(cell, for: item)
+        }
     }
 
     func selectFile(_ fileURL: URL?) {
@@ -228,27 +250,53 @@ final class SidebarViewController: NSViewController, NSOutlineViewDataSource, NS
         let cell = outlineView.makeView(withIdentifier: identifier, owner: self) as? NSTableCellView ?? NSTableCellView()
         cell.identifier = identifier
 
-        let textField: NSTextField
-        if let existing = cell.textField {
-            textField = existing
-        } else {
-            textField = NSTextField(labelWithString: "")
+        if cell.textField == nil {
+            let textField = NSTextField(labelWithString: "")
             textField.translatesAutoresizingMaskIntoConstraints = false
             textField.lineBreakMode = .byTruncatingMiddle
             textField.font = .systemFont(ofSize: 13)
+            textField.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
             cell.addSubview(textField)
             cell.textField = textField
+
+            let badge = NSTextField(labelWithString: "")
+            badge.identifier = Self.gitBadgeIdentifier
+            badge.translatesAutoresizingMaskIntoConstraints = false
+            badge.font = .systemFont(ofSize: 11, weight: .semibold)
+            badge.alignment = .right
+            badge.setContentHuggingPriority(.required, for: .horizontal)
+            badge.setContentCompressionResistancePriority(.required, for: .horizontal)
+            cell.addSubview(badge)
+
             NSLayoutConstraint.activate([
                 textField.leadingAnchor.constraint(equalTo: cell.leadingAnchor, constant: 4),
-                textField.trailingAnchor.constraint(equalTo: cell.trailingAnchor, constant: -6),
-                textField.centerYAnchor.constraint(equalTo: cell.centerYAnchor)
+                textField.trailingAnchor.constraint(lessThanOrEqualTo: badge.leadingAnchor, constant: -4),
+                textField.centerYAnchor.constraint(equalTo: cell.centerYAnchor),
+                badge.trailingAnchor.constraint(equalTo: cell.trailingAnchor, constant: -6),
+                badge.centerYAnchor.constraint(equalTo: cell.centerYAnchor)
             ])
         }
 
+        configure(cell, for: item)
+        return cell
+    }
+
+    private func configure(_ cell: NSTableCellView, for item: MarkdownTreeItem) {
+        guard let textField = cell.textField else {
+            return
+        }
+        let status = item.isDirectory ? folderGitStatuses[item.relativePath] : fileGitStatuses[item.relativePath]
+        let defaultColor: NSColor = item.isDirectory ? .secondaryLabelColor : .labelColor
+
         textField.stringValue = item.name
         textField.font = .systemFont(ofSize: 13, weight: item.isDirectory ? .medium : .regular)
-        textField.textColor = item.isDirectory ? .secondaryLabelColor : .labelColor
-        return cell
+        textField.textColor = status.map(GitTreeDecoration.color(for:)) ?? defaultColor
+
+        let badge = cell.subviews.first { $0.identifier == Self.gitBadgeIdentifier } as? NSTextField
+        badge?.stringValue = status.map { item.isDirectory ? "\u{25CF}" : GitTreeDecoration.badge(for: $0) } ?? ""
+        badge?.textColor = status.map(GitTreeDecoration.color(for:)) ?? defaultColor
+        badge?.font = .systemFont(ofSize: item.isDirectory ? 8 : 11, weight: .semibold)
+        badge?.setAccessibilityLabel(status.map(GitTreeDecoration.accessibilityDescription(for:)))
     }
 
     func outlineViewSelectionDidChange(_ notification: Notification) {

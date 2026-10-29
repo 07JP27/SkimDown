@@ -15,6 +15,7 @@ final class SettingsStore {
         static let theme = "theme"
         static let fontSize = "fontSize"
         static let isSearchCaseSensitive = "isSearchCaseSensitive"
+        static let isGitChangesVisible = "isGitChangesVisible"
     }
 
     private let defaults: UserDefaults
@@ -32,7 +33,8 @@ final class SettingsStore {
                 isTableOfContentsVisible: isTableOfContentsVisible,
                 theme: theme,
                 fontSize: fontSize,
-                isSearchCaseSensitive: isSearchCaseSensitive
+                isSearchCaseSensitive: isSearchCaseSensitive,
+                isGitChangesVisible: isGitChangesVisible
             )
         }
         set {
@@ -43,6 +45,7 @@ final class SettingsStore {
             theme = newValue.theme
             fontSize = newValue.fontSize
             isSearchCaseSensitive = newValue.isSearchCaseSensitive
+            isGitChangesVisible = newValue.isGitChangesVisible
         }
     }
 
@@ -142,6 +145,11 @@ final class SettingsStore {
     var isSearchCaseSensitive: Bool {
         get { defaults.bool(forKey: Key.isSearchCaseSensitive) }
         set { defaults.set(newValue, forKey: Key.isSearchCaseSensitive) }
+    }
+
+    var isGitChangesVisible: Bool {
+        get { defaults.bool(forKey: Key.isGitChangesVisible) }
+        set { defaults.set(newValue, forKey: Key.isGitChangesVisible) }
     }
 
     func recordRecentFolderBookmark(_ bookmark: Data) {
